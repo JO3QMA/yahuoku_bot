@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/joho/godotenv"
@@ -31,6 +32,10 @@ type Config struct {
 	APIEndpoint     string
 	AllowedGuilds   []string
 	AllowedChannels []string
+
+	DBPath               string // SQLiteデータベースパス (default: "data/watch.db")
+	CheckIntervalMinutes int    // ポーリング間隔（分） (default: 5)
+	PollDelayMs          int    // ポーリング時の1件あたりのディレイ（ms） (default: 2000)
 }
 
 // Load は.envとconfigPathのYAMLを読み込み、Configを返す。
@@ -65,11 +70,17 @@ func Load(configPath string) (*Config, error) {
 		GeminiAPIKey: strings.TrimSpace(os.Getenv("GEMINI_API_KEY")),
 		GeminiModel:  strings.TrimSpace(os.Getenv("GEMINI_MODEL")),
 		APIEndpoint:  strings.TrimSpace(os.Getenv("API_ENDPOINT")),
+		DBPath:       strings.TrimSpace(os.Getenv("DB_PATH")),
 	}
 
 	if cfg.APIEndpoint == "" {
 		cfg.APIEndpoint = "http://localhost:8080"
 	}
+	if cfg.DBPath == "" {
+		cfg.DBPath = "data/watch.db"
+	}
+	cfg.CheckIntervalMinutes = getEnvInt("CHECK_INTERVAL_MINUTES", 5)
+	cfg.PollDelayMs = getEnvInt("POLL_DELAY_MS", 2000)
 
 	if configPath != "" {
 		data, err := os.ReadFile(configPath)
@@ -87,4 +98,17 @@ func Load(configPath string) (*Config, error) {
 	}
 
 	return cfg, nil
+}
+
+func getEnvInt(key string, fallback int) int {
+	v := strings.TrimSpace(os.Getenv(key))
+	if v == "" {
+		return fallback
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil {
+		log.Printf("[Config] Warning: invalid %s value %q, using default %d", key, v, fallback)
+		return fallback
+	}
+	return n
 }
