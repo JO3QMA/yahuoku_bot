@@ -46,7 +46,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("[yahoo_auctions_bot] sqlite open: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	watchRepo := infrasqlite.NewWatchRepository(db)
 

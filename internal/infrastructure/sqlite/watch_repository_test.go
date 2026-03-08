@@ -15,7 +15,7 @@ func setupTestDB(t *testing.T) *sqlite.WatchRepository {
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
-	t.Cleanup(func() { db.Close() })
+	t.Cleanup(func() { _ = db.Close() })
 	return sqlite.NewWatchRepository(db)
 }
 
@@ -226,8 +226,12 @@ func TestWatchRepository_FindByMessage(t *testing.T) {
 		AuctionID: "auc1", UserID: "u1", GuildID: "g1",
 		ChannelID: "c1", MessageID: "m2", LastKnownPrice: 2000,
 	}
-	repo.Add(ctx, item1)
-	repo.Add(ctx, item2)
+	if err := repo.Add(ctx, item1); err != nil {
+		t.Fatalf("repo.Add item1: %v", err)
+	}
+	if err := repo.Add(ctx, item2); err != nil {
+		t.Fatalf("repo.Add item2: %v", err)
+	}
 
 	items, err := repo.FindByMessage(ctx, "m1")
 	if err != nil {

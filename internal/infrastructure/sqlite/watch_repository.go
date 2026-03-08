@@ -66,7 +66,7 @@ func (r *WatchRepository) ListActive(ctx context.Context) ([]*watch.WatchItem, e
 	if err != nil {
 		return nil, fmt.Errorf("list watch items: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	return scanWatchItems(rows)
 }
@@ -103,7 +103,7 @@ func (r *WatchRepository) FindByMessage(ctx context.Context, messageID string) (
 	if err != nil {
 		return nil, fmt.Errorf("find by message: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	return scanWatchItems(rows)
 }

@@ -63,7 +63,7 @@ func setupTestRepo(t *testing.T) domainwatch.Repository {
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
-	t.Cleanup(func() { db.Close() })
+	t.Cleanup(func() { _ = db.Close() })
 	return sqlite.NewWatchRepository(db)
 }
 
@@ -72,10 +72,12 @@ func TestPollingWorker_PriceIncrease(t *testing.T) {
 	ctx := context.Background()
 
 	endTime := time.Now().Add(2 * time.Hour)
-	repo.Add(ctx, &domainwatch.WatchItem{
+	if err := repo.Add(ctx, &domainwatch.WatchItem{
 		AuctionID: "auc1", UserID: "u1", GuildID: "g1",
 		ChannelID: "c1", MessageID: "m1", LastKnownPrice: 1000, EndTime: &endTime,
-	})
+	}); err != nil {
+		t.Fatalf("repo.Add: %v", err)
+	}
 
 	notifier := &mockNotifier{}
 	fetcher := &mockFetcher{data: map[string]*auction.AuctionData{
@@ -114,10 +116,12 @@ func TestPollingWorker_EndingSoon(t *testing.T) {
 	ctx := context.Background()
 
 	endTime := time.Now().Add(5 * time.Minute)
-	repo.Add(ctx, &domainwatch.WatchItem{
+	if err := repo.Add(ctx, &domainwatch.WatchItem{
 		AuctionID: "auc1", UserID: "u1", GuildID: "g1",
 		ChannelID: "c1", MessageID: "m1", LastKnownPrice: 1000, EndTime: &endTime,
-	})
+	}); err != nil {
+		t.Fatalf("repo.Add: %v", err)
+	}
 
 	notifier := &mockNotifier{}
 	fetcher := &mockFetcher{data: map[string]*auction.AuctionData{
@@ -152,10 +156,12 @@ func TestPollingWorker_FinishedAuctionCleanup(t *testing.T) {
 	ctx := context.Background()
 
 	endTime := time.Now().Add(-1 * time.Hour)
-	repo.Add(ctx, &domainwatch.WatchItem{
+	if err := repo.Add(ctx, &domainwatch.WatchItem{
 		AuctionID: "auc1", UserID: "u1", GuildID: "g1",
 		ChannelID: "c1", MessageID: "m1", LastKnownPrice: 1000, EndTime: &endTime,
-	})
+	}); err != nil {
+		t.Fatalf("repo.Add: %v", err)
+	}
 
 	notifier := &mockNotifier{}
 	fetcher := &mockFetcher{data: map[string]*auction.AuctionData{
