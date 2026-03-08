@@ -27,6 +27,7 @@ coverage.txt
 *.swp
 *.swo
 *~
+.envrc
 
 # OS
 .DS_Store
