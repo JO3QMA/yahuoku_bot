@@ -1,4 +1,5 @@
-# Build stage
+# syntax=docker/dockerfile:1
+# Build stage (with BuildKit cache)
 FROM golang:1.25.4-alpine AS builder
 
 WORKDIR /app
@@ -6,19 +7,21 @@ WORKDIR /app
 RUN apk add --no-cache ca-certificates
 
 COPY go.mod go.sum ./
-RUN go mod download
+RUN --mount=type=cache,target=/go/pkg/mod \
+    go mod download
 
 COPY . .
-
-RUN CGO_ENABLED=0 GOOS=linux go build \
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 GOOS=linux go build \
     -trimpath \
     -ldflags="-s -w" \
     -o discord-bot \
     ./cmd/bot
 
-# Runtime stage
-FROM gcr.io/distroless/base:latest
+# Runtime stage (nonroot)
+FROM gcr.io/distroless/static-debian12:nonroot
 
 COPY --from=builder /app/discord-bot /usr/local/bin/discord-bot
 
-CMD ["discord-bot"]
+ENTRYPOINT ["/usr/local/bin/discord-bot"]
