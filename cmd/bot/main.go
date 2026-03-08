@@ -9,9 +9,11 @@ import (
 	"syscall"
 
 	appauction "jo3qma.com/yahoo_auctions_bot/internal/application/auction"
+	appwatch "jo3qma.com/yahoo_auctions_bot/internal/application/watch"
 	"jo3qma.com/yahoo_auctions_bot/internal/config"
 	infraauction "jo3qma.com/yahoo_auctions_bot/internal/infrastructure/auction"
 	"jo3qma.com/yahoo_auctions_bot/internal/infrastructure/gemini"
+	infrasqlite "jo3qma.com/yahoo_auctions_bot/internal/infrastructure/sqlite"
 	"jo3qma.com/yahoo_auctions_bot/internal/presentation/discord"
 )
 
@@ -40,17 +42,37 @@ func main() {
 		log.Fatalf("[yahoo_auctions_bot] gemini client: %v", err)
 	}
 
+	db, err := infrasqlite.Open(cfg.DBPath)
+	if err != nil {
+		log.Fatalf("[yahoo_auctions_bot] sqlite open: %v", err)
+	}
+	defer db.Close()
+
+	watchRepo := infrasqlite.NewWatchRepository(db)
+
 	// Application
 	previewUsecase := appauction.NewPreviewUsecase(auctionClient, geminiClient)
+	watchUsecase := appwatch.NewWatchUsecase(watchRepo)
 
 	// Presentation
 	allowedFilter := discord.NewAllowedFilter(cfg.AllowedGuilds, cfg.AllowedChannels)
-	// arikawa の REST API は Authorization にトークンをそのまま使う。Discord は Bot 用に "Bot " プレフィックスを要求する。
 	discordToken := cfg.DiscordToken
 	if discordToken != "" && !strings.HasPrefix(discordToken, "Bot ") {
 		discordToken = "Bot " + discordToken
 	}
-	bot, err := discord.NewBot(discordToken, previewUsecase, allowedFilter)
+
+	bot, err := discord.NewBot(
+		discordToken,
+		previewUsecase,
+		allowedFilter,
+		watchUsecase,
+		auctionClient,
+		watchRepo,
+		discord.BotConfig{
+			CheckIntervalMinutes: cfg.CheckIntervalMinutes,
+			PollDelayMs:          cfg.PollDelayMs,
+		},
+	)
 	if err != nil {
 		log.Fatalf("[yahoo_auctions_bot] bot init: %v", err)
 	}
