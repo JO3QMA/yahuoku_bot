@@ -1,0 +1,38 @@
+# ビルド成果物
+/discord-bot
+/preview
+
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# 環境・設定（機密を含む）
+.env
+config.yaml
+
+# テスト・カバレッジ
+*.test
+*.out
+coverage.html
+coverage.txt
+
+# 依存（vendor を使う場合）
+/vendor/
+
+# IDE・エディタ
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# ログ・一時
+*.log
+/tmp/
+/temp/

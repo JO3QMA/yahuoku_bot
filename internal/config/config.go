@@ -1,0 +1,90 @@
+package config
+
+import (
+	"fmt"
+	"log"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/joho/godotenv"
+	"gopkg.in/yaml.v3"
+)
+
+// Allowed はBotが反応するサーバー・チャンネルのフィルタ設定。
+// 空の場合は全サーバー・全チャンネルを許可する。
+type Allowed struct {
+	Guilds   []string `yaml:"guilds"`   // 空 = 全サーバー許可
+	Channels []string `yaml:"channels"` // 空 = 全チャンネル許可
+}
+
+// YAMLConfig はconfig.yamlの構造。
+type YAMLConfig struct {
+	Allowed Allowed `yaml:"allowed"`
+}
+
+// Config は環境変数とYAMLを統合した実行時設定。
+type Config struct {
+	DiscordToken    string
+	GeminiAPIKey    string
+	GeminiModel     string // 空の場合は gemini-1.5-flash が使われる
+	APIEndpoint     string
+	AllowedGuilds   []string
+	AllowedChannels []string
+}
+
+// Load は.envとconfigPathのYAMLを読み込み、Configを返す。
+func Load(configPath string) (*Config, error) {
+	tryPaths := []string{}
+
+	if exe, err := os.Executable(); err == nil {
+		tryPaths = append(tryPaths, filepath.Join(filepath.Dir(exe), ".env"))
+	}
+	if cwd, err := os.Getwd(); err == nil {
+		tryPaths = append(tryPaths, filepath.Join(cwd, ".env"))
+	}
+
+	envLoaded := false
+	for _, p := range tryPaths {
+		// Load ではなく Overload を使うと、既存の環境変数があっても .env で強制上書きします
+		if err := godotenv.Overload(p); err == nil {
+			log.Printf("[Config] Successfully loaded .env from: %s\n", p)
+			envLoaded = true
+			break
+		} else {
+			log.Printf("[Config] .env not found or error at %s: %v\n", p, err)
+		}
+	}
+
+	if !envLoaded {
+		log.Println("[Config] Warning: No .env file loaded. Falling back to system environment variables.")
+	}
+
+	cfg := &Config{
+		DiscordToken: strings.TrimSpace(os.Getenv("DISCORD_TOKEN")),
+		GeminiAPIKey: strings.TrimSpace(os.Getenv("GEMINI_API_KEY")),
+		GeminiModel:  strings.TrimSpace(os.Getenv("GEMINI_MODEL")),
+		APIEndpoint:  strings.TrimSpace(os.Getenv("API_ENDPOINT")),
+	}
+
+	if cfg.APIEndpoint == "" {
+		cfg.APIEndpoint = "http://localhost:8080"
+	}
+
+	if configPath != "" {
+		data, err := os.ReadFile(configPath)
+		if err != nil && !os.IsNotExist(err) {
+			return nil, fmt.Errorf("read config: %w", err)
+		}
+		if len(data) > 0 {
+			var yc YAMLConfig
+			if err := yaml.Unmarshal(data, &yc); err != nil {
+				return nil, fmt.Errorf("parse config yaml: %w", err)
+			}
+			cfg.AllowedGuilds = yc.Allowed.Guilds
+			cfg.AllowedChannels = yc.Allowed.Channels
+		}
+	}
+
+	return cfg, nil
+}
