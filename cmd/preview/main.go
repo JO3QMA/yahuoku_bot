@@ -1,6 +1,6 @@
 // プレビューCLI: オークションIDを引数に取り、取得結果とGemini解析スペックをJSONで標準出力する。
 // 使用例: go run ./cmd/preview k1218678393
-// 必要: .env に GEMINI_API_KEY、API_ENDPOINT（未設定時は http://localhost:8080）
+// 必要: 環境変数 GEMINI_API_KEY、API_ENDPOINT（未設定時は http://localhost:8080）。direnv で .env を読み込む想定。
 package main
 
 import (

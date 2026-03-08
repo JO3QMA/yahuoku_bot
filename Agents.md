@@ -36,8 +36,8 @@ AIエージェントがこのリポジトリで作業する際のコンテキス
 ## 技術スタック・バージョン
 
 - **Go**: 1.25.4（`go.mod` に準拠）
-- **主要ライブラリ**: connectrpc.com/connect, arikawa/v3, google/generative-ai-go, gopkg.in/yaml.v3, godotenv
-- **設定**: 環境変数（`.env`） + YAML（`config.yaml`）。`config.Load(configPath)` で統合。
+- **主要ライブラリ**: connectrpc.com/connect, arikawa/v3, google/generative-ai-go, gopkg.in/yaml.v3
+- **設定**: 環境変数（direnv で `.env` を読み込む想定） + YAML（`config.yaml`）。`config.Load(configPath)` で統合。
 
 ---
 
@@ -53,7 +53,7 @@ AIエージェントがこのリポジトリで作業する際のコンテキス
 | YAML | `allowed.guilds` | 空でなければ、ここに列挙したサーバーのみ反応 |
 | YAML | `allowed.channels` | 空でなければ、ここに列挙したチャンネルのみ反応 |
 
-サンプルは `.env.example` と `config.yaml.example` を参照。
+サンプルは `.env.example`（direnv 用）と `config.yaml.example` を参照。
 
 ---
 
@@ -68,7 +68,7 @@ AIエージェントがこのリポジトリで作業する際のコンテキス
 
 ## 開発・実行
 
-- **ローカル**: `.env` を用意し、オークションAPIが `API_ENDPOINT` で動いている状態で `go run ./cmd/bot`。
+- **ローカル**: direnv で `.env` を読み込み、オークションAPIが `API_ENDPOINT` で動いている状態で `go run ./cmd/bot`。
 - **Docker**: `Dockerfile` はマルチステージビルド。`compose.yaml` があれば他サービス（例: オークションAPI）と一緒に起動する想定。
 - **テスト**: テストコードが存在する場合は `go test ./...` で実行。追加時は `*_test.go` を同パッケージに配置。
 
@@ -83,7 +83,7 @@ AIエージェントがこのリポジトリで作業する際のコンテキス
    新規パッケージは `go.mod` を更新。必要に応じて `go mod tidy`。大きな方針変更はユーザーに確認する。
 
 3. **設定の追加**  
-   設定項目は `internal/config` の `Config` および YAML構造と整合させ、`.env.example` / `config.yaml.example` を更新する。
+   設定項目は `internal/config` の `Config` および YAML構造と整合させ、`.env.example`（direnv 用）/ `config.yaml.example` を更新する。
 
 4. **API・protobufの変更**  
    オークションAPIの型・RPCを変える場合は `yahoo_auctions` および `protobuf` リポジトリとの整合を考慮する。

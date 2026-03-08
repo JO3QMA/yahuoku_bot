@@ -4,11 +4,9 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 
-	"github.com/joho/godotenv"
 	"gopkg.in/yaml.v3"
 )
 
@@ -38,33 +36,9 @@ type Config struct {
 	PollDelayMs          int    // ポーリング時の1件あたりのディレイ（ms） (default: 2000)
 }
 
-// Load は.envとconfigPathのYAMLを読み込み、Configを返す。
+// Load は環境変数とconfigPathのYAMLを読み込み、Configを返す。
+// 環境変数は direnv 等で .env を読み込んだ状態で起動すること。
 func Load(configPath string) (*Config, error) {
-	tryPaths := []string{}
-
-	if exe, err := os.Executable(); err == nil {
-		tryPaths = append(tryPaths, filepath.Join(filepath.Dir(exe), ".env"))
-	}
-	if cwd, err := os.Getwd(); err == nil {
-		tryPaths = append(tryPaths, filepath.Join(cwd, ".env"))
-	}
-
-	envLoaded := false
-	for _, p := range tryPaths {
-		// Load ではなく Overload を使うと、既存の環境変数があっても .env で強制上書きします
-		if err := godotenv.Overload(p); err == nil {
-			log.Printf("[Config] Successfully loaded .env from: %s\n", p)
-			envLoaded = true
-			break
-		} else {
-			log.Printf("[Config] .env not found or error at %s: %v\n", p, err)
-		}
-	}
-
-	if !envLoaded {
-		log.Println("[Config] Warning: No .env file loaded. Falling back to system environment variables.")
-	}
-
 	cfg := &Config{
 		DiscordToken: strings.TrimSpace(os.Getenv("DISCORD_TOKEN")),
 		GeminiAPIKey: strings.TrimSpace(os.Getenv("GEMINI_API_KEY")),

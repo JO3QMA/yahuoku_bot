@@ -10,7 +10,7 @@ LDFLAGS   := -s -w
 build:
 	CGO_ENABLED=0 go build -trimpath -ldflags="$(LDFLAGS)" -o $(BINARY_NAME) $(PKG_PATH)
 
-# Bot を起動する（.env と config.yaml が必要）
+# Bot を起動する（direnv で .env を読み込み、config.yaml が必要）
 run: build
 	./$(BINARY_NAME)
 
@@ -34,7 +34,7 @@ clean:
 docker-build:
 	docker build -t yahoo-auctions-bot:local .
 
-# Compose で API + Bot を起動（.env 必須）
+# Compose で API + Bot を起動（環境変数は .env を direnv 等で読み込むか compose で指定）
 up:
 	docker compose up -d
 
