@@ -3,6 +3,7 @@ package sqlite
 import (
 	"database/sql"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 
@@ -41,8 +42,9 @@ func Open(dbPath string) (*sql.DB, error) {
 	}
 
 	if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
-		_ = db.Close()
-		return nil, fmt.Errorf("set WAL mode: %w", err)
+		// メモリ制約環境（コンテナ・WAL用ファイル作成失敗など）では WAL が使えないことがある。
+		// その場合はデフォルトの DELETE ジャーナルで継続する。
+		log.Printf("[sqlite] WAL mode failed (%v), using default journal mode", err)
 	}
 
 	if _, err := db.Exec(schema); err != nil {
