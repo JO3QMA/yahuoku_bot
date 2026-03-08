@@ -11,8 +11,10 @@ import (
 	appauction "jo3qma.com/yahoo_auctions_bot/internal/application/auction"
 	appwatch "jo3qma.com/yahoo_auctions_bot/internal/application/watch"
 	"jo3qma.com/yahoo_auctions_bot/internal/config"
+	"jo3qma.com/yahoo_auctions_bot/internal/domain/watch"
 	infraauction "jo3qma.com/yahoo_auctions_bot/internal/infrastructure/auction"
 	"jo3qma.com/yahoo_auctions_bot/internal/infrastructure/gemini"
+	infrarqlite "jo3qma.com/yahoo_auctions_bot/internal/infrastructure/rqlite"
 	infrasqlite "jo3qma.com/yahoo_auctions_bot/internal/infrastructure/sqlite"
 	"jo3qma.com/yahoo_auctions_bot/internal/presentation/discord"
 )
@@ -42,13 +44,22 @@ func main() {
 		log.Fatalf("[yahoo_auctions_bot] gemini client: %v", err)
 	}
 
-	db, err := infrasqlite.Open(cfg.DBPath)
-	if err != nil {
-		log.Fatalf("[yahoo_auctions_bot] sqlite open: %v", err)
+	var watchRepo watch.Repository
+	if cfg.RqliteURL != "" {
+		rqliteClient, err := infrarqlite.Open(context.Background(), cfg.RqliteURL)
+		if err != nil {
+			log.Fatalf("[yahoo_auctions_bot] rqlite open: %v", err)
+		}
+		defer func() { _ = rqliteClient.Close() }()
+		watchRepo = infrarqlite.NewWatchRepository(rqliteClient)
+	} else {
+		db, err := infrasqlite.Open(cfg.DBPath)
+		if err != nil {
+			log.Fatalf("[yahoo_auctions_bot] sqlite open: %v", err)
+		}
+		defer func() { _ = db.Close() }()
+		watchRepo = infrasqlite.NewWatchRepository(db)
 	}
-	defer func() { _ = db.Close() }()
-
-	watchRepo := infrasqlite.NewWatchRepository(db)
 
 	// Application
 	previewUsecase := appauction.NewPreviewUsecase(auctionClient, geminiClient)

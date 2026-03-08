@@ -7,6 +7,7 @@ require (
 	github.com/diamondburned/arikawa/v3 v3.6.0
 	github.com/google/generative-ai-go v0.20.1
 	github.com/jo3qma/protobuf/gen/go v0.1.1
+	github.com/rqlite/rqlite-go-http v0.0.0-20260215140853-e8b52e474e31
 	google.golang.org/api v0.186.0
 	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.46.1

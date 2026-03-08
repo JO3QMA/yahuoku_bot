@@ -5,6 +5,16 @@ services:
       - "8080"
     restart: unless-stopped
 
+  rqlite:
+    image: rqlite/rqlite:8.28.2
+    volumes:
+      - rqlite-data:/rqlite/file
+    environment:
+      - NODE_ID=1
+    expose:
+      - "4001"
+    restart: unless-stopped
+
   discord-bot:
     build:
       context: .
@@ -14,15 +24,15 @@ services:
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - API_ENDPOINT=${API_ENDPOINT}
       - CONFIG_PATH=/app/config.yaml
-      - DB_PATH=${DB_PATH}
+      - RQLITE_URL=http://rqlite:4001
       - CHECK_INTERVAL_MINUTES=${CHECK_INTERVAL_MINUTES:-5}
       - POLL_DELAY_MS=${POLL_DELAY_MS:-2000}
     volumes:
       - ./config.yaml:/app/config.yaml:ro
-      - bot-data:/app/data
     depends_on:
       - yahoo-auctions-api
+      - rqlite
     restart: unless-stopped
 
 volumes:
-  bot-data:
+  rqlite-data:

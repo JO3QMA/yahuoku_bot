@@ -31,7 +31,8 @@ type Config struct {
 	AllowedGuilds   []string
 	AllowedChannels []string
 
-	DBPath               string // SQLiteデータベースパス (default: "data/watch.db")
+	DBPath               string // SQLiteデータベースパス (default: "data/watch.db")。RqliteURL が空のときのみ使用。
+	RqliteURL            string // rqlite のベース URL (例: http://rqlite:4001)。設定時はこちらを優先し DB は rqlite に接続する。
 	CheckIntervalMinutes int    // ポーリング間隔（分） (default: 5)
 	PollDelayMs          int    // ポーリング時の1件あたりのディレイ（ms） (default: 2000)
 }
@@ -44,7 +45,8 @@ func Load(configPath string) (*Config, error) {
 		GeminiAPIKey: strings.TrimSpace(os.Getenv("GEMINI_API_KEY")),
 		GeminiModel:  strings.TrimSpace(os.Getenv("GEMINI_MODEL")),
 		APIEndpoint:  strings.TrimSpace(os.Getenv("API_ENDPOINT")),
-		DBPath:       strings.TrimSpace(os.Getenv("DB_PATH")),
+		DBPath:    strings.TrimSpace(os.Getenv("DB_PATH")),
+		RqliteURL: strings.TrimSpace(os.Getenv("RQLITE_URL")),
 	}
 
 	if cfg.APIEndpoint == "" {
