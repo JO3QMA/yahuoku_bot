@@ -1,8 +1,6 @@
 services:
   yahoo-auctions-api:
-    build:
-      context: ../yahoo_auctions
-      dockerfile: Dockerfile
+    image: ghcr.io/jo3qma/yahoo_auctions_api
     expose:
       - "8080"
     restart: unless-stopped
@@ -14,9 +12,9 @@ services:
     environment:
       - DISCORD_TOKEN=${DISCORD_TOKEN}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - API_ENDPOINT=http://yahoo-auctions-api:8080
+      - API_ENDPOINT=${API_ENDPOINT}
       - CONFIG_PATH=/app/config.yaml
-      - DB_PATH=/app/data/watch.db
+      - DB_PATH=${DB_PATH}
       - CHECK_INTERVAL_MINUTES=${CHECK_INTERVAL_MINUTES:-5}
       - POLL_DELAY_MS=${POLL_DELAY_MS:-2000}
     volumes:
