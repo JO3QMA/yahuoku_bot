@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	defaultModel = "gemini-1.5-flash"
+	defaultModel = "gemini-2.5-flash-lite"
 )
 
 var htmlTagRe = regexp.MustCompile(`<[^>]*>`)

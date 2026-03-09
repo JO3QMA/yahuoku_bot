@@ -28,7 +28,7 @@ AIエージェントがこのリポジトリで作業する際のコンテキス
 - **外部連携**
   - **yahoo_auctions API**: `API_ENDPOINT` の Connect RPC（`GetAuction`）。別リポジトリ `yahoo_auctions` が提供想定。
   - **protobuf**: `github.com/jo3qma/protobuf/gen/go` の生成コードを使用。APIの型・RPCはここに依存。
-  - **Gemini**: 商品説明から `spec.Spec` をJSONで抽出（`gemini-1.5-flash` 想定）。
+  - **Gemini**: 商品説明から `spec.Spec` をJSONで抽出（`gemini-2.5-flash-lite` 想定）。
   - **Discord**: arikawa v3（Gateway、メッセージ、Embed送信）。
 
 ---
@@ -47,7 +47,7 @@ AIエージェントがこのリポジトリで作業する際のコンテキス
 |------|------|------|
 | 環境変数 | `DISCORD_TOKEN` | 必須。Botトークン |
 | 環境変数 | `GEMINI_API_KEY` | 必須。Gemini APIキー |
-| 環境変数 | `GEMINI_MODEL` | 任意。使用するGeminiモデル（未設定時 `gemini-1.5-flash`） |
+| 環境変数 | `GEMINI_MODEL` | 任意。使用するGeminiモデル（未設定時 `gemini-2.5-flash-lite`） |
 | 環境変数 | `API_ENDPOINT` | オークションAPIのベースURL（未設定時 `http://localhost:8080`） |
 | 環境変数 | `CONFIG_PATH` | 任意。YAML設定パス（未設定時 `config.yaml`） |
 | YAML | `allowed.guilds` | 空でなければ、ここに列挙したサーバーのみ反応 |

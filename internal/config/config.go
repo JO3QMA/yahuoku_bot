@@ -26,7 +26,7 @@ type YAMLConfig struct {
 type Config struct {
 	DiscordToken    string
 	GeminiAPIKey    string
-	GeminiModel     string // 空の場合は gemini-1.5-flash が使われる
+	GeminiModel     string // 空の場合は gemini-2.5-flash-lite が使われる
 	APIEndpoint     string
 	AllowedGuilds   []string
 	AllowedChannels []string
