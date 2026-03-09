@@ -47,6 +47,9 @@ func NewClient(apiKey string, model string) (Client, error) {
 
 // ExtractSpec はタイトルと商品説明からPCスペック等を抽出する。
 func (c *client) ExtractSpec(ctx context.Context, title, description string) (*spec.Spec, error) {
+	title = sanitizeUTF8(title)
+	description = sanitizeUTF8(description)
+
 	plainDesc := htmlTagRe.ReplaceAllString(description, " ")
 	if len(plainDesc) > 8000 {
 		plainDesc = plainDesc[:8000] + "..."
@@ -154,3 +157,8 @@ func extractJSONFromResponse(text string) string {
 	}
 	return text
 }
+
+func sanitizeUTF8(s string) string {
+	return strings.ToValidUTF8(s, "")
+}
+
