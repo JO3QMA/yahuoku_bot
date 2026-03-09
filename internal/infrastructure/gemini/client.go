@@ -47,9 +47,6 @@ func NewClient(apiKey string, model string) (Client, error) {
 
 // ExtractSpec はタイトルと商品説明からPCスペック等を抽出する。
 func (c *client) ExtractSpec(ctx context.Context, title, description string) (*spec.Spec, error) {
-	title = sanitizeUTF8(title)
-	description = sanitizeUTF8(description)
-
 	plainDesc := htmlTagRe.ReplaceAllString(description, " ")
 	if len(plainDesc) > 8000 {
 		plainDesc = plainDesc[:8000] + "..."
@@ -77,6 +74,9 @@ func (c *client) ExtractSpec(ctx context.Context, title, description string) (*s
 
 【商品説明】
 %s`, title, plainDesc)
+
+	// 最終的にGeminiへ渡す前にプロンプト全体をUTF-8として正規化する。
+	prompt = sanitizeUTF8(prompt)
 
 	model := c.genaiClient.GenerativeModel(c.model)
 	model.ResponseMIMEType = "application/json"
