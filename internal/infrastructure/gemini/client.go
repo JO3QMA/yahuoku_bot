@@ -9,6 +9,8 @@ import (
 
 	"jo3qma.com/yahoo_auctions_bot/internal/domain/spec"
 
+	htmlmd "github.com/JohannesKaufmann/html-to-markdown"
+	"github.com/PuerkitoBio/goquery"
 	"github.com/google/generative-ai-go/genai"
 	"google.golang.org/api/option"
 )
@@ -17,10 +19,72 @@ const (
 	defaultModel = "gemini-2.5-flash-lite"
 )
 
-var htmlTagRe = regexp.MustCompile(`<[^>]*>`)
+// whitespaceRe は連続する空白文字（スペース・タブ・改行など）を1つのスペースに正規化するための正規表現。
+// LLM に渡す前にテキストを圧縮してトークン消費を抑える目的で利用する。
+var whitespaceRe = regexp.MustCompile(`\s+`)
 
 // markdownCodeBlockRe は ```json ... ``` または ``` ... ``` のコードブロックにマッチする。
 var markdownCodeBlockRe = regexp.MustCompile(`(?s)` + "```(?:json)?\\s*([\\s\\S]*?)```")
+
+// CleanHTMLToText は商品説明などのHTML文字列から、テキスト解析に不要な要素を取り除きつつ、
+// プレーンテキストのみを抽出して返す。
+//
+// 主な処理内容:
+//   - <script>, <style>, <iframe>, <noscript> などを削除
+//   - 残りのノードからテキストを抽出
+//   - 連続する空白・改行を1つのスペースに圧縮
+//   - 前後の空白を削除
+func CleanHTMLToText(htmlContent string) (string, error) {
+	// HTMLをDOMツリーとしてパースする。
+	doc, err := goquery.NewDocumentFromReader(strings.NewReader(htmlContent))
+	if err != nil {
+		return "", fmt.Errorf("parse html for text: %w", err)
+	}
+
+	// テキスト解析に不要なタグを削除する。
+	doc.Find("script, style, iframe, noscript").Each(func(_ int, s *goquery.Selection) {
+		s.Remove()
+	})
+
+	// 残ったノードからテキストのみを抽出する。
+	text := doc.Text()
+
+	// 連続する空白・改行・タブなどを1つのスペースに圧縮する。
+	text = whitespaceRe.ReplaceAllString(text, " ")
+
+	// 前後の不要な空白を削除する。
+	text = strings.TrimSpace(text)
+
+	return text, nil
+}
+
+// HTMLToMarkdown は商品説明などのHTML文字列を、構造（見出し・箇条書きなど）を維持しつつ
+// クリーンなMarkdownへ変換して返す。
+//
+// オークションのテキスト解析では画像は不要なため、<img> タグはMarkdown出力から除外する。
+func HTMLToMarkdown(htmlContent string) (string, error) {
+	// ベースURLは特に使わないため空文字とし、相対パスはそのままにする。
+	converter := htmlmd.NewConverter("", true, nil)
+
+	// 画像タグはテキスト解析ではノイズとなるため、出力から完全に除外するルールを追加する。
+	converter.AddRules(htmlmd.Rule{
+		Filter: []string{"img"},
+		Replacement: func(_ string, _ *goquery.Selection, _ *htmlmd.Options) *string {
+			empty := ""
+			return &empty
+		},
+	})
+
+	md, err := converter.ConvertString(htmlContent)
+	if err != nil {
+		return "", fmt.Errorf("convert html to markdown: %w", err)
+	}
+
+	// 出力Markdownの前後の余計な空白・改行を削除して正規化する。
+	md = strings.TrimSpace(md)
+
+	return md, nil
+}
 
 // Client はGemini APIを用いて商品説明からスペックを抽出するクライアント。
 type Client interface {
@@ -47,7 +111,16 @@ func NewClient(apiKey string, model string) (Client, error) {
 
 // ExtractSpec はタイトルと商品説明からPCスペック等を抽出する。
 func (c *client) ExtractSpec(ctx context.Context, title, description string) (*spec.Spec, error) {
-	plainDesc := htmlTagRe.ReplaceAllString(description, " ")
+	// 商品説明はHTMLで渡されることを想定し、まずはHTMLをクリーンなプレーンテキストに変換する。
+	plainDesc, err := CleanHTMLToText(description)
+	if err != nil {
+		// HTMLパースに失敗した場合でもスペック抽出自体は継続したいため、
+		// 元の説明文を簡易に正規化したテキストとしてフォールバック利用する。
+		plainDesc = whitespaceRe.ReplaceAllString(description, " ")
+		plainDesc = strings.TrimSpace(plainDesc)
+	}
+
+	// LLMに渡すテキスト量を抑えるため、説明文が長すぎる場合は先頭8000文字で打ち切る。
 	if len(plainDesc) > 8000 {
 		plainDesc = plainDesc[:8000] + "..."
 	}
