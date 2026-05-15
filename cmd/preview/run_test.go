@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
+	appauction "jo3qma.com/yahoo_auctions_bot/internal/application/auction"
 	"jo3qma.com/yahoo_auctions_bot/internal/config"
 	"jo3qma.com/yahoo_auctions_bot/internal/domain/spec"
 	infraauction "jo3qma.com/yahoo_auctions_bot/internal/infrastructure/auction"
-	"jo3qma.com/yahoo_auctions_bot/internal/infrastructure/gemini"
 )
 
 func TestRunPreview_usage(t *testing.T) {
@@ -31,7 +31,7 @@ func TestRunPreview_configErr(t *testing.T) {
 	}
 }
 
-func TestRunPreview_noGemini(t *testing.T) {
+func TestRunPreview_noOpenAIKey(t *testing.T) {
 	c := RunPreview(&bytes.Buffer{}, []string{"id"}, "x", &previewDeps{
 		LoadConfig: func(string) (*config.Config, error) {
 			return &config.Config{}, nil
@@ -42,12 +42,12 @@ func TestRunPreview_noGemini(t *testing.T) {
 	}
 }
 
-func TestRunPreview_geminiClientErr(t *testing.T) {
+func TestRunPreview_openAIClientErr(t *testing.T) {
 	c := RunPreview(&bytes.Buffer{}, []string{"id"}, "x", &previewDeps{
 		LoadConfig: func(string) (*config.Config, error) {
-			return &config.Config{GeminiAPIKey: "k"}, nil
+			return &config.Config{OpenAIAPIKey: "k"}, nil
 		},
-		NewGeminiClient: func(string, string) (gemini.Client, error) {
+		NewSpecExtractor: func(string, string, string) (appauction.SpecExtractor, error) {
 			return nil, errors.New("gc")
 		},
 	})
@@ -65,9 +65,9 @@ func (fakePreviewGem) ExtractSpec(context.Context, string, string) (*spec.Spec, 
 func TestRunPreview_executeErr(t *testing.T) {
 	c := RunPreview(&bytes.Buffer{}, []string{"id"}, "x", &previewDeps{
 		LoadConfig: func(string) (*config.Config, error) {
-			return &config.Config{GeminiAPIKey: "k", APIEndpoint: "http://localhost:8080"}, nil
+			return &config.Config{OpenAIAPIKey: "k", APIEndpoint: "http://localhost:8080"}, nil
 		},
-		NewGeminiClient: func(string, string) (gemini.Client, error) {
+		NewSpecExtractor: func(string, string, string) (appauction.SpecExtractor, error) {
 			return &fakePreviewGem{}, nil
 		},
 		NewAuctionClient: func(string) infraauction.Client {
@@ -88,9 +88,9 @@ func (failAuction) GetAuction(context.Context, string) (*infraauction.AuctionDat
 func TestRunPreview_encodeErr(t *testing.T) {
 	c := RunPreview(errWriter{}, []string{"id"}, "x", &previewDeps{
 		LoadConfig: func(string) (*config.Config, error) {
-			return &config.Config{GeminiAPIKey: "k", APIEndpoint: "http://localhost:8080"}, nil
+			return &config.Config{OpenAIAPIKey: "k", APIEndpoint: "http://localhost:8080"}, nil
 		},
-		NewGeminiClient: func(string, string) (gemini.Client, error) {
+		NewSpecExtractor: func(string, string, string) (appauction.SpecExtractor, error) {
 			return &fakePreviewGem{}, nil
 		},
 		NewAuctionClient: func(string) infraauction.Client {
@@ -119,9 +119,9 @@ func TestRunPreview_emptySpecExit(t *testing.T) {
 	var buf bytes.Buffer
 	c := RunPreview(&buf, []string{"id"}, "x", &previewDeps{
 		LoadConfig: func(string) (*config.Config, error) {
-			return &config.Config{GeminiAPIKey: "k", APIEndpoint: "http://localhost:8080"}, nil
+			return &config.Config{OpenAIAPIKey: "k", APIEndpoint: "http://localhost:8080"}, nil
 		},
-		NewGeminiClient: func(string, string) (gemini.Client, error) {
+		NewSpecExtractor: func(string, string, string) (appauction.SpecExtractor, error) {
 			return &emptySpecGem{}, nil
 		},
 		NewAuctionClient: func(string) infraauction.Client {
@@ -143,9 +143,9 @@ func TestRunPreview_success(t *testing.T) {
 	var buf bytes.Buffer
 	c := RunPreview(&buf, []string{"id"}, "x", &previewDeps{
 		LoadConfig: func(string) (*config.Config, error) {
-			return &config.Config{GeminiAPIKey: "k", APIEndpoint: "http://localhost:8080"}, nil
+			return &config.Config{OpenAIAPIKey: "k", APIEndpoint: "http://localhost:8080"}, nil
 		},
-		NewGeminiClient: func(string, string) (gemini.Client, error) {
+		NewSpecExtractor: func(string, string, string) (appauction.SpecExtractor, error) {
 			return &fakePreviewGem{}, nil
 		},
 		NewAuctionClient: func(string) infraauction.Client {

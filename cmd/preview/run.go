@@ -11,13 +11,13 @@ import (
 	"jo3qma.com/yahoo_auctions_bot/internal/config"
 	"jo3qma.com/yahoo_auctions_bot/internal/domain/spec"
 	infraauction "jo3qma.com/yahoo_auctions_bot/internal/infrastructure/auction"
-	"jo3qma.com/yahoo_auctions_bot/internal/infrastructure/gemini"
+	"jo3qma.com/yahoo_auctions_bot/internal/infrastructure/openai"
 )
 
 // previewDeps は RunPreview の依存注入用。
 type previewDeps struct {
 	LoadConfig       func(path string) (*config.Config, error)
-	NewGeminiClient  func(key, model string) (gemini.Client, error)
+	NewSpecExtractor func(apiKey, model, baseURL string) (appauction.SpecExtractor, error)
 	NewAuctionClient func(baseURL string) infraauction.Client
 }
 
@@ -25,8 +25,10 @@ func mergePreviewDeps(d *previewDeps) {
 	if d.LoadConfig == nil {
 		d.LoadConfig = config.Load
 	}
-	if d.NewGeminiClient == nil {
-		d.NewGeminiClient = gemini.NewClient
+	if d.NewSpecExtractor == nil {
+		d.NewSpecExtractor = func(k, m, u string) (appauction.SpecExtractor, error) {
+			return openai.NewClient(k, m, u)
+		}
 	}
 	if d.NewAuctionClient == nil {
 		d.NewAuctionClient = func(baseURL string) infraauction.Client {
@@ -53,18 +55,18 @@ func RunPreview(stdout io.Writer, argv []string, cfgPath string, deps *previewDe
 		log.Printf("config load: %v", err)
 		return 2
 	}
-	if cfg.GeminiAPIKey == "" {
-		log.Print("GEMINI_API_KEY is required")
+	if cfg.OpenAIAPIKey == "" {
+		log.Print("OPENAI_API_KEY is required")
 		return 2
 	}
 
 	auctionClient := deps.NewAuctionClient(cfg.APIEndpoint)
-	geminiClient, err := deps.NewGeminiClient(cfg.GeminiAPIKey, cfg.GeminiModel)
+	specExtractor, err := deps.NewSpecExtractor(cfg.OpenAIAPIKey, cfg.OpenAIModel, cfg.OpenAIBaseURL)
 	if err != nil {
-		log.Printf("gemini client: %v", err)
+		log.Printf("openai client: %v", err)
 		return 2
 	}
-	previewUsecase := appauction.NewPreviewUsecase(auctionClient, geminiClient)
+	previewUsecase := appauction.NewPreviewUsecase(auctionClient, specExtractor)
 
 	ctx := context.Background()
 	preview, err := previewUsecase.Execute(ctx, auctionID)

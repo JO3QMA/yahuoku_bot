@@ -15,7 +15,7 @@ import (
 	"jo3qma.com/yahoo_auctions_bot/internal/config"
 	"jo3qma.com/yahoo_auctions_bot/internal/domain/watch"
 	infraauction "jo3qma.com/yahoo_auctions_bot/internal/infrastructure/auction"
-	"jo3qma.com/yahoo_auctions_bot/internal/infrastructure/gemini"
+	"jo3qma.com/yahoo_auctions_bot/internal/infrastructure/openai"
 	infrarqlite "jo3qma.com/yahoo_auctions_bot/internal/infrastructure/rqlite"
 	infrasqlite "jo3qma.com/yahoo_auctions_bot/internal/infrastructure/sqlite"
 	"jo3qma.com/yahoo_auctions_bot/internal/presentation/discord"
@@ -28,7 +28,7 @@ type discordRunner interface {
 // botDeps は run の依存注入用（テストで差し替え）。
 type botDeps struct {
 	LoadConfig           func(string) (*config.Config, error)
-	NewGeminiClient      func(key, model string) (gemini.Client, error)
+	NewSpecExtractor     func(apiKey, model, baseURL string) (appauction.SpecExtractor, error)
 	OpenRqlite           func(ctx context.Context, url string, opts ...infrarqlite.NewClientOption) (*infrarqlite.Client, error)
 	OpenSQLite           func(path string, opts ...infrasqlite.OpenOption) (*sql.DB, error)
 	NewWatchRepoRqlite   func(*infrarqlite.Client) watch.Repository
@@ -66,8 +66,10 @@ func mergeBotDeps(d *botDeps) {
 	if d.LoadConfig == nil {
 		d.LoadConfig = config.Load
 	}
-	if d.NewGeminiClient == nil {
-		d.NewGeminiClient = gemini.NewClient
+	if d.NewSpecExtractor == nil {
+		d.NewSpecExtractor = func(k, m, u string) (appauction.SpecExtractor, error) {
+			return openai.NewClient(k, m, u)
+		}
 	}
 	if d.OpenRqlite == nil {
 		d.OpenRqlite = infrarqlite.Open
@@ -113,14 +115,14 @@ func run(ctx context.Context, deps *botDeps) error {
 	if cfg.DiscordToken == "" {
 		return fmt.Errorf("DISCORD_TOKEN is required")
 	}
-	if cfg.GeminiAPIKey == "" {
-		return fmt.Errorf("GEMINI_API_KEY is required")
+	if cfg.OpenAIAPIKey == "" {
+		return fmt.Errorf("OPENAI_API_KEY is required")
 	}
 
 	auctionClient := infraauction.NewClient(cfg.APIEndpoint, nil)
-	geminiClient, err := deps.NewGeminiClient(cfg.GeminiAPIKey, cfg.GeminiModel)
+	specExtractor, err := deps.NewSpecExtractor(cfg.OpenAIAPIKey, cfg.OpenAIModel, cfg.OpenAIBaseURL)
 	if err != nil {
-		return fmt.Errorf("gemini client: %w", err)
+		return fmt.Errorf("openai client: %w", err)
 	}
 
 	var watchRepo watch.Repository
@@ -140,7 +142,7 @@ func run(ctx context.Context, deps *botDeps) error {
 		watchRepo = deps.NewWatchRepoSQLite(db)
 	}
 
-	previewUsecase := appauction.NewPreviewUsecase(auctionClient, geminiClient)
+	previewUsecase := appauction.NewPreviewUsecase(auctionClient, specExtractor)
 	watchUsecase := appwatch.NewWatchUsecase(watchRepo)
 
 	allowedFilter := discord.NewAllowedFilter(cfg.AllowedGuilds, cfg.AllowedChannels)

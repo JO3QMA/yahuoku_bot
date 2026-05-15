@@ -9,7 +9,7 @@ AIエージェントがこのリポジトリで作業する際のコンテキス
 **yahoo_auctions_bot** は、Discord上でヤフオク（Yahoo! オークション）の商品URLに反応し、オークション情報とPCスペックのプレビューをEmbedで返すDiscord Botです。
 
 - **入力**: Discordメッセージ内のヤフオクURL（`page.auctions.yahoo.co.jp/.../auction/<id>`）
-- **処理**: 外部APIで商品取得 → Geminiでスペック抽出 → Embed生成
+- **処理**: 外部APIで商品取得 → OpenAI API（Chat Completions）でスペック抽出 → Embed生成
 - **出力**: 同一チャンネルへEmbed送信（現在価格・残り時間・商品状態・送料・PCスペックなど）
 
 ---
@@ -20,7 +20,7 @@ AIエージェントがこのリポジトリで作業する際のコンテキス
   - `cmd/bot` — エントリポイント。設定読み込み・DI・Bot起動
   - `internal/domain` — ドメイン仕様（例: `spec.Spec`）
   - `internal/application` — ユースケース（例: `PreviewUsecase`）
-  - `internal/infrastructure` — 外部サービス（オークションAPI Connect RPC、Gemini）
+  - `internal/infrastructure` — 外部サービス（オークションAPI Connect RPC、OpenAI 互換 LLM）
   - `internal/presentation` — Discord（arikawa 利用、ハンドラー・Embed）
 
 - **依存の向き**: `cmd` → `internal/*`。infrastructure が application のインターフェースを実装し、presentation が application を呼ぶ。ドメインは他レイヤーに依存しない。
@@ -28,7 +28,7 @@ AIエージェントがこのリポジトリで作業する際のコンテキス
 - **外部連携**
   - **yahoo_auctions API**: `API_ENDPOINT` の Connect RPC（`GetAuction`）。別リポジトリ `yahoo_auctions` が提供想定。
   - **protobuf**: `github.com/jo3qma/protobuf/gen/go` の生成コードを使用。APIの型・RPCはここに依存。
-  - **Gemini**: 商品説明から `spec.Spec` をJSONで抽出（`gemini-2.5-flash-lite` 想定）。
+  - **OpenAI API**: 商品説明から `spec.Spec` を structured output（JSON スキーマ）で抽出（未設定時モデル `gpt-4o-mini` 想定。`OPENAI_BASE_URL` で互換エンドポイント指定可）。
   - **Discord**: arikawa v3（Gateway、メッセージ、Embed送信）。
 
 ---
@@ -36,7 +36,7 @@ AIエージェントがこのリポジトリで作業する際のコンテキス
 ## 技術スタック・バージョン
 
 - **Go**: 1.25.4（`go.mod` に準拠）
-- **主要ライブラリ**: connectrpc.com/connect, arikawa/v3, google/generative-ai-go, gopkg.in/yaml.v3
+- **主要ライブラリ**: connectrpc.com/connect, arikawa/v3, 標準 `net/http`（Chat Completions）, gopkg.in/yaml.v3
 - **設定**: 環境変数（direnv で `.env` を読み込む想定） + YAML（`config.yaml`）。`config.Load(configPath)` で統合。
 
 ---
@@ -46,8 +46,9 @@ AIエージェントがこのリポジトリで作業する際のコンテキス
 | 種別 | 項目 | 説明 |
 |------|------|------|
 | 環境変数 | `DISCORD_TOKEN` | 必須。Botトークン |
-| 環境変数 | `GEMINI_API_KEY` | 必須。Gemini APIキー |
-| 環境変数 | `GEMINI_MODEL` | 任意。使用するGeminiモデル（未設定時 `gemini-2.5-flash-lite`） |
+| 環境変数 | `OPENAI_API_KEY` | 必須。OpenAI APIキー（互換APIのキー） |
+| 環境変数 | `OPENAI_MODEL` | 任意。使用するモデル（未設定時 `gpt-4o-mini`） |
+| 環境変数 | `OPENAI_BASE_URL` | 任意。Chat Completions のベースURL（未設定時 `https://api.openai.com/v1`） |
 | 環境変数 | `API_ENDPOINT` | オークションAPIのベースURL（未設定時 `http://localhost:8080`） |
 | 環境変数 | `CONFIG_PATH` | 任意。YAML設定パス（未設定時 `config.yaml`） |
 | YAML | `allowed.guilds` | 空でなければ、ここに列挙したサーバーのみ反応 |
@@ -59,7 +60,7 @@ AIエージェントがこのリポジトリで作業する際のコンテキス
 
 ## ディレクトリ・ファイル慣習
 
-- **パッケージ名**: ディレクトリ名と一致（`discord`, `auction`, `config`, `spec`, `gemini` など）。
+- **パッケージ名**: ディレクトリ名と一致（`discord`, `auction`, `config`, `spec`, `openai` など）。
 - **インターフェース**: ユースケースが依存する「取得」「抽出」などは application 内でインターフェース定義し、infrastructure が実装（例: `AuctionFetcher`, `SpecExtractor`）。
 - **コメント**: 公開型・関数は日本語で説明を付ける（「〜を返す」「〜を行う」など）。
 - **エントリ**: 実行バイナリは `cmd/bot/main.go` からビルド。Dockerでは `./cmd/bot` をビルドし、`discord-bot` として実行。

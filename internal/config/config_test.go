@@ -8,7 +8,7 @@ import (
 
 func TestLoad_envDefaults(t *testing.T) {
 	t.Setenv("DISCORD_TOKEN", " tok ")
-	t.Setenv("GEMINI_API_KEY", "k")
+	t.Setenv("OPENAI_API_KEY", "k")
 	t.Setenv("API_ENDPOINT", "")
 	t.Setenv("DB_PATH", "")
 	t.Setenv("RQLITE_URL", "")
@@ -23,8 +23,8 @@ func TestLoad_envDefaults(t *testing.T) {
 	if cfg.DiscordToken != "tok" {
 		t.Fatalf("DiscordToken=%q", cfg.DiscordToken)
 	}
-	if cfg.GeminiAPIKey != "k" {
-		t.Fatalf("GeminiAPIKey")
+	if cfg.OpenAIAPIKey != "k" {
+		t.Fatalf("OpenAIAPIKey")
 	}
 	if cfg.APIEndpoint != "http://localhost:8080" {
 		t.Fatalf("APIEndpoint=%q", cfg.APIEndpoint)

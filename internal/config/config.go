@@ -25,8 +25,9 @@ type YAMLConfig struct {
 // Config は環境変数とYAMLを統合した実行時設定。
 type Config struct {
 	DiscordToken    string
-	GeminiAPIKey    string
-	GeminiModel     string // 空の場合は gemini-2.5-flash-lite が使われる
+	OpenAIAPIKey   string
+	OpenAIModel    string // 空の場合は gpt-4o-mini が使われる
+	OpenAIBaseURL  string // 空の場合は https://api.openai.com/v1
 	APIEndpoint     string
 	AllowedGuilds   []string
 	AllowedChannels []string
@@ -42,8 +43,9 @@ type Config struct {
 func Load(configPath string) (*Config, error) {
 	cfg := &Config{
 		DiscordToken: strings.TrimSpace(os.Getenv("DISCORD_TOKEN")),
-		GeminiAPIKey: strings.TrimSpace(os.Getenv("GEMINI_API_KEY")),
-		GeminiModel:  strings.TrimSpace(os.Getenv("GEMINI_MODEL")),
+		OpenAIAPIKey:  strings.TrimSpace(os.Getenv("OPENAI_API_KEY")),
+		OpenAIModel:   strings.TrimSpace(os.Getenv("OPENAI_MODEL")),
+		OpenAIBaseURL: strings.TrimSpace(os.Getenv("OPENAI_BASE_URL")),
 		APIEndpoint:  strings.TrimSpace(os.Getenv("API_ENDPOINT")),
 		DBPath:    strings.TrimSpace(os.Getenv("DB_PATH")),
 		RqliteURL: strings.TrimSpace(os.Getenv("RQLITE_URL")),

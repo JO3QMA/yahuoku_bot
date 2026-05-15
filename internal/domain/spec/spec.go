@@ -1,6 +1,6 @@
 package spec
 
-// Spec はGemini APIが商品説明・タイトルから抽出したPCスペック等の構造化データ。
+// Spec はLLMが商品説明・タイトルから抽出したPCスペック等の構造化データ。
 // 各項目は独立しており、不明時は空文字または0とする。
 type Spec struct {
 	// CPU型番 (x個数) (周波数)。例: "Xeon E-2224 (x1) (3.4GHz)"

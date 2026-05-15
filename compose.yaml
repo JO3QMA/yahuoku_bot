@@ -21,7 +21,9 @@ services:
       dockerfile: Dockerfile
     environment:
       - DISCORD_TOKEN=${DISCORD_TOKEN}
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_MODEL=${OPENAI_MODEL:-}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-}
       - API_ENDPOINT=${API_ENDPOINT}
       - CONFIG_PATH=/app/config.yaml
       - RQLITE_URL=http://rqlite:4001

@@ -16,7 +16,6 @@ import (
 	"jo3qma.com/yahoo_auctions_bot/internal/domain/spec"
 	"jo3qma.com/yahoo_auctions_bot/internal/domain/watch"
 	infraauction "jo3qma.com/yahoo_auctions_bot/internal/infrastructure/auction"
-	"jo3qma.com/yahoo_auctions_bot/internal/infrastructure/gemini"
 	infrarqlite "jo3qma.com/yahoo_auctions_bot/internal/infrastructure/rqlite"
 	infrasqlite "jo3qma.com/yahoo_auctions_bot/internal/infrastructure/sqlite"
 	"jo3qma.com/yahoo_auctions_bot/internal/presentation/discord"
@@ -35,19 +34,19 @@ func (waitCtxRunner) Run(ctx context.Context) error {
 	return ctx.Err()
 }
 
-type fakeGemini struct{}
+type fakeSpecExtractor struct{}
 
-func (fakeGemini) ExtractSpec(context.Context, string, string) (*spec.Spec, error) {
+func (fakeSpecExtractor) ExtractSpec(context.Context, string, string) (*spec.Spec, error) {
 	return &spec.Spec{}, nil
 }
 
 func TestRun_nilDeps(t *testing.T) {
 	t.Setenv("DISCORD_TOKEN", "dt")
-	t.Setenv("GEMINI_API_KEY", "gk")
+	t.Setenv("OPENAI_API_KEY", "gk")
 	t.Setenv("DB_PATH", t.TempDir()+"/nildeps.db")
 	t.Cleanup(func() {
 		_ = os.Unsetenv("DISCORD_TOKEN")
-		_ = os.Unsetenv("GEMINI_API_KEY")
+		_ = os.Unsetenv("OPENAI_API_KEY")
 		_ = os.Unsetenv("DB_PATH")
 	})
 	ctx, cancel := context.WithCancel(context.Background())
@@ -71,7 +70,7 @@ func TestRun_configLoadError(t *testing.T) {
 func TestRun_missingDiscordToken(t *testing.T) {
 	err := run(context.Background(), &botDeps{
 		LoadConfig: func(string) (*config.Config, error) {
-			return &config.Config{GeminiAPIKey: "k"}, nil
+			return &config.Config{OpenAIAPIKey: "k"}, nil
 		},
 	})
 	if err == nil {
@@ -79,7 +78,7 @@ func TestRun_missingDiscordToken(t *testing.T) {
 	}
 }
 
-func TestRun_missingGeminiKey(t *testing.T) {
+func TestRun_missingOpenAIKey(t *testing.T) {
 	err := run(context.Background(), &botDeps{
 		LoadConfig: func(string) (*config.Config, error) {
 			return &config.Config{DiscordToken: "t"}, nil
@@ -90,12 +89,12 @@ func TestRun_missingGeminiKey(t *testing.T) {
 	}
 }
 
-func TestRun_geminiError(t *testing.T) {
+func TestRun_openAIClientError(t *testing.T) {
 	err := run(context.Background(), &botDeps{
 		LoadConfig: func(string) (*config.Config, error) {
-			return &config.Config{DiscordToken: "t", GeminiAPIKey: "k"}, nil
+			return &config.Config{DiscordToken: "t", OpenAIAPIKey: "k"}, nil
 		},
-		NewGeminiClient: func(string, string) (gemini.Client, error) {
+		NewSpecExtractor: func(string, string, string) (appauction.SpecExtractor, error) {
 			return nil, errors.New("g")
 		},
 	})
@@ -107,10 +106,10 @@ func TestRun_geminiError(t *testing.T) {
 func TestRun_rqliteError(t *testing.T) {
 	err := run(context.Background(), &botDeps{
 		LoadConfig: func(string) (*config.Config, error) {
-			return &config.Config{DiscordToken: "t", GeminiAPIKey: "k", RqliteURL: "http://x"}, nil
+			return &config.Config{DiscordToken: "t", OpenAIAPIKey: "k", RqliteURL: "http://x"}, nil
 		},
-		NewGeminiClient: func(string, string) (gemini.Client, error) {
-			return &fakeGemini{}, nil
+		NewSpecExtractor: func(string, string, string) (appauction.SpecExtractor, error) {
+			return &fakeSpecExtractor{}, nil
 		},
 		OpenRqlite: func(ctx context.Context, url string, opts ...infrarqlite.NewClientOption) (*infrarqlite.Client, error) {
 			return nil, errors.New("rq")
@@ -124,10 +123,10 @@ func TestRun_rqliteError(t *testing.T) {
 func TestRun_sqliteError(t *testing.T) {
 	err := run(context.Background(), &botDeps{
 		LoadConfig: func(string) (*config.Config, error) {
-			return &config.Config{DiscordToken: "t", GeminiAPIKey: "k", DBPath: "x.db"}, nil
+			return &config.Config{DiscordToken: "t", OpenAIAPIKey: "k", DBPath: "x.db"}, nil
 		},
-		NewGeminiClient: func(string, string) (gemini.Client, error) {
-			return &fakeGemini{}, nil
+		NewSpecExtractor: func(string, string, string) (appauction.SpecExtractor, error) {
+			return &fakeSpecExtractor{}, nil
 		},
 		OpenSQLite: func(string, ...infrasqlite.OpenOption) (*sql.DB, error) {
 			return nil, errors.New("sql")
@@ -143,11 +142,11 @@ func TestRun_discordNewBotError(t *testing.T) {
 	err := run(context.Background(), &botDeps{
 		LoadConfig: func(string) (*config.Config, error) {
 			return &config.Config{
-				DiscordToken: "t", GeminiAPIKey: "k",
+				DiscordToken: "t", OpenAIAPIKey: "k",
 				DBPath: dir + "/w.db", APIEndpoint: "http://localhost:8080",
 			}, nil
 		},
-		NewGeminiClient: func(string, string) (gemini.Client, error) { return &fakeGemini{}, nil },
+		NewSpecExtractor: func(string, string, string) (appauction.SpecExtractor, error) { return &fakeSpecExtractor{}, nil },
 		NewDiscordBot: func(string, *appauction.PreviewUsecase, *discord.AllowedFilter, *appwatch.WatchUsecase, infraauction.Client, watch.Repository, discord.BotConfig) (discordRunner, error) {
 			return nil, errors.New("bot")
 		},
@@ -164,11 +163,11 @@ func TestRun_success_sqlite(t *testing.T) {
 	err := run(ctx, &botDeps{
 		LoadConfig: func(string) (*config.Config, error) {
 			return &config.Config{
-				DiscordToken: "Bot x.y.z", GeminiAPIKey: "k",
+				DiscordToken: "Bot x.y.z", OpenAIAPIKey: "k",
 				DBPath: dir + "/w.db", APIEndpoint: "http://localhost:8080",
 			}, nil
 		},
-		NewGeminiClient: func(string, string) (gemini.Client, error) { return &fakeGemini{}, nil },
+		NewSpecExtractor: func(string, string, string) (appauction.SpecExtractor, error) { return &fakeSpecExtractor{}, nil },
 		NewDiscordBot: func(string, *appauction.PreviewUsecase, *discord.AllowedFilter, *appwatch.WatchUsecase, infraauction.Client, watch.Repository, discord.BotConfig) (discordRunner, error) {
 			return fakeRunner{}, nil
 		},
@@ -185,11 +184,11 @@ func TestRun_tokenPrefix(t *testing.T) {
 	_ = run(ctx, &botDeps{
 		LoadConfig: func(string) (*config.Config, error) {
 			return &config.Config{
-				DiscordToken: "rawtoken", GeminiAPIKey: "k",
+				DiscordToken: "rawtoken", OpenAIAPIKey: "k",
 				DBPath: dir + "/w2.db", APIEndpoint: "http://localhost:8080",
 			}, nil
 		},
-		NewGeminiClient: func(string, string) (gemini.Client, error) { return &fakeGemini{}, nil },
+		NewSpecExtractor: func(string, string, string) (appauction.SpecExtractor, error) { return &fakeSpecExtractor{}, nil },
 		NewDiscordBot: func(token string, _ *appauction.PreviewUsecase, _ *discord.AllowedFilter, _ *appwatch.WatchUsecase, _ infraauction.Client, _ watch.Repository, _ discord.BotConfig) (discordRunner, error) {
 			if token != "Bot rawtoken" {
 				t.Fatalf("token=%q", token)
@@ -206,11 +205,11 @@ func TestRunWithSignal_parentCancelled(t *testing.T) {
 	err := runWithSignal(parent, &botDeps{
 		LoadConfig: func(string) (*config.Config, error) {
 			return &config.Config{
-				DiscordToken: "t", GeminiAPIKey: "k",
+				DiscordToken: "t", OpenAIAPIKey: "k",
 				DBPath: dir + "/ws.db", APIEndpoint: "http://localhost:8080",
 			}, nil
 		},
-		NewGeminiClient: func(string, string) (gemini.Client, error) { return &fakeGemini{}, nil },
+		NewSpecExtractor: func(string, string, string) (appauction.SpecExtractor, error) { return &fakeSpecExtractor{}, nil },
 		NewDiscordBot: func(string, *appauction.PreviewUsecase, *discord.AllowedFilter, *appwatch.WatchUsecase, infraauction.Client, watch.Repository, discord.BotConfig) (discordRunner, error) {
 			return fakeRunner{}, nil
 		},
@@ -224,7 +223,7 @@ func TestMergeBotDeps_partialOverride(t *testing.T) {
 	called := false
 	d := &botDeps{
 		LoadConfig: func(string) (*config.Config, error) {
-			return &config.Config{DiscordToken: "a", GeminiAPIKey: "b"}, nil
+			return &config.Config{DiscordToken: "a", OpenAIAPIKey: "b"}, nil
 		},
 		OpenSQLite: func(string, ...infrasqlite.OpenOption) (*sql.DB, error) {
 			called = true
@@ -232,7 +231,7 @@ func TestMergeBotDeps_partialOverride(t *testing.T) {
 		},
 	}
 	mergeBotDeps(d)
-	if d.NewGeminiClient == nil || d.OpenRqlite == nil {
+	if d.NewSpecExtractor == nil || d.OpenRqlite == nil {
 		t.Fatal("defaults not merged")
 	}
 	_, _ = d.OpenSQLite("x")
@@ -249,12 +248,12 @@ func TestRun_configPathFromEnv(t *testing.T) {
 	}
 	t.Setenv("CONFIG_PATH", cfgPath)
 	t.Setenv("DISCORD_TOKEN", "dt")
-	t.Setenv("GEMINI_API_KEY", "gk")
+	t.Setenv("OPENAI_API_KEY", "gk")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	err := run(ctx, &botDeps{
-		NewGeminiClient: func(string, string) (gemini.Client, error) { return &fakeGemini{}, nil },
+		NewSpecExtractor: func(string, string, string) (appauction.SpecExtractor, error) { return &fakeSpecExtractor{}, nil },
 		NewDiscordBot: func(string, *appauction.PreviewUsecase, *discord.AllowedFilter, *appwatch.WatchUsecase, infraauction.Client, watch.Repository, discord.BotConfig) (discordRunner, error) {
 			return fakeRunner{}, nil
 		},
@@ -271,11 +270,11 @@ func TestRun_rqliteBranchOK(t *testing.T) {
 	err := run(ctx, &botDeps{
 		LoadConfig: func(string) (*config.Config, error) {
 			return &config.Config{
-				DiscordToken: "t", GeminiAPIKey: "k",
+				DiscordToken: "t", OpenAIAPIKey: "k",
 				RqliteURL: "http://noop", DBPath: dir + "/unused.db",
 			}, nil
 		},
-		NewGeminiClient: func(string, string) (gemini.Client, error) { return &fakeGemini{}, nil },
+		NewSpecExtractor: func(string, string, string) (appauction.SpecExtractor, error) { return &fakeSpecExtractor{}, nil },
 		OpenRqlite: func(ctx context.Context, url string, opts ...infrarqlite.NewClientOption) (*infrarqlite.Client, error) {
 			return infrarqlite.Open(ctx, url, append([]infrarqlite.NewClientOption{
 				infrarqlite.WithRqliteHTTPClientFactory(func(string, *http.Client) (infrarqlite.HTTPClient, error) {
@@ -333,7 +332,7 @@ func (errRunner) Run(context.Context) error { return errors.New("run") }
 func TestMergeBotDeps_allNil(t *testing.T) {
 	d := &botDeps{}
 	mergeBotDeps(d)
-	if d.LoadConfig == nil || d.NewGeminiClient == nil || d.OpenRqlite == nil || d.OpenSQLite == nil ||
+	if d.LoadConfig == nil || d.NewSpecExtractor == nil || d.OpenRqlite == nil || d.OpenSQLite == nil ||
 		d.NewWatchRepoRqlite == nil || d.NewWatchRepoSQLite == nil || d.NewDiscordBot == nil {
 		t.Fatal("mergeBotDeps should fill all defaults")
 	}
@@ -375,11 +374,11 @@ func TestRunWithSignal_onSigint(t *testing.T) {
 	deps := &botDeps{
 		LoadConfig: func(string) (*config.Config, error) {
 			return &config.Config{
-				DiscordToken: "t", GeminiAPIKey: "k",
+				DiscordToken: "t", OpenAIAPIKey: "k",
 				DBPath: dir + "/w.db", APIEndpoint: "http://localhost:8080",
 			}, nil
 		},
-		NewGeminiClient: func(string, string) (gemini.Client, error) { return &fakeGemini{}, nil },
+		NewSpecExtractor: func(string, string, string) (appauction.SpecExtractor, error) { return &fakeSpecExtractor{}, nil },
 		NewDiscordBot: func(string, *appauction.PreviewUsecase, *discord.AllowedFilter, *appwatch.WatchUsecase, infraauction.Client, watch.Repository, discord.BotConfig) (discordRunner, error) {
 			return waitCtxRunner{}, nil
 		},
@@ -409,7 +408,7 @@ func TestDefaultNewDiscordBot_invokesNewBot(t *testing.T) {
 	t.Cleanup(func() { _ = db.Close() })
 	repo := infrasqlite.NewWatchRepository(db)
 	ac := infraauction.NewClient("http://127.0.0.1:9", nil)
-	pu := appauction.NewPreviewUsecase(ac, &fakeGemini{})
+	pu := appauction.NewPreviewUsecase(ac, &fakeSpecExtractor{})
 	wu := appwatch.NewWatchUsecase(repo)
 	af := discord.NewAllowedFilter(nil, nil)
 	_, errBot := defaultNewDiscordBot("Bot unit-test-token.invalid", pu, af, wu, ac, repo, discord.BotConfig{CheckIntervalMinutes: 60, PollDelayMs: 1})
@@ -425,11 +424,11 @@ func TestRun_botRunLogsNonCancelError(t *testing.T) {
 	err := run(ctx, &botDeps{
 		LoadConfig: func(string) (*config.Config, error) {
 			return &config.Config{
-				DiscordToken: "t", GeminiAPIKey: "k",
+				DiscordToken: "t", OpenAIAPIKey: "k",
 				DBPath: dir + "/w.db", APIEndpoint: "http://localhost:8080",
 			}, nil
 		},
-		NewGeminiClient: func(string, string) (gemini.Client, error) { return &fakeGemini{}, nil },
+		NewSpecExtractor: func(string, string, string) (appauction.SpecExtractor, error) { return &fakeSpecExtractor{}, nil },
 		NewDiscordBot: func(string, *appauction.PreviewUsecase, *discord.AllowedFilter, *appwatch.WatchUsecase, infraauction.Client, watch.Repository, discord.BotConfig) (discordRunner, error) {
 			return errRunner{}, nil
 		},
