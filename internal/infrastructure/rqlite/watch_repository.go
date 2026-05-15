@@ -35,7 +35,7 @@ func (r *WatchRepository) Add(ctx context.Context, item *watch.WatchItem) error 
 	} else {
 		endTime = nil
 	}
-	_, err := r.client.c.ExecuteSingle(ctx, query,
+	_, err := r.client.h.ExecuteSingle(ctx, query,
 		item.AuctionID, item.UserID, item.GuildID, item.ChannelID, item.MessageID,
 		item.LastKnownPrice, endTime,
 	)
@@ -46,7 +46,7 @@ func (r *WatchRepository) Add(ctx context.Context, item *watch.WatchItem) error 
 }
 
 func (r *WatchRepository) Remove(ctx context.Context, auctionID, userID, messageID string) error {
-	_, err := r.client.c.ExecuteSingle(ctx,
+	_, err := r.client.h.ExecuteSingle(ctx,
 		`DELETE FROM watch_items WHERE auction_id = ? AND user_id = ? AND message_id = ?`,
 		auctionID, userID, messageID,
 	)
@@ -57,7 +57,7 @@ func (r *WatchRepository) Remove(ctx context.Context, auctionID, userID, message
 }
 
 func (r *WatchRepository) RemoveByAuctionID(ctx context.Context, auctionID string) error {
-	_, err := r.client.c.ExecuteSingle(ctx, `DELETE FROM watch_items WHERE auction_id = ?`, auctionID)
+	_, err := r.client.h.ExecuteSingle(ctx, `DELETE FROM watch_items WHERE auction_id = ?`, auctionID)
 	if err != nil {
 		return fmt.Errorf("delete watch items by auction: %w", err)
 	}
@@ -66,7 +66,7 @@ func (r *WatchRepository) RemoveByAuctionID(ctx context.Context, auctionID strin
 
 func (r *WatchRepository) ListActive(ctx context.Context) ([]*watch.WatchItem, error) {
 	q := `SELECT id, auction_id, user_id, guild_id, channel_id, message_id, last_known_price, end_time, reminded, thread_id, created_at FROM watch_items`
-	resp, err := r.client.c.QuerySingle(ctx, q)
+	resp, err := r.client.h.QuerySingle(ctx, q)
 	if err != nil {
 		return nil, fmt.Errorf("list watch items: %w", err)
 	}
@@ -74,7 +74,7 @@ func (r *WatchRepository) ListActive(ctx context.Context) ([]*watch.WatchItem, e
 }
 
 func (r *WatchRepository) UpdatePrice(ctx context.Context, id int64, newPrice int64) error {
-	_, err := r.client.c.ExecuteSingle(ctx, `UPDATE watch_items SET last_known_price = ? WHERE id = ?`, newPrice, id)
+	_, err := r.client.h.ExecuteSingle(ctx, `UPDATE watch_items SET last_known_price = ? WHERE id = ?`, newPrice, id)
 	if err != nil {
 		return fmt.Errorf("update price: %w", err)
 	}
@@ -82,7 +82,7 @@ func (r *WatchRepository) UpdatePrice(ctx context.Context, id int64, newPrice in
 }
 
 func (r *WatchRepository) MarkReminded(ctx context.Context, id int64) error {
-	_, err := r.client.c.ExecuteSingle(ctx, `UPDATE watch_items SET reminded = 1 WHERE id = ?`, id)
+	_, err := r.client.h.ExecuteSingle(ctx, `UPDATE watch_items SET reminded = 1 WHERE id = ?`, id)
 	if err != nil {
 		return fmt.Errorf("mark reminded: %w", err)
 	}
@@ -90,7 +90,7 @@ func (r *WatchRepository) MarkReminded(ctx context.Context, id int64) error {
 }
 
 func (r *WatchRepository) UpdateThreadID(ctx context.Context, messageID, threadID string) error {
-	_, err := r.client.c.ExecuteSingle(ctx, `UPDATE watch_items SET thread_id = ? WHERE message_id = ?`, threadID, messageID)
+	_, err := r.client.h.ExecuteSingle(ctx, `UPDATE watch_items SET thread_id = ? WHERE message_id = ?`, threadID, messageID)
 	if err != nil {
 		return fmt.Errorf("update thread id: %w", err)
 	}
@@ -99,7 +99,7 @@ func (r *WatchRepository) UpdateThreadID(ctx context.Context, messageID, threadI
 
 func (r *WatchRepository) FindByMessage(ctx context.Context, messageID string) ([]*watch.WatchItem, error) {
 	q := `SELECT id, auction_id, user_id, guild_id, channel_id, message_id, last_known_price, end_time, reminded, thread_id, created_at FROM watch_items WHERE message_id = ?`
-	resp, err := r.client.c.QuerySingle(ctx, q, messageID)
+	resp, err := r.client.h.QuerySingle(ctx, q, messageID)
 	if err != nil {
 		return nil, fmt.Errorf("find by message: %w", err)
 	}
@@ -116,9 +116,6 @@ func parseQueryResults(resp *rqlitehttp.QueryResponse) ([]*watch.WatchItem, erro
 	}
 	// 単一 SELECT の結果は results[0] に入る
 	qr := results[0]
-	if qr.Error != "" {
-		return nil, fmt.Errorf("query error: %s", qr.Error)
-	}
 	var items []*watch.WatchItem
 	for _, row := range qr.Values {
 		item, err := rowToWatchItem(row)

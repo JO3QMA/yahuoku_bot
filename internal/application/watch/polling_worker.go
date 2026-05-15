@@ -20,15 +20,27 @@ type PollingWorker struct {
 	delay    time.Duration
 }
 
+// PollingOption は NewPollingWorker の挙動を上書きする（主にテスト用）。
+type PollingOption func(*PollingWorker)
+
+// WithPollInterval はティッカー間隔を上書きする（既定は intervalMinutes 分）。
+func WithPollInterval(d time.Duration) PollingOption {
+	return func(w *PollingWorker) { w.interval = d }
+}
+
 // NewPollingWorker はPollingWorkerを生成する。
-func NewPollingWorker(repo watch.Repository, fetcher auction.Client, notifier Notifier, intervalMinutes, delayMs int) *PollingWorker {
-	return &PollingWorker{
+func NewPollingWorker(repo watch.Repository, fetcher auction.Client, notifier Notifier, intervalMinutes, delayMs int, opts ...PollingOption) *PollingWorker {
+	w := &PollingWorker{
 		repo:     repo,
 		fetcher:  fetcher,
 		notifier: notifier,
 		interval: time.Duration(intervalMinutes) * time.Minute,
 		delay:    time.Duration(delayMs) * time.Millisecond,
 	}
+	for _, o := range opts {
+		o(w)
+	}
+	return w
 }
 
 // Start はポーリングループを開始する。ctx がキャンセルされると終了する。

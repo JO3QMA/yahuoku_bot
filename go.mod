@@ -4,11 +4,13 @@ go 1.25.4
 
 require (
 	connectrpc.com/connect v1.19.1
+	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/diamondburned/arikawa/v3 v3.6.0
 	github.com/google/generative-ai-go v0.20.1
 	github.com/jo3qma/protobuf/gen/go v0.1.1
 	github.com/rqlite/rqlite-go-http v0.0.0-20260215140853-e8b52e474e31
 	google.golang.org/api v0.186.0
+	google.golang.org/protobuf v1.36.9
 	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.46.1
 )
@@ -53,7 +55,6 @@ require (
 	google.golang.org/genproto/googleapis/api v0.0.0-20240617180043-68d350f18fd4 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240617180043-68d350f18fd4 // indirect
 	google.golang.org/grpc v1.64.1 // indirect
-	google.golang.org/protobuf v1.36.9 // indirect
 	modernc.org/libc v1.67.6 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect

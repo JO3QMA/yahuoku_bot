@@ -90,9 +90,6 @@ func (h *Handler) HandleMessageCreate(e *gateway.MessageCreateEvent) {
 
 	seen := make(map[string]bool)
 	for _, m := range ids {
-		if len(m) < 2 {
-			continue
-		}
 		auctionID := m[1]
 		if seen[auctionID] {
 			continue
