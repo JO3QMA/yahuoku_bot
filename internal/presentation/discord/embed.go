@@ -4,16 +4,18 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/diamondburned/arikawa/v3/api"
 	"github.com/diamondburned/arikawa/v3/discord"
 	"github.com/diamondburned/arikawa/v3/gateway"
+	"github.com/diamondburned/arikawa/v3/utils/json/option"
 
 	"jo3qma.com/yahoo_auctions_bot/internal/application/auction"
 	"jo3qma.com/yahoo_auctions_bot/internal/domain/spec"
 )
 
-// EmbedSender はEmbedを送信するインターフェース。*state.State が満たす。
+// EmbedSender はメッセージ送信に必要なDiscord APIのインターフェース。*state.State が満たす。
 type EmbedSender interface {
-	SendEmbeds(channelID discord.ChannelID, embeds ...discord.Embed) (*discord.Message, error)
+	SendMessageComplex(channelID discord.ChannelID, data api.SendMessageData) (*discord.Message, error)
 }
 
 // EmbedBuilder はAuctionPreviewからDiscord Embedを構築・送信する。
@@ -66,9 +68,19 @@ func (b *EmbedBuilder) Build(preview *auction.AuctionPreview) discord.Embed {
 	return *emb
 }
 
-// Send は構築済みEmbedを指定チャンネルに送信する。
+// Send は構築済みEmbedを、元メッセージへのリプライとして送信する。
 func (b *EmbedBuilder) Send(e *gateway.MessageCreateEvent, emb discord.Embed) (*discord.Message, error) {
-	return b.sender.SendEmbeds(e.ChannelID, emb)
+	return b.sender.SendMessageComplex(e.ChannelID, api.SendMessageData{
+		Embeds: []discord.Embed{emb},
+		Reference: &discord.MessageReference{
+			MessageID: e.ID,
+			ChannelID: e.ChannelID,
+			GuildID:   e.GuildID,
+		},
+		AllowedMentions: &api.AllowedMentions{
+			RepliedUser: option.False,
+		},
+	})
 }
 
 func formatPrice(price int64) string {
