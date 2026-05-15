@@ -36,7 +36,10 @@ func (n *ThreadNotifier) NotifyPriceIncrease(ctx context.Context, item *domainwa
 	if err != nil {
 		return fmt.Errorf("ensure thread: %w", err)
 	}
+	return n.sendPriceIncreaseNotification(threadID, item, oldPrice, newPrice)
+}
 
+func (n *ThreadNotifier) sendPriceIncreaseNotification(threadID discord.ChannelID, item *domainwatch.WatchItem, oldPrice, newPrice int64) error {
 	content := fmt.Sprintf(
 		"<@%s> 価格が上昇しました: ¥%s → ¥%s",
 		item.UserID,
@@ -44,7 +47,7 @@ func (n *ThreadNotifier) NotifyPriceIncrease(ctx context.Context, item *domainwa
 		formatIntWithComma(newPrice),
 	)
 
-	_, err = n.api.SendMessageComplex(threadID, api.SendMessageData{
+	_, err := n.api.SendMessageComplex(threadID, api.SendMessageData{
 		Content: content,
 		AllowedMentions: &api.AllowedMentions{
 			Users: []discord.UserID{discord.UserID(mustSnowflake(item.UserID))},
@@ -54,8 +57,13 @@ func (n *ThreadNotifier) NotifyPriceIncrease(ctx context.Context, item *domainwa
 		return fmt.Errorf("send price notification: %w", err)
 	}
 
-	log.Printf("[ThreadNotifier] price increase notification sent for auction %s (user=%s)", item.AuctionID, item.UserID)
+	logThreadPriceIncreaseSent(item.AuctionID, item.UserID)
 	return nil
+}
+
+// logThreadPriceIncreaseSent は価格上昇通知送信成功をログする（テストでカバーしやすくするため分離）。
+func logThreadPriceIncreaseSent(auctionID, userID string) {
+	log.Printf("[ThreadNotifier] price increase notification sent for auction %s (user=%s)", auctionID, userID)
 }
 
 // NotifyEndingSoon は終了間近通知をスレッドに送信する。
@@ -64,14 +72,17 @@ func (n *ThreadNotifier) NotifyEndingSoon(ctx context.Context, item *domainwatch
 	if err != nil {
 		return fmt.Errorf("ensure thread: %w", err)
 	}
+	return n.sendEndingSoonNotification(threadID, item, currentPrice)
+}
 
+func (n *ThreadNotifier) sendEndingSoonNotification(threadID discord.ChannelID, item *domainwatch.WatchItem, currentPrice int64) error {
 	content := fmt.Sprintf(
 		"<@%s> オークション終了まで残り約10分です。現在価格: ¥%s",
 		item.UserID,
 		formatIntWithComma(currentPrice),
 	)
 
-	_, err = n.api.SendMessageComplex(threadID, api.SendMessageData{
+	_, err := n.api.SendMessageComplex(threadID, api.SendMessageData{
 		Content: content,
 		AllowedMentions: &api.AllowedMentions{
 			Users: []discord.UserID{discord.UserID(mustSnowflake(item.UserID))},
@@ -81,8 +92,12 @@ func (n *ThreadNotifier) NotifyEndingSoon(ctx context.Context, item *domainwatch
 		return fmt.Errorf("send ending notification: %w", err)
 	}
 
-	log.Printf("[ThreadNotifier] ending soon notification sent for auction %s (user=%s)", item.AuctionID, item.UserID)
+	logThreadEndingSoonSent(item.AuctionID, item.UserID)
 	return nil
+}
+
+func logThreadEndingSoonSent(auctionID, userID string) {
+	log.Printf("[ThreadNotifier] ending soon notification sent for auction %s (user=%s)", auctionID, userID)
 }
 
 func (n *ThreadNotifier) ensureThread(ctx context.Context, item *domainwatch.WatchItem, title string) (discord.ChannelID, error) {

@@ -37,3 +37,7 @@ Thumbs.db
 *.log
 /tmp/
 /temp/
+
+# テスト実行で生成されたローカルDB
+cmd/bot/data/
+internal/application/watch/:memory:

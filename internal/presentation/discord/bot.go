@@ -15,7 +15,7 @@ import (
 
 // Bot はarikawa Stateとハンドラーを保持し、Discord Botを起動する。
 type Bot struct {
-	state           *state.State
+	gateway         GatewaySession
 	handler         *Handler
 	reactionHandler *ReactionHandler
 	pollingWorker   *appwatch.PollingWorker
@@ -54,20 +54,30 @@ func NewBot(
 	pollingWorker := appwatch.NewPollingWorker(watchRepo, auctionClient, threadNotifier, botCfg.CheckIntervalMinutes, botCfg.PollDelayMs)
 
 	return &Bot{
-		state:           s,
+		gateway:         newStateGateway(s),
 		handler:         h,
 		reactionHandler: reactionHandler,
 		pollingWorker:   pollingWorker,
 	}, nil
 }
 
+// NewBotWithDeps はテスト用に Gateway とハンドラーを直接注入する。
+func NewBotWithDeps(gw GatewaySession, h *Handler, rh *ReactionHandler, pw *appwatch.PollingWorker) *Bot {
+	return &Bot{
+		gateway:         gw,
+		handler:         h,
+		reactionHandler: rh,
+		pollingWorker:   pw,
+	}
+}
+
 // Run はBotを起動し、Gatewayに接続する。ブロッキング。
 func (b *Bot) Run(ctx context.Context) error {
-	b.state.AddHandler(b.handler.HandleMessageCreate)
-	b.state.AddHandler(b.reactionHandler.HandleReactionAdd)
-	b.state.AddHandler(b.reactionHandler.HandleReactionRemove)
+	b.gateway.AddHandler(b.handler.HandleMessageCreate)
+	b.gateway.AddHandler(b.reactionHandler.HandleReactionAdd)
+	b.gateway.AddHandler(b.reactionHandler.HandleReactionRemove)
 
-	if err := b.state.Connect(ctx); err != nil {
+	if err := b.gateway.Connect(ctx); err != nil {
 		return err
 	}
 

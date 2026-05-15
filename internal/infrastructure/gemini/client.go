@@ -27,22 +27,60 @@ type Client interface {
 	ExtractSpec(ctx context.Context, title, description string) (*spec.Spec, error)
 }
 
+// specGenerator はプロンプトから JSON テキストを生成する（テストで差し替え可能）。
+type specGenerator interface {
+	generateSpecJSON(ctx context.Context, modelName, prompt string) (string, error)
+}
+
 // client はClientの実装。
 type client struct {
-	genaiClient *genai.Client
-	model       string
+	gen   specGenerator
+	model string
+}
+
+type genaiGenerator struct {
+	gc *genai.Client
+}
+
+// genaiGenerateHook は同一パッケージのテストが GenerateContent を差し替えるためのフック（本番では常に nil）。
+var genaiGenerateHook func(ctx context.Context, model *genai.GenerativeModel, parts []genai.Part) (*genai.GenerateContentResponse, error)
+
+func (g *genaiGenerator) generateSpecJSON(ctx context.Context, modelName, prompt string) (string, error) {
+	model := g.gc.GenerativeModel(modelName)
+	model.ResponseMIMEType = "application/json"
+	model.ResponseSchema = specSchema()
+
+	var resp *genai.GenerateContentResponse
+	var err error
+	if genaiGenerateHook != nil {
+		resp, err = genaiGenerateHook(ctx, model, []genai.Part{genai.Text(prompt)})
+	} else {
+		resp, err = model.GenerateContent(ctx, genai.Text(prompt))
+	}
+	if err != nil {
+		return "", fmt.Errorf("gemini generate: %w", err)
+	}
+	return extractTextFromResponse(resp)
 }
 
 // NewClient はGemini APIクライアントを生成する。
 func NewClient(apiKey string, model string) (Client, error) {
+	return NewClientWithGenerator(apiKey, model, nil)
+}
+
+// NewClientWithGenerator は specGenerator を注入する（テスト用）。gen が nil のときは本番の genai クライアントを使う。
+func NewClientWithGenerator(apiKey string, model string, gen specGenerator) (Client, error) {
 	if model == "" {
 		model = defaultModel
 	}
-	c, err := genai.NewClient(context.Background(), option.WithAPIKey(apiKey))
-	if err != nil {
-		return nil, fmt.Errorf("genai client: %w", err)
+	if gen == nil {
+		gc, err := genai.NewClient(context.Background(), option.WithAPIKey(apiKey))
+		if err != nil {
+			return nil, fmt.Errorf("genai client: %w", err)
+		}
+		gen = &genaiGenerator{gc: gc}
 	}
-	return &client{genaiClient: c, model: model}, nil
+	return &client{gen: gen, model: model}, nil
 }
 
 // ExtractSpec はタイトルと商品説明からPCスペック等を抽出する。
@@ -75,19 +113,9 @@ func (c *client) ExtractSpec(ctx context.Context, title, description string) (*s
 【商品説明】
 %s`, title, plainDesc)
 
-	// 最終的にGeminiへ渡す前にプロンプト全体をUTF-8として正規化する。
 	prompt = sanitizeUTF8(prompt)
 
-	model := c.genaiClient.GenerativeModel(c.model)
-	model.ResponseMIMEType = "application/json"
-	model.ResponseSchema = specSchema()
-
-	resp, err := model.GenerateContent(ctx, genai.Text(prompt))
-	if err != nil {
-		return nil, fmt.Errorf("gemini generate: %w", err)
-	}
-
-	text, err := extractTextFromResponse(resp)
+	text, err := c.gen.generateSpecJSON(ctx, c.model, prompt)
 	if err != nil {
 		return nil, err
 	}
@@ -112,7 +140,7 @@ func specSchema() *genai.Schema {
 			"core_thread_info": {Type: genai.TypeString, Description: "CPUコア数/スレッド数"},
 			"socket_count":     {Type: genai.TypeInteger, Description: "ソケット数"},
 			"memory_info":      {Type: genai.TypeString, Description: "メモリー容量/枚数"},
-			"storage_type":    {Type: genai.TypeString, Description: "ストレージ種別"},
+			"storage_type":     {Type: genai.TypeString, Description: "ストレージ種別"},
 			"storage_capacity": {Type: genai.TypeString, Description: "ストレージ容量"},
 			"other_notes":      {Type: genai.TypeString, Description: "その他特記事項"},
 			"condition":        {Type: genai.TypeString, Description: "商品の状態(新品/中古/不明)"},
@@ -161,4 +189,3 @@ func extractJSONFromResponse(text string) string {
 func sanitizeUTF8(s string) string {
 	return strings.ToValidUTF8(s, "")
 }
-
