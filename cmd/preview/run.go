@@ -9,7 +9,6 @@ import (
 
 	appauction "jo3qma.com/yahoo_auctions_bot/internal/application/auction"
 	"jo3qma.com/yahoo_auctions_bot/internal/config"
-	"jo3qma.com/yahoo_auctions_bot/internal/domain/spec"
 	infraauction "jo3qma.com/yahoo_auctions_bot/internal/infrastructure/auction"
 	"jo3qma.com/yahoo_auctions_bot/internal/infrastructure/gemini"
 )
@@ -35,7 +34,7 @@ func mergePreviewDeps(d *previewDeps) {
 	}
 }
 
-// RunPreview はプレビューCLIの本体。終了コード: 0=成功、1=空Spec、2=引数エラー。
+// RunPreview はプレビューCLIの本体。終了コード: 0=成功、1=空Product、2=引数エラー。
 func RunPreview(stdout io.Writer, argv []string, cfgPath string, deps *previewDeps) int {
 	if deps == nil {
 		deps = &previewDeps{}
@@ -80,19 +79,9 @@ func RunPreview(stdout io.Writer, argv []string, cfgPath string, deps *previewDe
 		return 2
 	}
 
-	if isSpecEmpty(preview.Spec) {
-		log.Print("warning: Spec extraction returned no usable data")
+	if preview.Product.IsEffectivelyEmpty() {
+		log.Print("warning: product extraction returned no usable data")
 		return 1
 	}
 	return 0
-}
-
-// isSpecEmpty は Spec が実質的に空（すべてゼロ値・空）かどうかを返す。
-func isSpecEmpty(s *spec.Spec) bool {
-	if s == nil {
-		return true
-	}
-	return s.CPUModelLine == "" && s.CoreThreadInfo == "" && s.SocketCount == 0 &&
-		s.MemoryInfo == "" && s.StorageType == "" && s.StorageCapacity == "" &&
-		s.OtherNotes == "" && s.Condition == ""
 }

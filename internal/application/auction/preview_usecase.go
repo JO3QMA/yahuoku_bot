@@ -5,7 +5,7 @@ import (
 	"log"
 	"time"
 
-	"jo3qma.com/yahoo_auctions_bot/internal/domain/spec"
+	"jo3qma.com/yahoo_auctions_bot/internal/domain/product"
 	"jo3qma.com/yahoo_auctions_bot/internal/infrastructure/auction"
 )
 
@@ -18,7 +18,7 @@ type AuctionPreview struct {
 	Status       string
 	Images       []string
 	EndTime      *time.Time
-	Spec         *spec.Spec
+	Product      *product.ProductDetail
 }
 
 // AuctionFetcher はオークション情報を取得するインターフェース。
@@ -26,20 +26,20 @@ type AuctionFetcher interface {
 	GetAuction(ctx context.Context, auctionID string) (*auction.AuctionData, error)
 }
 
-// SpecExtractor は商品説明からスペックを抽出するインターフェース。
-type SpecExtractor interface {
-	ExtractSpec(ctx context.Context, title, description string) (*spec.Spec, error)
+// ProductExtractor は商品説明からジャンル別商品情報を抽出するインターフェース。
+type ProductExtractor interface {
+	ExtractProduct(ctx context.Context, title, description string) (*product.ProductDetail, error)
 }
 
 // PreviewUsecase はオークションURLからプレビュー情報を取得するユースケース。
 type PreviewUsecase struct {
-	auctionClient AuctionFetcher
-	specExtractor SpecExtractor
+	auctionClient  AuctionFetcher
+	productExtractor ProductExtractor
 }
 
 // NewPreviewUsecase はPreviewUsecaseを生成する。
-func NewPreviewUsecase(ac AuctionFetcher, se SpecExtractor) *PreviewUsecase {
-	return &PreviewUsecase{auctionClient: ac, specExtractor: se}
+func NewPreviewUsecase(ac AuctionFetcher, pe ProductExtractor) *PreviewUsecase {
+	return &PreviewUsecase{auctionClient: ac, productExtractor: pe}
 }
 
 // Execute はオークションIDからプレビュー情報を取得する。
@@ -49,10 +49,10 @@ func (u *PreviewUsecase) Execute(ctx context.Context, auctionID string) (*Auctio
 		return nil, err
 	}
 
-	specData, err := u.specExtractor.ExtractSpec(ctx, data.Title, data.Description)
+	productData, err := u.productExtractor.ExtractProduct(ctx, data.Title, data.Description)
 	if err != nil {
-		log.Printf("[yahoo_auctions_bot] spec extract failed for %s: %v", auctionID, err)
-		specData = &spec.Spec{} // 解析失敗時は空のSpecで続行
+		log.Printf("[yahoo_auctions_bot] product extract failed for %s: %v", auctionID, err)
+		productData = product.EmptyProductDetail()
 	}
 
 	url := "https://page.auctions.yahoo.co.jp/jp/auction/" + auctionID
@@ -64,6 +64,6 @@ func (u *PreviewUsecase) Execute(ctx context.Context, auctionID string) (*Auctio
 		Status:       data.Status,
 		Images:       data.Images,
 		EndTime:      data.EndTime,
-		Spec:         specData,
+		Product:      productData,
 	}, nil
 }

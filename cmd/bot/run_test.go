@@ -13,7 +13,7 @@ import (
 	appauction "jo3qma.com/yahoo_auctions_bot/internal/application/auction"
 	appwatch "jo3qma.com/yahoo_auctions_bot/internal/application/watch"
 	"jo3qma.com/yahoo_auctions_bot/internal/config"
-	"jo3qma.com/yahoo_auctions_bot/internal/domain/spec"
+	"jo3qma.com/yahoo_auctions_bot/internal/domain/product"
 	"jo3qma.com/yahoo_auctions_bot/internal/domain/watch"
 	infraauction "jo3qma.com/yahoo_auctions_bot/internal/infrastructure/auction"
 	"jo3qma.com/yahoo_auctions_bot/internal/infrastructure/gemini"
@@ -37,8 +37,8 @@ func (waitCtxRunner) Run(ctx context.Context) error {
 
 type fakeGemini struct{}
 
-func (fakeGemini) ExtractSpec(context.Context, string, string) (*spec.Spec, error) {
-	return &spec.Spec{}, nil
+func (fakeGemini) ExtractProduct(context.Context, string, string) (*product.ProductDetail, error) {
+	return &product.ProductDetail{}, nil
 }
 
 func TestRun_nilDeps(t *testing.T) {
