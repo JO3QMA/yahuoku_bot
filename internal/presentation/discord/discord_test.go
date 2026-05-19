@@ -30,11 +30,13 @@ func (m *mockGW) AddHandler(interface{}) func() { return func() {} }
 func (m *mockGW) Connect(ctx context.Context) error { return m.connectErr }
 
 type stubSender struct {
-	msg *discord.Message
-	err error
+	msg  *discord.Message
+	err  error
+	last api.SendMessageData
 }
 
 func (s *stubSender) SendMessageComplex(channelID discord.ChannelID, data api.SendMessageData) (*discord.Message, error) {
+	s.last = data
 	return s.msg, s.err
 }
 
@@ -258,7 +260,8 @@ func TestEmbedBuilder_Build_and_Send(t *testing.T) {
 			},
 		},
 	}
-	b := NewEmbedBuilder(&stubSender{})
+	sender := &stubSender{}
+	b := NewEmbedBuilder(sender)
 	emb := b.Build(p)
 	if len(emb.Fields) == 0 {
 		t.Fatal("fields")
@@ -269,6 +272,9 @@ func TestEmbedBuilder_Build_and_Send(t *testing.T) {
 	_, err := b.Send(e, emb)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if sender.last.Reference != nil {
+		t.Fatal("embed must not be sent as a reply")
 	}
 }
 

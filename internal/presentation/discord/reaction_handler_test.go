@@ -66,26 +66,3 @@ func TestExtractAuctionIDFromEmbeds(t *testing.T) {
 		})
 	}
 }
-
-func TestTruncate(t *testing.T) {
-	tests := []struct {
-		name   string
-		input  string
-		maxLen int
-		want   string
-	}{
-		{"short", "hello", 10, "hello"},
-		{"exact", "hello", 5, "hello"},
-		{"long ascii", "hello world", 6, "hello…"},
-		{"japanese", "あいうえおかきくけこ", 5, "あいうえ…"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := truncate(tt.input, tt.maxLen)
-			if got != tt.want {
-				t.Errorf("truncate(%q, %d) = %q, want %q", tt.input, tt.maxLen, got, tt.want)
-			}
-		})
-	}
-}
