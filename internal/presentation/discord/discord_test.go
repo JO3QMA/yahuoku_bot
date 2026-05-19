@@ -12,7 +12,7 @@ import (
 
 	appauction "jo3qma.com/yahoo_auctions_bot/internal/application/auction"
 	appwatch "jo3qma.com/yahoo_auctions_bot/internal/application/watch"
-	"jo3qma.com/yahoo_auctions_bot/internal/domain/spec"
+	"jo3qma.com/yahoo_auctions_bot/internal/domain/product"
 	domainwatch "jo3qma.com/yahoo_auctions_bot/internal/domain/watch"
 	infraauction "jo3qma.com/yahoo_auctions_bot/internal/infrastructure/auction"
 
@@ -101,13 +101,13 @@ func (s *stubPreviewFetch) GetAuction(ctx context.Context, id string) (*infraauc
 	return s.data, s.err
 }
 
-type stubSpecExt struct {
-	sp  *spec.Spec
+type stubProductExt struct {
+	pd  *product.ProductDetail
 	err error
 }
 
-func (s *stubSpecExt) ExtractSpec(ctx context.Context, title, description string) (*spec.Spec, error) {
-	return s.sp, s.err
+func (s *stubProductExt) ExtractProduct(ctx context.Context, title, description string) (*product.ProductDetail, error) {
+	return s.pd, s.err
 }
 
 func TestBot_Run_connectError(t *testing.T) {
@@ -115,7 +115,7 @@ func TestBot_Run_connectError(t *testing.T) {
 	pu := appauction.NewPreviewUsecase(&stubPreviewFetch{data: &infraauction.AuctionData{
 		AuctionID: "a", Title: "T", CurrentPrice: 1, Status: "S", Description: "d",
 		EndTime: &end,
-	}}, &stubSpecExt{sp: &spec.Spec{}})
+	}}, &stubProductExt{pd: &product.ProductDetail{}})
 	h := NewHandler(pu, NewEmbedBuilder(&stubSender{}), NewAllowedFilter(nil, nil))
 	repo := &memWatchRepo{}
 	wu := appwatch.NewWatchUsecase(repo)
@@ -141,7 +141,7 @@ func TestBot_Run_cancel(t *testing.T) {
 	end := time.Now()
 	pu := appauction.NewPreviewUsecase(&stubPreviewFetch{data: &infraauction.AuctionData{
 		AuctionID: "a", Title: "T", CurrentPrice: 1, Status: "S", Description: "d", EndTime: &end,
-	}}, &stubSpecExt{sp: &spec.Spec{}})
+	}}, &stubProductExt{pd: &product.ProductDetail{}})
 	h := NewHandler(pu, NewEmbedBuilder(&stubSender{}), NewAllowedFilter(nil, nil))
 	repo := &memWatchRepo{}
 	wu := appwatch.NewWatchUsecase(repo)
@@ -179,7 +179,7 @@ func TestHandler_HandleMessageCreate(t *testing.T) {
 	data := &infraauction.AuctionData{
 		AuctionID: "abc12345678", Title: "T", CurrentPrice: 1, Status: "S", Description: "d", EndTime: &end,
 	}
-	pu := appauction.NewPreviewUsecase(&stubPreviewFetch{data: data}, &stubSpecExt{sp: &spec.Spec{}})
+	pu := appauction.NewPreviewUsecase(&stubPreviewFetch{data: data}, &stubProductExt{pd: &product.ProductDetail{}})
 	sender := &stubSender{msg: &discord.Message{ID: 1}}
 	h := NewHandler(pu, NewEmbedBuilder(sender), NewAllowedFilter(nil, nil))
 
@@ -206,7 +206,7 @@ func TestHandler_HandleMessageCreate(t *testing.T) {
 		})
 	})
 	t.Run("usecase error", func(t *testing.T) {
-		pu2 := appauction.NewPreviewUsecase(&stubPreviewFetch{err: errors.New("e")}, &stubSpecExt{})
+		pu2 := appauction.NewPreviewUsecase(&stubPreviewFetch{err: errors.New("e")}, &stubProductExt{})
 		h2 := NewHandler(pu2, NewEmbedBuilder(sender), NewAllowedFilter(nil, nil))
 		h2.HandleMessageCreate(&gateway.MessageCreateEvent{
 			Message: discord.Message{
@@ -215,7 +215,7 @@ func TestHandler_HandleMessageCreate(t *testing.T) {
 		})
 	})
 	t.Run("send error", func(t *testing.T) {
-		pu2 := appauction.NewPreviewUsecase(&stubPreviewFetch{data: data}, &stubSpecExt{sp: &spec.Spec{}})
+		pu2 := appauction.NewPreviewUsecase(&stubPreviewFetch{data: data}, &stubProductExt{pd: &product.ProductDetail{}})
 		h2 := NewHandler(pu2, NewEmbedBuilder(&stubSender{err: errors.New("s")}), NewAllowedFilter(nil, nil))
 		h2.HandleMessageCreate(&gateway.MessageCreateEvent{
 			Message: discord.Message{
@@ -245,10 +245,17 @@ func TestEmbedBuilder_Build_and_Send(t *testing.T) {
 	p := &appauction.AuctionPreview{
 		AuctionID: "a", Title: "T", URL: "https://page.auctions.yahoo.co.jp/jp/auction/abc12345678",
 		CurrentPrice: 0, Images: []string{"https://i"}, EndTime: nil,
-		Spec: &spec.Spec{
-			CPUModelLine: "c", CoreThreadInfo: "x", SocketCount: 2, MemoryInfo: "m",
-			StorageType: "s", StorageCapacity: "cap", OtherNotes: "o", Condition: "新品",
-			ShippingFree: &sf,
+		Product: &product.ProductDetail{
+			Category: product.CategoryServer, Condition: "新品", ShippingFree: &sf,
+			Fields: []product.Field{
+				{Key: "cpu_model_line", Value: "c"},
+				{Key: "core_thread_info", Value: "x"},
+				{Key: "socket_count", Value: "2"},
+				{Key: "memory_info", Value: "m"},
+				{Key: "storage_type", Value: "s"},
+				{Key: "storage_capacity", Value: "cap"},
+				{Key: "other_notes", Value: "o"},
+			},
 		},
 	}
 	b := NewEmbedBuilder(&stubSender{})
@@ -276,8 +283,11 @@ func TestEmbedBuilder_priceAndTime(t *testing.T) {
 	_ = b.Build(&appauction.AuctionPreview{CurrentPrice: 2000, EndTime: &future2})
 	_ = b.Build(&appauction.AuctionPreview{CurrentPrice: 3000, EndTime: &future3})
 	sf := false
-	_ = b.Build(&appauction.AuctionPreview{Spec: &spec.Spec{ShippingFree: &sf}})
-	_ = b.Build(&appauction.AuctionPreview{Spec: &spec.Spec{CPUModelLine: "不明"}})
+	_ = b.Build(&appauction.AuctionPreview{Product: &product.ProductDetail{ShippingFree: &sf}})
+	_ = b.Build(&appauction.AuctionPreview{Product: &product.ProductDetail{
+		Category: product.CategoryServer,
+		Fields:   []product.Field{{Key: "cpu_model_line", Value: "不明"}},
+	}})
 	_ = b.Build(&appauction.AuctionPreview{CurrentPrice: 12_345_678, EndTime: &future})
 }
 

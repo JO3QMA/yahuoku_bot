@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"jo3qma.com/yahoo_auctions_bot/internal/domain/spec"
+	"jo3qma.com/yahoo_auctions_bot/internal/domain/product"
 	infraauction "jo3qma.com/yahoo_auctions_bot/internal/infrastructure/auction"
 )
 
@@ -23,15 +23,15 @@ func (f *fakeFetcher) GetAuction(ctx context.Context, auctionID string) (*infraa
 }
 
 type fakeExtractor struct {
-	spec *spec.Spec
-	err  error
+	product *product.ProductDetail
+	err     error
 }
 
-func (f *fakeExtractor) ExtractSpec(ctx context.Context, title, description string) (*spec.Spec, error) {
+func (f *fakeExtractor) ExtractProduct(ctx context.Context, title, description string) (*product.ProductDetail, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
-	return f.spec, nil
+	return f.product, nil
 }
 
 func TestPreviewUsecase_Execute_success(t *testing.T) {
@@ -40,7 +40,10 @@ func TestPreviewUsecase_Execute_success(t *testing.T) {
 		AuctionID: "a1", Title: "T", CurrentPrice: 500,
 		Status: "S", Images: []string{"i"}, Description: "d", EndTime: &end,
 	}}
-	fe := &fakeExtractor{spec: &spec.Spec{CPUModelLine: "cpu"}}
+	fe := &fakeExtractor{product: &product.ProductDetail{
+		Category: product.CategoryServer,
+		Fields:   []product.Field{{Key: "cpu_model_line", Value: "cpu"}},
+	}}
 	u := NewPreviewUsecase(ff, fe)
 	out, err := u.Execute(context.Background(), "a1")
 	if err != nil {
@@ -49,8 +52,8 @@ func TestPreviewUsecase_Execute_success(t *testing.T) {
 	if out.URL != "https://page.auctions.yahoo.co.jp/jp/auction/a1" {
 		t.Fatalf("url %s", out.URL)
 	}
-	if out.Spec.CPUModelLine != "cpu" {
-		t.Fatal("spec missing")
+	if len(out.Product.Fields) != 1 || out.Product.Fields[0].Value != "cpu" {
+		t.Fatal("product missing")
 	}
 }
 
@@ -62,15 +65,18 @@ func TestPreviewUsecase_Execute_fetchError(t *testing.T) {
 	}
 }
 
-func TestPreviewUsecase_Execute_specFallback(t *testing.T) {
-	ff := &fakeFetcher{data: &infraauction.AuctionData{AuctionID: "a", Title: "t"}}
-	fe := &fakeExtractor{err: errors.New("extract fail")}
-	u := NewPreviewUsecase(ff, fe)
-	out, err := u.Execute(context.Background(), "a")
+func TestPreviewUsecase_Execute_extractErrorContinues(t *testing.T) {
+	end := time.Now().Add(time.Hour)
+	ff := &fakeFetcher{data: &infraauction.AuctionData{
+		AuctionID: "a1", Title: "T", CurrentPrice: 500,
+		Status: "S", Description: "d", EndTime: &end,
+	}}
+	u := NewPreviewUsecase(ff, &fakeExtractor{err: errors.New("extract")})
+	out, err := u.Execute(context.Background(), "a1")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if out.Spec == nil {
-		t.Fatal("expected empty spec object")
+	if out.Product.Category != product.CategoryOther {
+		t.Fatalf("got %s", out.Product.Category)
 	}
 }

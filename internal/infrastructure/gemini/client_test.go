@@ -131,59 +131,59 @@ func (s *stubGen) generateSpecJSON(ctx context.Context, modelName, prompt string
 	return s.text, nil
 }
 
-func TestClient_ExtractSpec_viaStub(t *testing.T) {
-	c, err := NewClientWithGenerator("k", "m", &stubGen{text: `{"cpu_model_line":"X","core_thread_info":"","socket_count":0,"memory_info":"","storage_type":"","storage_capacity":"","other_notes":""}`})
+func TestClient_ExtractProduct_viaStub(t *testing.T) {
+	c, err := NewClientWithGenerator("k", "m", &stubGen{text: `{"category":"server","condition":"新品","shipping_free":true,"fields":[{"key":"cpu_model_line","value":"X"}]}`})
 	if err != nil {
 		t.Fatal(err)
 	}
-	sp, err := c.ExtractSpec(context.Background(), "t", "d")
+	pd, err := c.ExtractProduct(context.Background(), "t", "d")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if sp.CPUModelLine != "X" {
-		t.Fatal(sp)
+	if pd.Category != "server" || len(pd.Fields) != 1 || pd.Fields[0].Value != "X" {
+		t.Fatal(pd)
 	}
 }
 
-func TestClient_ExtractSpec_longDescription(t *testing.T) {
+func TestClient_ExtractProduct_longDescription(t *testing.T) {
 	long := make([]byte, 9000)
 	for i := range long {
 		long[i] = 'a'
 	}
-	c, _ := NewClientWithGenerator("k", "m", &stubGen{text: `{"cpu_model_line":"","core_thread_info":"","socket_count":0,"memory_info":"","storage_type":"","storage_capacity":"","other_notes":""}`})
-	_, err := c.ExtractSpec(context.Background(), "t", string(long))
+	c, _ := NewClientWithGenerator("k", "m", &stubGen{text: `{"category":"other","condition":"","fields":[]}`})
+	_, err := c.ExtractProduct(context.Background(), "t", string(long))
 	if err != nil {
 		t.Fatal(err)
 	}
 }
 
-func TestClient_ExtractSpec_errors(t *testing.T) {
+func TestClient_ExtractProduct_errors(t *testing.T) {
 	c, _ := NewClientWithGenerator("k", "m", &stubGen{err: errors.New("gen")})
-	_, err := c.ExtractSpec(context.Background(), "t", "d")
+	_, err := c.ExtractProduct(context.Background(), "t", "d")
 	if err == nil {
 		t.Fatal("expected error")
 	}
 	c2, _ := NewClientWithGenerator("k", "m", &stubGen{text: "   "})
-	_, err = c2.ExtractSpec(context.Background(), "t", "d")
+	_, err = c2.ExtractProduct(context.Background(), "t", "d")
 	if err == nil {
 		t.Fatal("empty json")
 	}
 	c3, _ := NewClientWithGenerator("k", "m", &stubGen{text: `{`})
-	_, err = c3.ExtractSpec(context.Background(), "t", "d")
+	_, err = c3.ExtractProduct(context.Background(), "t", "d")
 	if err == nil {
 		t.Fatal("unmarshal")
 	}
 }
 
 func TestNewClient_defaultModel(t *testing.T) {
-	_, err := NewClientWithGenerator("", "", &stubGen{text: `{"cpu_model_line":"","core_thread_info":"","socket_count":0,"memory_info":"","storage_type":"","storage_capacity":"","other_notes":""}`})
+	_, err := NewClientWithGenerator("", "", &stubGen{text: `{"category":"other","condition":"","fields":[]}`})
 	if err != nil {
 		t.Fatal(err)
 	}
 }
 
-func TestSpecSchema_smoke(t *testing.T) {
-	s := specSchema()
+func TestProductSchema_smoke(t *testing.T) {
+	s := productSchema()
 	if s == nil || s.Type != genai.TypeObject {
 		t.Fatal(s)
 	}
@@ -216,7 +216,7 @@ func Test_genaiGenerator_generateHook(t *testing.T) {
 			return &genai.GenerateContentResponse{
 				Candidates: []*genai.Candidate{{
 					FinishReason: genai.FinishReasonStop,
-					Content: &genai.Content{Parts: []genai.Part{genai.Text(`{"cpu_model_line":"Z","core_thread_info":"","socket_count":0,"memory_info":"","storage_type":"","storage_capacity":"","other_notes":""}`)}},
+					Content: &genai.Content{Parts: []genai.Part{genai.Text(`{"category":"server","condition":"","fields":[{"key":"cpu_model_line","value":"Z"}]}`)}},
 				}},
 			}, nil
 		}

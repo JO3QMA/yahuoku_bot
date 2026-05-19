@@ -2,6 +2,7 @@ package discord
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/diamondburned/arikawa/v3/api"
@@ -10,7 +11,7 @@ import (
 	"github.com/diamondburned/arikawa/v3/utils/json/option"
 
 	"jo3qma.com/yahoo_auctions_bot/internal/application/auction"
-	"jo3qma.com/yahoo_auctions_bot/internal/domain/spec"
+	"jo3qma.com/yahoo_auctions_bot/internal/domain/product"
 )
 
 // EmbedSender はメッセージ送信に必要なDiscord APIのインターフェース。*state.State が満たす。
@@ -51,18 +52,25 @@ func (b *EmbedBuilder) Build(preview *auction.AuctionPreview) discord.Embed {
 
 	// 商品状態
 	condition := "不明"
-	if preview.Spec != nil && preview.Spec.Condition != "" {
-		condition = preview.Spec.Condition
+	if preview.Product != nil && preview.Product.Condition != "" {
+		condition = preview.Product.Condition
 	}
 	fields = append(fields, discord.EmbedField{Name: "商品状態", Value: condition, Inline: true})
 
 	// 送料
-	shippingStr := formatShipping(preview.Spec)
+	shippingStr := formatShipping(preview.Product)
 	fields = append(fields, discord.EmbedField{Name: "送料", Value: shippingStr, Inline: true})
 
-	// PCスペック（各項目を独立して表示）
-	specFields := formatSpecFields(preview.Spec)
-	fields = append(fields, specFields...)
+	// 商品ジャンル
+	if preview.Product != nil {
+		fields = append(fields, discord.EmbedField{
+			Name: "商品ジャンル", Value: preview.Product.Category.DisplayName(), Inline: true,
+		})
+	}
+
+	// ジャンル別テンプレート項目
+	productFields := formatProductFields(preview.Product)
+	fields = append(fields, productFields...)
 
 	emb.Fields = fields
 	return *emb
@@ -118,42 +126,47 @@ func formatEndTime(endTime *time.Time) string {
 	return fmt.Sprintf("%d日", int(d.Hours()/24))
 }
 
-func formatShipping(s *spec.Spec) string {
-	if s == nil || s.ShippingFree == nil {
+func formatShipping(p *product.ProductDetail) string {
+	if p == nil || p.ShippingFree == nil {
 		return "不明"
 	}
-	if *s.ShippingFree {
+	if *p.ShippingFree {
 		return "送料無料"
 	}
 	return "落札者負担"
 }
 
-// formatSpecFields はSpecの7項目をそれぞれ独立したEmbedFieldとして返す。値が空の項目は含めない。
-func formatSpecFields(s *spec.Spec) []discord.EmbedField {
-	if s == nil {
+// formatProductFields はジャンル別テンプレートに従い EmbedField を返す。空・不明の項目は含めない。
+func formatProductFields(p *product.ProductDetail) []discord.EmbedField {
+	if p == nil {
 		return nil
 	}
+	defs := product.TemplatesFor(p.Category)
+	values := product.FieldValueMap(p.Fields)
 	fields := []discord.EmbedField{}
-	if v := s.CPUModelLine; v != "" && v != "不明" {
-		fields = append(fields, discord.EmbedField{Name: "CPU型番 (x個数) (周波数)", Value: v, Inline: false})
-	}
-	if v := s.CoreThreadInfo; v != "" && v != "不明" {
-		fields = append(fields, discord.EmbedField{Name: "CPUコア数/スレッド数", Value: v, Inline: false})
-	}
-	if s.SocketCount > 0 {
-		fields = append(fields, discord.EmbedField{Name: "ソケット数", Value: fmt.Sprintf("%d", s.SocketCount), Inline: true})
-	}
-	if v := s.MemoryInfo; v != "" && v != "不明" {
-		fields = append(fields, discord.EmbedField{Name: "メモリー容量/枚数", Value: v, Inline: true})
-	}
-	if v := s.StorageType; v != "" && v != "不明" {
-		fields = append(fields, discord.EmbedField{Name: "ストレージ種別", Value: v, Inline: true})
-	}
-	if v := s.StorageCapacity; v != "" && v != "不明" {
-		fields = append(fields, discord.EmbedField{Name: "ストレージ容量", Value: v, Inline: true})
-	}
-	if v := s.OtherNotes; v != "" && v != "不明" {
-		fields = append(fields, discord.EmbedField{Name: "その他特記事項", Value: v, Inline: false})
+
+	for _, def := range defs {
+		v, ok := values[def.Key]
+		if !ok || v == "" || v == "不明" {
+			continue
+		}
+		display := formatFieldDisplayValue(def.Key, v)
+		if display == "" {
+			continue
+		}
+		fields = append(fields, discord.EmbedField{
+			Name: def.Label, Value: display, Inline: def.Inline,
+		})
 	}
 	return fields
+}
+
+func formatFieldDisplayValue(key, value string) string {
+	if key == "socket_count" {
+		value = strings.TrimSpace(value)
+		if value == "" || value == "0" {
+			return ""
+		}
+	}
+	return value
 }

@@ -7,7 +7,7 @@ import (
 	"regexp"
 	"strings"
 
-	"jo3qma.com/yahoo_auctions_bot/internal/domain/spec"
+	"jo3qma.com/yahoo_auctions_bot/internal/domain/product"
 
 	"github.com/google/generative-ai-go/genai"
 	"google.golang.org/api/option"
@@ -22,9 +22,9 @@ var htmlTagRe = regexp.MustCompile(`<[^>]*>`)
 // markdownCodeBlockRe は ```json ... ``` または ``` ... ``` のコードブロックにマッチする。
 var markdownCodeBlockRe = regexp.MustCompile(`(?s)` + "```(?:json)?\\s*([\\s\\S]*?)```")
 
-// Client はGemini APIを用いて商品説明からスペックを抽出するクライアント。
+// Client はGemini APIを用いて商品説明から商品情報を抽出するクライアント。
 type Client interface {
-	ExtractSpec(ctx context.Context, title, description string) (*spec.Spec, error)
+	ExtractProduct(ctx context.Context, title, description string) (*product.ProductDetail, error)
 }
 
 // specGenerator はプロンプトから JSON テキストを生成する（テストで差し替え可能）。
@@ -48,7 +48,7 @@ var genaiGenerateHook func(ctx context.Context, model *genai.GenerativeModel, pa
 func (g *genaiGenerator) generateSpecJSON(ctx context.Context, modelName, prompt string) (string, error) {
 	model := g.gc.GenerativeModel(modelName)
 	model.ResponseMIMEType = "application/json"
-	model.ResponseSchema = specSchema()
+	model.ResponseSchema = productSchema()
 
 	var resp *genai.GenerateContentResponse
 	var err error
@@ -83,37 +83,21 @@ func NewClientWithGenerator(apiKey string, model string, gen specGenerator) (Cli
 	return &client{gen: gen, model: model}, nil
 }
 
-// ExtractSpec はタイトルと商品説明からPCスペック等を抽出する。
-func (c *client) ExtractSpec(ctx context.Context, title, description string) (*spec.Spec, error) {
+type extractResponse struct {
+	Category     string          `json:"category"`
+	Condition    string          `json:"condition"`
+	ShippingFree *bool           `json:"shipping_free"`
+	Fields       []product.Field `json:"fields"`
+}
+
+// ExtractProduct はタイトルと商品説明からジャンル判別とテンプレート項目を抽出する。
+func (c *client) ExtractProduct(ctx context.Context, title, description string) (*product.ProductDetail, error) {
 	plainDesc := htmlTagRe.ReplaceAllString(description, " ")
 	if len(plainDesc) > 8000 {
 		plainDesc = plainDesc[:8000] + "..."
 	}
 
-	prompt := fmt.Sprintf(`以下のヤフオク商品のタイトルと説明文から、PC・サーバー関連のスペック情報を抽出し、以下の7項目にそれぞれ独立して入れてください。
-
-【抽出項目（各項目は独立）】
-1. cpu_model_line: CPU型番 (x個数) (周波数)。例: "Xeon E-2224 (x1) (3.4GHz)"
-2. core_thread_info: CPUコア数/スレッド数。例: "4コア/4スレッド"
-3. socket_count: ソケット数。不明なら 0
-4. memory_info: メモリー容量/枚数。例: "16GB" または "16GB x2"
-5. storage_type: ストレージ種別。例: "SATA HDD", "NVMe SSD"
-6. storage_capacity: ストレージ容量。例: "1TB x2"
-7. other_notes: その他特記事項（OS、モデル名、状態の補足など）
-
-【重要】
-- タイトルにスペックが含まれることが多いため、タイトルを特に重視して抽出してください。
-- 商品説明が空の場合は、タイトルのみから抽出してください。
-- 各項目は独立させ、該当する情報だけをその項目に入れてください。不明な項目は空文字 "" または socket_count のみ 0 にしてください。
-- condition は "新品" / "中古" / "不明"、shipping_free は送料無料なら true、落札者負担なら false にしてください。
-
-【タイトル】
-%s
-
-【商品説明】
-%s`, title, plainDesc)
-
-	prompt = sanitizeUTF8(prompt)
+	prompt := sanitizeUTF8(buildExtractPrompt(title, plainDesc))
 
 	text, err := c.gen.generateSpecJSON(ctx, c.model, prompt)
 	if err != nil {
@@ -125,28 +109,49 @@ func (c *client) ExtractSpec(ctx context.Context, title, description string) (*s
 		return nil, fmt.Errorf("empty json in response")
 	}
 
-	var s spec.Spec
-	if err := json.Unmarshal([]byte(jsonStr), &s); err != nil {
-		return nil, fmt.Errorf("parse spec json: %w", err)
+	var raw extractResponse
+	if err := json.Unmarshal([]byte(jsonStr), &raw); err != nil {
+		return nil, fmt.Errorf("parse product json: %w", err)
 	}
-	return &s, nil
+
+	cat := product.ParseCategory(raw.Category)
+	detail := &product.ProductDetail{
+		Category:     cat,
+		Condition:    raw.Condition,
+		ShippingFree: raw.ShippingFree,
+		Fields:       product.ValidateFields(cat, raw.Fields),
+	}
+	return detail, nil
 }
 
-func specSchema() *genai.Schema {
+func productSchema() *genai.Schema {
+	categoryEnums := make([]string, len(product.AllCategories))
+	for i, c := range product.AllCategories {
+		categoryEnums[i] = string(c)
+	}
+
 	return &genai.Schema{
 		Type: genai.TypeObject,
 		Properties: map[string]*genai.Schema{
-			"cpu_model_line":   {Type: genai.TypeString, Description: "CPU型番 (x個数) (周波数)"},
-			"core_thread_info": {Type: genai.TypeString, Description: "CPUコア数/スレッド数"},
-			"socket_count":     {Type: genai.TypeInteger, Description: "ソケット数"},
-			"memory_info":      {Type: genai.TypeString, Description: "メモリー容量/枚数"},
-			"storage_type":     {Type: genai.TypeString, Description: "ストレージ種別"},
-			"storage_capacity": {Type: genai.TypeString, Description: "ストレージ容量"},
-			"other_notes":      {Type: genai.TypeString, Description: "その他特記事項"},
-			"condition":        {Type: genai.TypeString, Description: "商品の状態(新品/中古/不明)"},
-			"shipping_free":    {Type: genai.TypeBoolean, Description: "送料無料かどうか"},
+			"category": {
+				Type: genai.TypeString,
+				Enum: categoryEnums,
+			},
+			"condition":     {Type: genai.TypeString, Description: "商品の状態(新品/中古/不明)"},
+			"shipping_free": {Type: genai.TypeBoolean, Description: "送料無料かどうか"},
+			"fields": {
+				Type: genai.TypeArray,
+				Items: &genai.Schema{
+					Type: genai.TypeObject,
+					Properties: map[string]*genai.Schema{
+						"key":   {Type: genai.TypeString},
+						"value": {Type: genai.TypeString},
+					},
+					Required: []string{"key", "value"},
+				},
+			},
 		},
-		Required: []string{"cpu_model_line", "core_thread_info", "socket_count", "memory_info", "storage_type", "storage_capacity", "other_notes"},
+		Required: []string{"category", "condition", "fields"},
 	}
 }
 

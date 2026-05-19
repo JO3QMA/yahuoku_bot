@@ -1,10 +1,10 @@
 # yahoo_auctions_bot
 
-Discord 上でヤフオク（Yahoo! オークション）の商品 URL に反応し、オークション情報と PC スペックのプレビューを Embed で返す Bot です。別リポジトリの **yahoo_auctions API**（Connect RPC）と **Google Gemini** を組み合わせて動作します。
+Discord 上でヤフオク（Yahoo! オークション）の商品 URL に反応し、オークション情報と商品ジャンル別スペックのプレビューを Embed で返す Bot です。別リポジトリの **yahoo_auctions API**（Connect RPC）と **Google Gemini** を組み合わせて動作します。
 
 ## できること
 
-- **メッセージ監視**: メッセージ内のヤフオク URL（`page.auctions.yahoo.co.jp/.../auction/<id>`）を検出し、現在有効な情報・スペックなどを Embed で投稿します。
+- **メッセージ監視**: メッセージ内のヤフオク URL（`page.auctions.yahoo.co.jp/.../auction/<id>`）を検出し、商品ジャンル（サーバー・GPU・NIC 等）を判別してテンプレートに沿った情報を Embed で投稿します。
 - **ウォッチ**: Bot が投稿したプレビューに 🔔（ベル）リアクションを付けると、そのオークションを監視リストに登録します（バックグラウンドで定期的にチェック）。
 - **プレビュー CLI**（開発用）: オークション ID を渡すと JSON でプレビュー結果を標準出力します（`cmd/preview`）。
 

@@ -6,11 +6,11 @@ AIエージェントがこのリポジトリで作業する際のコンテキス
 
 ## プロジェクト概要
 
-**yahoo_auctions_bot** は、Discord上でヤフオク（Yahoo! オークション）の商品URLに反応し、オークション情報とPCスペックのプレビューをEmbedで返すDiscord Botです。
+**yahoo_auctions_bot** は、Discord上でヤフオク（Yahoo! オークション）の商品URLに反応し、オークション情報と商品ジャンル別スペックのプレビューをEmbedで返すDiscord Botです。
 
 - **入力**: Discordメッセージ内のヤフオクURL（`page.auctions.yahoo.co.jp/.../auction/<id>`）
-- **処理**: 外部APIで商品取得 → Geminiでスペック抽出 → Embed生成
-- **出力**: 同一チャンネルへEmbed送信（現在価格・残り時間・商品状態・送料・PCスペックなど）
+- **処理**: 外部APIで商品取得 → Geminiでジャンル判別・テンプレート項目抽出 → Embed生成
+- **出力**: 同一チャンネルへEmbed送信（現在価格・残り時間・商品状態・送料・商品ジャンル・ジャンル別スペックなど）
 
 ---
 
@@ -18,7 +18,7 @@ AIエージェントがこのリポジトリで作業する際のコンテキス
 
 - **レイヤー**: クリーン/ヘキサゴナル寄りの構成
   - `cmd/bot` — エントリポイント。設定読み込み・DI・Bot起動
-  - `internal/domain` — ドメイン仕様（例: `spec.Spec`）
+  - `internal/domain` — ドメイン仕様（例: `product.ProductDetail`）
   - `internal/application` — ユースケース（例: `PreviewUsecase`）
   - `internal/infrastructure` — 外部サービス（オークションAPI Connect RPC、Gemini）
   - `internal/presentation` — Discord（arikawa 利用、ハンドラー・Embed）
@@ -28,7 +28,7 @@ AIエージェントがこのリポジトリで作業する際のコンテキス
 - **外部連携**
   - **yahoo_auctions API**: `API_ENDPOINT` の Connect RPC（`GetAuction`）。別リポジトリ `yahoo_auctions` が提供想定。
   - **protobuf**: `github.com/jo3qma/protobuf/gen/go` の生成コードを使用。APIの型・RPCはここに依存。
-  - **Gemini**: 商品説明から `spec.Spec` をJSONで抽出（`gemini-2.5-flash-lite` 想定）。
+  - **Gemini**: 商品説明から `product.ProductDetail`（ジャンル + テンプレート項目）をJSONで抽出（`gemini-2.5-flash-lite` 想定）。
   - **Discord**: arikawa v3（Gateway、メッセージ、Embed送信）。
 
 ---
@@ -59,8 +59,8 @@ AIエージェントがこのリポジトリで作業する際のコンテキス
 
 ## ディレクトリ・ファイル慣習
 
-- **パッケージ名**: ディレクトリ名と一致（`discord`, `auction`, `config`, `spec`, `gemini` など）。
-- **インターフェース**: ユースケースが依存する「取得」「抽出」などは application 内でインターフェース定義し、infrastructure が実装（例: `AuctionFetcher`, `SpecExtractor`）。
+- **パッケージ名**: ディレクトリ名と一致（`discord`, `auction`, `config`, `product`, `gemini` など）。
+- **インターフェース**: ユースケースが依存する「取得」「抽出」などは application 内でインターフェース定義し、infrastructure が実装（例: `AuctionFetcher`, `ProductExtractor`）。
 - **コメント**: 公開型・関数は日本語で説明を付ける（「〜を返す」「〜を行う」など）。
 - **エントリ**: 実行バイナリは `cmd/bot/main.go` からビルド。Dockerでは `./cmd/bot` をビルドし、`discord-bot` として実行。
 

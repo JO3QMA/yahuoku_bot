@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"jo3qma.com/yahoo_auctions_bot/internal/config"
-	"jo3qma.com/yahoo_auctions_bot/internal/domain/spec"
+	"jo3qma.com/yahoo_auctions_bot/internal/domain/product"
 	infraauction "jo3qma.com/yahoo_auctions_bot/internal/infrastructure/auction"
 	"jo3qma.com/yahoo_auctions_bot/internal/infrastructure/gemini"
 )
@@ -58,8 +58,11 @@ func TestRunPreview_geminiClientErr(t *testing.T) {
 
 type fakePreviewGem struct{}
 
-func (fakePreviewGem) ExtractSpec(context.Context, string, string) (*spec.Spec, error) {
-	return &spec.Spec{CPUModelLine: "x"}, nil
+func (fakePreviewGem) ExtractProduct(context.Context, string, string) (*product.ProductDetail, error) {
+	return &product.ProductDetail{
+		Category: product.CategoryGPU,
+		Fields:   []product.Field{{Key: "model", Value: "x"}},
+	}, nil
 }
 
 func TestRunPreview_executeErr(t *testing.T) {
@@ -115,14 +118,14 @@ func (okAuction) GetAuction(context.Context, string) (*infraauction.AuctionData,
 	}, nil
 }
 
-func TestRunPreview_emptySpecExit(t *testing.T) {
+func TestRunPreview_emptyProductExit(t *testing.T) {
 	var buf bytes.Buffer
 	c := RunPreview(&buf, []string{"id"}, "x", &previewDeps{
 		LoadConfig: func(string) (*config.Config, error) {
 			return &config.Config{GeminiAPIKey: "k", APIEndpoint: "http://localhost:8080"}, nil
 		},
 		NewGeminiClient: func(string, string) (gemini.Client, error) {
-			return &emptySpecGem{}, nil
+			return &emptyProductGem{}, nil
 		},
 		NewAuctionClient: func(string) infraauction.Client {
 			return &okAuction{}
@@ -133,10 +136,10 @@ func TestRunPreview_emptySpecExit(t *testing.T) {
 	}
 }
 
-type emptySpecGem struct{}
+type emptyProductGem struct{}
 
-func (emptySpecGem) ExtractSpec(context.Context, string, string) (*spec.Spec, error) {
-	return &spec.Spec{}, nil
+func (emptyProductGem) ExtractProduct(context.Context, string, string) (*product.ProductDetail, error) {
+	return &product.ProductDetail{}, nil
 }
 
 func TestRunPreview_success(t *testing.T) {
@@ -161,14 +164,16 @@ func TestRunPreview_success(t *testing.T) {
 	}
 }
 
-func TestIsSpecEmpty(t *testing.T) {
-	if !isSpecEmpty(nil) {
-		t.Fatal()
+func TestProductDetail_IsEffectivelyEmpty_cli(t *testing.T) {
+	var nilPD *product.ProductDetail
+	if !nilPD.IsEffectivelyEmpty() {
+		t.Fatal("nil")
 	}
-	if !isSpecEmpty(&spec.Spec{}) {
-		t.Fatal()
+	if !product.EmptyProductDetail().IsEffectivelyEmpty() {
+		t.Fatal("empty")
 	}
-	if isSpecEmpty(&spec.Spec{Condition: "中古"}) {
-		t.Fatal()
+	p := &product.ProductDetail{Condition: "中古"}
+	if p.IsEffectivelyEmpty() {
+		t.Fatal("has condition")
 	}
 }
