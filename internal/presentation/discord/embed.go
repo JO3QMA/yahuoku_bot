@@ -8,7 +8,6 @@ import (
 	"github.com/diamondburned/arikawa/v3/api"
 	"github.com/diamondburned/arikawa/v3/discord"
 	"github.com/diamondburned/arikawa/v3/gateway"
-	"github.com/diamondburned/arikawa/v3/utils/json/option"
 
 	"jo3qma.com/yahoo_auctions_bot/internal/application/auction"
 	"jo3qma.com/yahoo_auctions_bot/internal/domain/product"
@@ -76,18 +75,10 @@ func (b *EmbedBuilder) Build(preview *auction.AuctionPreview) discord.Embed {
 	return *emb
 }
 
-// Send は構築済みEmbedを、元メッセージへのリプライとして送信する。
+// Send は構築済みEmbedをチャンネルに通常投稿する（リプライ・スレッドは使わない）。
 func (b *EmbedBuilder) Send(e *gateway.MessageCreateEvent, emb discord.Embed) (*discord.Message, error) {
 	return b.sender.SendMessageComplex(e.ChannelID, api.SendMessageData{
 		Embeds: []discord.Embed{emb},
-		Reference: &discord.MessageReference{
-			MessageID: e.ID,
-			ChannelID: e.ChannelID,
-			GuildID:   e.GuildID,
-		},
-		AllowedMentions: &api.AllowedMentions{
-			RepliedUser: option.False,
-		},
 	})
 }
 
