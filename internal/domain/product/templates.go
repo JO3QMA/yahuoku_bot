@@ -85,12 +85,13 @@ func FieldValueMap(fields []Field) map[string]string {
 }
 
 var serverTemplate = []FieldDef{
-	{Key: "cpu_model_line", Label: "CPU型番 (x個数) (周波数)", Inline: false},
+	{Key: "server_model", Label: "サーバー機種名", Inline: false},
+	{Key: "cpu_model_line", Label: "CPU型番", Inline: false},
 	{Key: "core_thread_info", Label: "CPUコア数/スレッド数", Inline: false},
 	{Key: "socket_count", Label: "ソケット数", Inline: true},
-	{Key: "memory_info", Label: "メモリー容量/枚数", Inline: true},
-	{Key: "storage_type", Label: "ストレージ種別", Inline: true},
-	{Key: "storage_capacity", Label: "ストレージ容量", Inline: true},
+	{Key: "memory_info", Label: "メモリー", Inline: false},
+	{Key: "storage_info", Label: "ストレージ", Inline: false},
+	{Key: "gpu", Label: "GPU", Inline: false},
 	{Key: "other_notes", Label: "その他特記事項", Inline: false},
 }
 

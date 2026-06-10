@@ -32,6 +32,13 @@ func buildExtractPrompt(title, plainDesc string) string {
 - UPSは ups
 - 分類できない場合は other
 
+【server ジャンルの value 形式例】
+- server_model: Fujitsu Primergy RX1330 M4
+- cpu_model_line: Intel Core Ultra 7 355 @4.25GHz x1
+- memory_info: DDR4 Unbuffered 2133MHz 8GB x8 Total: 64GB
+- storage_info: SSD 256GB x1
+- gpu: AMD Radeon RX9070XT x2（GPU非搭載の場合は fields に含めない）
+
 【出力形式】
 - category: 上記いずれか1つ
 - condition: "新品" / "中古" / "不明"

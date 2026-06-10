@@ -250,12 +250,13 @@ func TestEmbedBuilder_Build_and_Send(t *testing.T) {
 		Product: &product.ProductDetail{
 			Category: product.CategoryServer, Condition: "新品", ShippingFree: &sf,
 			Fields: []product.Field{
-				{Key: "cpu_model_line", Value: "c"},
+				{Key: "server_model", Value: "Fujitsu Primergy RX1330 M4"},
+				{Key: "cpu_model_line", Value: "Intel Core Ultra 7 355 @4.25GHz x1"},
 				{Key: "core_thread_info", Value: "x"},
 				{Key: "socket_count", Value: "2"},
-				{Key: "memory_info", Value: "m"},
-				{Key: "storage_type", Value: "s"},
-				{Key: "storage_capacity", Value: "cap"},
+				{Key: "memory_info", Value: "DDR4 Unbuffered 2133MHz 8GB x8 Total: 64GB"},
+				{Key: "storage_info", Value: "SSD 256GB x1"},
+				{Key: "gpu", Value: "AMD Radeon RX9070XT x2"},
 				{Key: "other_notes", Value: "o"},
 			},
 		},
