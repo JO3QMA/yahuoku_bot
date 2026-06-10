@@ -23,6 +23,26 @@ func TestParseCategory(t *testing.T) {
 	}
 }
 
+func TestValidateFields_serverTemplateOrder(t *testing.T) {
+	in := []Field{
+		{Key: "gpu", Value: "AMD Radeon RX9070XT x2"},
+		{Key: "server_model", Value: "Fujitsu Primergy RX1330 M4"},
+		{Key: "storage_type", Value: "SSD"},
+		{Key: "cpu_model_line", Value: "Intel Core Ultra 7 355 @4.25GHz x1"},
+		{Key: "storage_info", Value: "SSD 256GB x1"},
+	}
+	out := ValidateFields(CategoryServer, in)
+	if len(out) != 4 {
+		t.Fatalf("len=%d, got %+v", len(out), out)
+	}
+	want := []string{"server_model", "cpu_model_line", "storage_info", "gpu"}
+	for i, key := range want {
+		if out[i].Key != key {
+			t.Fatalf("out[%d].Key=%q, want %q", i, out[i].Key, key)
+		}
+	}
+}
+
 func TestValidateFields_orderAndFilter(t *testing.T) {
 	in := []Field{
 		{Key: "other_notes", Value: "note"},
