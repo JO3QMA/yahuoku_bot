@@ -1,6 +1,8 @@
 # yahoo_auctions_bot
 
-Discord 上でヤフオク（Yahoo! オークション）の商品 URL に反応し、オークション情報と商品ジャンル別スペックのプレビューを Embed で返す Bot です。別リポジトリの **yahoo_auctions API**（Connect RPC）と **Google Gemini** を組み合わせて動作します。
+Discord 上でヤフオク（Yahoo! オークション）の商品 URL に反応し、オークション情報と商品ジャンル別スペックのプレビューを Embed で返す Bot です。別リポジトリの **yahoo_auctions API**（Connect RPC）と **Google Gen AI SDK**（Gemini）を組み合わせて動作します。
+
+商品情報は **多段推論パイプライン**（テキスト分類 → 画像解析 → 不足時のみ Web 検索 → 統合）で抽出します。
 
 ## できること
 
@@ -38,7 +40,11 @@ cp config.yaml.example config.yaml
 
 | 変数 | 説明 | 既定 |
 |------|------|------|
-| `GEMINI_MODEL` | 使用する Gemini モデル | `gemini-2.5-flash-lite` |
+| `GEMINI_MODEL` | Stage1/4 用 Gemini モデル | `gemini-2.5-flash-lite` |
+| `GEMINI_MODEL_VISION` | Stage2 画像解析用モデル | `gemini-2.5-flash` |
+| `GEMINI_MODEL_AGENT` | Stage3 エージェント補完用モデル | `gemini-2.5-flash` |
+| `GEMINI_MAX_IMAGES` | 推論に使う最大画像数 | `3` |
+| `GEMINI_MAX_SEARCH_CALLS` | 1商品あたりの最大 Web 検索回数 | `3` |
 | `API_ENDPOINT` | オークション API のベース URL | `http://localhost:8080` |
 | `CONFIG_PATH` | `config.yaml` のパス（Bot・`cmd/preview` の両方で参照） | `config.yaml` |
 | `RQLITE_URL` | 設定時は **rqlite** に接続（本番・Compose 向け）。未設定時は SQLite | （未設定） |

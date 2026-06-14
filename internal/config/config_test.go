@@ -35,6 +35,9 @@ func TestLoad_envDefaults(t *testing.T) {
 	if cfg.CheckIntervalMinutes != 5 || cfg.PollDelayMs != 2000 {
 		t.Fatalf("intervals: %d %d", cfg.CheckIntervalMinutes, cfg.PollDelayMs)
 	}
+	if cfg.GeminiMaxImages != 3 || cfg.GeminiMaxSearchCalls != 3 {
+		t.Fatalf("gemini limits: %d %d", cfg.GeminiMaxImages, cfg.GeminiMaxSearchCalls)
+	}
 }
 
 func TestLoad_yamlAllowed(t *testing.T) {

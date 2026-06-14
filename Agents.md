@@ -9,7 +9,7 @@ AIエージェントがこのリポジトリで作業する際のコンテキス
 **yahoo_auctions_bot** は、Discord上でヤフオク（Yahoo! オークション）の商品URLに反応し、オークション情報と商品ジャンル別スペックのプレビューをEmbedで返すDiscord Botです。
 
 - **入力**: Discordメッセージ内のヤフオクURL（`page.auctions.yahoo.co.jp/.../auction/<id>`）
-- **処理**: 外部APIで商品取得 → Geminiでジャンル判別・テンプレート項目抽出 → Embed生成
+- **処理**: 外部APIで商品取得 → 多段 Gemini 推論（分類・画像解析・オンデマンド検索・統合）→ Embed生成
 - **出力**: 同一チャンネルへEmbed送信（現在価格・残り時間・商品状態・送料・商品ジャンル・ジャンル別スペックなど）
 
 ---
@@ -28,7 +28,7 @@ AIエージェントがこのリポジトリで作業する際のコンテキス
 - **外部連携**
   - **yahoo_auctions API**: `API_ENDPOINT` の Connect RPC（`GetAuction`）。別リポジトリ `yahoo_auctions` が提供想定。
   - **protobuf**: `github.com/jo3qma/protobuf/gen/go` の生成コードを使用。APIの型・RPCはここに依存。
-  - **Gemini**: 商品説明から `product.ProductDetail`（ジャンル + テンプレート項目）をJSONで抽出（`gemini-2.5-flash-lite` 想定）。
+  - **Gemini**（`google.golang.org/genai`）: タイトル・説明・商品画像から `product.ProductDetail` を多段パイプラインで抽出。不足フィールドは Function Calling 経由で Google Search をオンデマンド実行。
   - **Discord**: arikawa v3（Gateway、メッセージ、Embed送信）。
 
 ---
@@ -36,7 +36,7 @@ AIエージェントがこのリポジトリで作業する際のコンテキス
 ## 技術スタック・バージョン
 
 - **Go**: 1.25.4（`go.mod` に準拠）
-- **主要ライブラリ**: connectrpc.com/connect, arikawa/v3, google/generative-ai-go, gopkg.in/yaml.v3
+- **主要ライブラリ**: connectrpc.com/connect, arikawa/v3, google.golang.org/genai, gopkg.in/yaml.v3
 - **設定**: 環境変数（direnv で `.env` を読み込む想定） + YAML（`config.yaml`）。`config.Load(configPath)` で統合。
 
 ---
@@ -47,7 +47,11 @@ AIエージェントがこのリポジトリで作業する際のコンテキス
 |------|------|------|
 | 環境変数 | `DISCORD_TOKEN` | 必須。Botトークン |
 | 環境変数 | `GEMINI_API_KEY` | 必須。Gemini APIキー |
-| 環境変数 | `GEMINI_MODEL` | 任意。使用するGeminiモデル（未設定時 `gemini-2.5-flash-lite`） |
+| 環境変数 | `GEMINI_MODEL` | 任意。Stage1/4 用モデル（未設定時 `gemini-2.5-flash-lite`） |
+| 環境変数 | `GEMINI_MODEL_VISION` | 任意。Stage2 画像解析用（未設定時 `gemini-2.5-flash`） |
+| 環境変数 | `GEMINI_MODEL_AGENT` | 任意。Stage3 エージェント補完用（未設定時 `gemini-2.5-flash`） |
+| 環境変数 | `GEMINI_MAX_IMAGES` | 任意。推論に使う最大画像数（未設定時 `3`） |
+| 環境変数 | `GEMINI_MAX_SEARCH_CALLS` | 任意。1商品あたりの最大検索回数（未設定時 `3`） |
 | 環境変数 | `API_ENDPOINT` | オークションAPIのベースURL（未設定時 `http://localhost:8080`） |
 | 環境変数 | `CONFIG_PATH` | 任意。YAML設定パス（未設定時 `config.yaml`） |
 | YAML | `allowed.guilds` | 空でなければ、ここに列挙したサーバーのみ反応 |

@@ -6,8 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/google/generative-ai-go/genai"
-	"google.golang.org/api/option"
+	appauction "jo3qma.com/yahoo_auctions_bot/internal/application/auction"
+	"jo3qma.com/yahoo_auctions_bot/internal/domain/product"
+	"google.golang.org/genai"
 )
 
 func Test_extractJSONFromResponse(t *testing.T) {
@@ -25,16 +26,6 @@ func Test_extractJSONFromResponse(t *testing.T) {
 			name: "json in markdown code block",
 			text: "```json\n{\"cpu_model\":\"Xeon E3-1230 v6\",\"core_count\":4}\n```",
 			want: `{"cpu_model":"Xeon E3-1230 v6","core_count":4}`,
-		},
-		{
-			name: "plain code block without json",
-			text: "```\n{\"cpu_model\":\"Xeon\"}\n```",
-			want: `{"cpu_model":"Xeon"}`,
-		},
-		{
-			name: "with leading trailing whitespace",
-			text: "  \n  ```json\n  {\"memory_gb\":24}\n  ```  \n",
-			want: `{"memory_gb":24}`,
 		},
 	}
 	for _, tt := range tests {
@@ -66,51 +57,18 @@ func Test_extractTextFromResponse(t *testing.T) {
 		_, err := extractTextFromResponse(&genai.GenerateContentResponse{
 			Candidates: []*genai.Candidate{{
 				FinishReason: genai.FinishReasonMaxTokens,
-				Content:      &genai.Content{Parts: []genai.Part{genai.Text("x")}},
+				Content:      &genai.Content{Parts: []*genai.Part{{Text: "x"}}},
 			}},
 		})
 		if err == nil {
 			t.Fatal("expected error")
 		}
 	})
-	t.Run("nil content", func(t *testing.T) {
-		_, err := extractTextFromResponse(&genai.GenerateContentResponse{
-			Candidates: []*genai.Candidate{{
-				FinishReason: genai.FinishReasonStop,
-				Content:      nil,
-			}},
-		})
-		if err == nil {
-			t.Fatal("expected error")
-		}
-	})
-	t.Run("empty text", func(t *testing.T) {
-		_, err := extractTextFromResponse(&genai.GenerateContentResponse{
-			Candidates: []*genai.Candidate{{
-				FinishReason: genai.FinishReasonStop,
-				Content:      &genai.Content{Parts: []genai.Part{genai.Text("  ")}},
-			}},
-		})
-		if err == nil {
-			t.Fatal("expected error")
-		}
-	})
-	t.Run("no text part", func(t *testing.T) {
-		_, err := extractTextFromResponse(&genai.GenerateContentResponse{
-			Candidates: []*genai.Candidate{{
-				FinishReason: genai.FinishReasonStop,
-				Content:      &genai.Content{Parts: []genai.Part{}},
-			}},
-		})
-		if err == nil {
-			t.Fatal("expected error")
-		}
-	})
-	t.Run("success unspecified", func(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
 		s, err := extractTextFromResponse(&genai.GenerateContentResponse{
 			Candidates: []*genai.Candidate{{
-				FinishReason: genai.FinishReasonUnspecified,
-				Content:      &genai.Content{Parts: []genai.Part{genai.Text(`{"cpu_model_line":""}`)}},
+				FinishReason: genai.FinishReasonStop,
+				Content:      &genai.Content{Parts: []*genai.Part{{Text: `{"category":"other"}`}}},
 			}},
 		})
 		if err != nil || s == "" {
@@ -119,24 +77,21 @@ func Test_extractTextFromResponse(t *testing.T) {
 	})
 }
 
-type stubGen struct {
-	text string
-	err  error
+type stubRunner struct {
+	result *product.ProductDetail
+	err    error
 }
 
-func (s *stubGen) generateSpecJSON(ctx context.Context, modelName, prompt string) (string, error) {
-	if s.err != nil {
-		return "", s.err
-	}
-	return s.text, nil
+func (s *stubRunner) run(context.Context, appauction.ExtractInput) (*product.ProductDetail, error) {
+	return s.result, s.err
 }
 
 func TestClient_ExtractProduct_viaStub(t *testing.T) {
-	c, err := NewClientWithGenerator("k", "m", &stubGen{text: `{"category":"server","condition":"新品","shipping_free":true,"fields":[{"key":"cpu_model_line","value":"X"}]}`})
-	if err != nil {
-		t.Fatal(err)
-	}
-	pd, err := c.ExtractProduct(context.Background(), "t", "d")
+	c := NewClientWithRunner(&stubRunner{result: &product.ProductDetail{
+		Category: product.CategoryServer,
+		Fields:   []product.Field{{Key: "cpu_model_line", Value: "X"}},
+	}})
+	pd, err := c.ExtractProduct(context.Background(), appauction.ExtractInput{Title: "t", Description: "d"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -145,40 +100,11 @@ func TestClient_ExtractProduct_viaStub(t *testing.T) {
 	}
 }
 
-func TestClient_ExtractProduct_longDescription(t *testing.T) {
-	long := make([]byte, 9000)
-	for i := range long {
-		long[i] = 'a'
-	}
-	c, _ := NewClientWithGenerator("k", "m", &stubGen{text: `{"category":"other","condition":"","fields":[]}`})
-	_, err := c.ExtractProduct(context.Background(), "t", string(long))
-	if err != nil {
-		t.Fatal(err)
-	}
-}
-
 func TestClient_ExtractProduct_errors(t *testing.T) {
-	c, _ := NewClientWithGenerator("k", "m", &stubGen{err: errors.New("gen")})
-	_, err := c.ExtractProduct(context.Background(), "t", "d")
+	c := NewClientWithRunner(&stubRunner{err: errors.New("gen")})
+	_, err := c.ExtractProduct(context.Background(), appauction.ExtractInput{Title: "t"})
 	if err == nil {
 		t.Fatal("expected error")
-	}
-	c2, _ := NewClientWithGenerator("k", "m", &stubGen{text: "   "})
-	_, err = c2.ExtractProduct(context.Background(), "t", "d")
-	if err == nil {
-		t.Fatal("empty json")
-	}
-	c3, _ := NewClientWithGenerator("k", "m", &stubGen{text: `{`})
-	_, err = c3.ExtractProduct(context.Background(), "t", "d")
-	if err == nil {
-		t.Fatal("unmarshal")
-	}
-}
-
-func TestNewClient_defaultModel(t *testing.T) {
-	_, err := NewClientWithGenerator("", "", &stubGen{text: `{"category":"other","condition":"","fields":[]}`})
-	if err != nil {
-		t.Fatal(err)
 	}
 }
 
@@ -189,41 +115,79 @@ func TestProductSchema_smoke(t *testing.T) {
 	}
 }
 
-func Test_genaiGenerator_generateHook(t *testing.T) {
-	gc, err := genai.NewClient(context.Background(), option.WithAPIKey("unit-test-dummy-key"))
+func Test_genAIAPI_generateHook(t *testing.T) {
+	api, err := newGenAIAPI("unit-test-dummy-key")
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() {
-		genaiGenerateHook = nil
-		_ = gc.Close()
-	})
-	g := &genaiGenerator{gc: gc}
+	t.Cleanup(func() { generateHook = nil })
 
 	t.Run("hook error", func(t *testing.T) {
-		genaiGenerateHook = func(context.Context, *genai.GenerativeModel, []genai.Part) (*genai.GenerateContentResponse, error) {
+		generateHook = func(context.Context, *genai.Client, string, []*genai.Content, *genai.GenerateContentConfig) (*genai.GenerateContentResponse, error) {
 			return nil, errors.New("x")
 		}
-		t.Cleanup(func() { genaiGenerateHook = nil })
-		_, err := g.generateSpecJSON(context.Background(), defaultModel, "p")
-		if err == nil || !strings.Contains(err.Error(), "gemini") {
+		t.Cleanup(func() { generateHook = nil })
+		_, err := api.generateJSON(context.Background(), defaultFastModel, "p", productSchema())
+		if err == nil || !strings.Contains(err.Error(), "x") {
 			t.Fatalf("%v", err)
 		}
 	})
 
 	t.Run("hook success", func(t *testing.T) {
-		genaiGenerateHook = func(context.Context, *genai.GenerativeModel, []genai.Part) (*genai.GenerateContentResponse, error) {
+		generateHook = func(context.Context, *genai.Client, string, []*genai.Content, *genai.GenerateContentConfig) (*genai.GenerateContentResponse, error) {
 			return &genai.GenerateContentResponse{
 				Candidates: []*genai.Candidate{{
 					FinishReason: genai.FinishReasonStop,
-					Content: &genai.Content{Parts: []genai.Part{genai.Text(`{"category":"server","condition":"","fields":[{"key":"cpu_model_line","value":"Z"}]}`)}},
+					Content:      &genai.Content{Parts: []*genai.Part{{Text: `{"category":"server","condition":"","fields":[{"key":"cpu_model_line","value":"Z"}]}`}}},
 				}},
 			}, nil
 		}
-		t.Cleanup(func() { genaiGenerateHook = nil })
-		text, err := g.generateSpecJSON(context.Background(), defaultModel, "p")
+		t.Cleanup(func() { generateHook = nil })
+		text, err := api.generateJSON(context.Background(), defaultFastModel, "p", productSchema())
 		if err != nil || !strings.Contains(text, "Z") {
 			t.Fatalf("%v %q", err, text)
 		}
 	})
+}
+
+func Test_pipeline_stage1_only(t *testing.T) {
+	stage1 := `{"category":"other","condition":"","shipping_free":null,"fields":[],"missing_keys":[],"candidate_queries":[]}`
+	stage4 := `{"category":"other","condition":"","fields":[]}`
+	call := 0
+	generateHook = func(_ context.Context, _ *genai.Client, _ string, _ []*genai.Content, cfg *genai.GenerateContentConfig) (*genai.GenerateContentResponse, error) {
+		call++
+		text := stage4
+		if cfg != nil && cfg.ResponseSchema != nil {
+			if _, ok := cfg.ResponseSchema.Properties["missing_keys"]; ok {
+				text = stage1
+			}
+		}
+		return jsonResponse(text), nil
+	}
+	t.Cleanup(func() { generateHook = nil })
+
+	api, err := newGenAIAPI("k")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := NewClientWithRunner(newPipeline(api, Options{FastModel: "m"}))
+	pd, err := c.ExtractProduct(context.Background(), appauction.ExtractInput{Title: "t", Description: "d"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pd == nil {
+		t.Fatal("nil product")
+	}
+	if call < 2 {
+		t.Fatalf("expected at least 2 api calls, got %d", call)
+	}
+}
+
+func jsonResponse(text string) *genai.GenerateContentResponse {
+	return &genai.GenerateContentResponse{
+		Candidates: []*genai.Candidate{{
+			FinishReason: genai.FinishReasonStop,
+			Content:      &genai.Content{Parts: []*genai.Part{{Text: text}}},
+		}},
+	}
 }

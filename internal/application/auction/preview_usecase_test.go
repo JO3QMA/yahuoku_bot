@@ -27,7 +27,7 @@ type fakeExtractor struct {
 	err     error
 }
 
-func (f *fakeExtractor) ExtractProduct(ctx context.Context, title, description string) (*product.ProductDetail, error) {
+func (f *fakeExtractor) ExtractProduct(ctx context.Context, in ExtractInput) (*product.ProductDetail, error) {
 	if f.err != nil {
 		return nil, f.err
 	}

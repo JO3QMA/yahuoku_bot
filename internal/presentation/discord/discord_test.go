@@ -108,7 +108,7 @@ type stubProductExt struct {
 	err error
 }
 
-func (s *stubProductExt) ExtractProduct(ctx context.Context, title, description string) (*product.ProductDetail, error) {
+func (s *stubProductExt) ExtractProduct(ctx context.Context, in appauction.ExtractInput) (*product.ProductDetail, error) {
 	return s.pd, s.err
 }
 

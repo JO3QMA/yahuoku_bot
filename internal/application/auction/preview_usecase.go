@@ -28,7 +28,7 @@ type AuctionFetcher interface {
 
 // ProductExtractor は商品説明からジャンル別商品情報を抽出するインターフェース。
 type ProductExtractor interface {
-	ExtractProduct(ctx context.Context, title, description string) (*product.ProductDetail, error)
+	ExtractProduct(ctx context.Context, in ExtractInput) (*product.ProductDetail, error)
 }
 
 // PreviewUsecase はオークションURLからプレビュー情報を取得するユースケース。
@@ -49,7 +49,11 @@ func (u *PreviewUsecase) Execute(ctx context.Context, auctionID string) (*Auctio
 		return nil, err
 	}
 
-	productData, err := u.productExtractor.ExtractProduct(ctx, data.Title, data.Description)
+	productData, err := u.productExtractor.ExtractProduct(ctx, ExtractInput{
+		Title:       data.Title,
+		Description: data.Description,
+		ImageURLs:   data.Images,
+	})
 	if err != nil {
 		log.Printf("[yahoo_auctions_bot] product extract failed for %s: %v", auctionID, err)
 		productData = product.EmptyProductDetail()
