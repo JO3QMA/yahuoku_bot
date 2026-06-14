@@ -108,4 +108,20 @@ AIエージェントがこのリポジトリで作業する際のコンテキス
 
 ---
 
+## Agent skills
+
+### Issue tracker
+
+Issues live in this repo's GitHub Issues (`JO3QMA/yahuoku_bot`). See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Five canonical triage roles map to GitHub labels (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context layout: `CONTEXT.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+
+---
+
 このファイルは、エージェントが yahoo_auctions_bot の目的・構成・慣習を把握し、一貫した変更や機能追加を行うための参照用です。
