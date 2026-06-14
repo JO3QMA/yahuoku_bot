@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/diamondburned/arikawa/v3/api"
 	"github.com/diamondburned/arikawa/v3/discord"
@@ -67,18 +68,23 @@ func logThreadPriceIncreaseSent(auctionID, userID string) {
 }
 
 // NotifyEndingSoon は終了間近通知をスレッドに送信する。
-func (n *ThreadNotifier) NotifyEndingSoon(ctx context.Context, item *domainwatch.WatchItem, currentPrice int64, title string) error {
+func (n *ThreadNotifier) NotifyEndingSoon(ctx context.Context, item *domainwatch.WatchItem, currentPrice int64, title string, remaining time.Duration) error {
 	threadID, err := n.ensureThread(ctx, item, title)
 	if err != nil {
 		return fmt.Errorf("ensure thread: %w", err)
 	}
-	return n.sendEndingSoonNotification(threadID, item, currentPrice)
+	return n.sendEndingSoonNotification(threadID, item, currentPrice, remaining)
 }
 
-func (n *ThreadNotifier) sendEndingSoonNotification(threadID discord.ChannelID, item *domainwatch.WatchItem, currentPrice int64) error {
+func (n *ThreadNotifier) sendEndingSoonNotification(threadID discord.ChannelID, item *domainwatch.WatchItem, currentPrice int64, remaining time.Duration) error {
+	minutes := int(remaining.Minutes())
+	if minutes < 1 {
+		minutes = 1
+	}
 	content := fmt.Sprintf(
-		"<@%s> オークション終了まで残り約10分です。現在価格: ¥%s",
+		"<@%s> オークション終了まで残り約%d分です。現在価格: ¥%s",
 		item.UserID,
+		minutes,
 		formatIntWithComma(currentPrice),
 	)
 

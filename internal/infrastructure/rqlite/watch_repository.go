@@ -27,7 +27,8 @@ func (r *WatchRepository) Add(ctx context.Context, item *watch.WatchItem) error 
 		VALUES (?, ?, ?, ?, ?, ?, ?, 0, '')
 		ON CONFLICT(auction_id, user_id, message_id) DO UPDATE SET
 			last_known_price = excluded.last_known_price,
-			end_time = excluded.end_time
+			end_time = excluded.end_time,
+			reminded = 0
 	`
 	var endTime any
 	if item.EndTime != nil {

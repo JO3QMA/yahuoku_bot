@@ -185,6 +185,40 @@ func TestWatchRepository_MarkReminded(t *testing.T) {
 	}
 }
 
+func TestWatchRepository_ReAddResetsReminded(t *testing.T) {
+	repo := setupTestDB(t)
+	ctx := context.Background()
+
+	item := &watch.WatchItem{
+		AuctionID: "abc12345678", UserID: "user1", GuildID: "g1",
+		ChannelID: "c1", MessageID: "m1", LastKnownPrice: 1000,
+	}
+	if err := repo.Add(ctx, item); err != nil {
+		t.Fatalf("add: %v", err)
+	}
+
+	items, _ := repo.ListActive(ctx)
+	if err := repo.MarkReminded(ctx, items[0].ID); err != nil {
+		t.Fatalf("mark reminded: %v", err)
+	}
+
+	end := time.Now().Add(time.Hour)
+	if err := repo.Add(ctx, &watch.WatchItem{
+		AuctionID: "abc12345678", UserID: "user1", GuildID: "g1",
+		ChannelID: "c1", MessageID: "m1", LastKnownPrice: 2000, EndTime: &end,
+	}); err != nil {
+		t.Fatalf("re-add: %v", err)
+	}
+
+	items, _ = repo.ListActive(ctx)
+	if items[0].Reminded {
+		t.Error("expected reminded reset to false on re-add")
+	}
+	if items[0].LastKnownPrice != 2000 {
+		t.Errorf("price = %d, want 2000", items[0].LastKnownPrice)
+	}
+}
+
 func TestWatchRepository_UpdateThreadID(t *testing.T) {
 	repo := setupTestDB(t)
 	ctx := context.Background()

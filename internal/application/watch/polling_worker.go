@@ -113,6 +113,7 @@ func (w *PollingWorker) processGroup(ctx context.Context, items []*watch.WatchIt
 	}
 
 	now := time.Now()
+	triggerWindow := reminderThreshold + w.interval
 
 	for _, item := range items {
 		// 価格上昇チェック
@@ -125,12 +126,14 @@ func (w *PollingWorker) processGroup(ctx context.Context, items []*watch.WatchIt
 			}
 		}
 
-		// 終了10分前リマインドチェック
-		if !item.Reminded && data.EndTime != nil {
-			remaining := data.EndTime.Sub(now)
-			if remaining > 0 && remaining <= reminderThreshold {
-				if err := w.notifier.NotifyEndingSoon(ctx, item, data.CurrentPrice, data.Title); err != nil {
+		// 終了間近リマインドチェック
+		endTime := effectiveEndTime(data, item)
+		if !item.Reminded && endTime != nil {
+			remaining := endTime.Sub(now)
+			if remaining > 0 && remaining <= triggerWindow {
+				if err := w.notifier.NotifyEndingSoon(ctx, item, data.CurrentPrice, data.Title, remaining); err != nil {
 					log.Printf("[PollingWorker] notify ending soon: %v", err)
+					continue
 				}
 				if err := w.repo.MarkReminded(ctx, item.ID); err != nil {
 					log.Printf("[PollingWorker] mark reminded: %v", err)
@@ -138,6 +141,14 @@ func (w *PollingWorker) processGroup(ctx context.Context, items []*watch.WatchIt
 			}
 		}
 	}
+}
+
+// effectiveEndTime は API の終了時刻を優先し、なければ DB 保存値を使う。
+func effectiveEndTime(data *auction.AuctionData, item *watch.WatchItem) *time.Time {
+	if data.EndTime != nil {
+		return data.EndTime
+	}
+	return item.EndTime
 }
 
 func groupByAuctionID(items []*watch.WatchItem) map[string][]*watch.WatchItem {
