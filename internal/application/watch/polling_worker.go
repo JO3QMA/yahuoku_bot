@@ -125,19 +125,52 @@ func (w *PollingWorker) processGroup(ctx context.Context, items []*watch.WatchIt
 			}
 		}
 
-		// 終了10分前リマインドチェック
-		if !item.Reminded && data.EndTime != nil {
-			remaining := data.EndTime.Sub(now)
-			if remaining > 0 && remaining <= reminderThreshold {
-				if err := w.notifier.NotifyEndingSoon(ctx, item, data.CurrentPrice, data.Title); err != nil {
+		// 終了間近リマインドチェック
+		endTime := effectiveEndTime(data, item)
+		if !item.Reminded && endTime != nil {
+			remaining := endTime.Sub(now)
+			if shouldNotifyEndingSoon(remaining, w.interval, reminderThreshold) {
+				if err := w.notifier.NotifyEndingSoon(ctx, item, data.CurrentPrice, data.Title, remaining); err != nil {
 					log.Printf("[PollingWorker] notify ending soon: %v", err)
+					continue
 				}
-				if err := w.repo.MarkReminded(ctx, item.ID); err != nil {
-					log.Printf("[PollingWorker] mark reminded: %v", err)
-				}
+				w.markRemindedWithRetry(ctx, item.ID)
 			}
 		}
 	}
+}
+
+// shouldNotifyEndingSoon は終了間近リマインドを送るべきか判定する。
+// 10分以内、または次回ポール前にオークションが終了する場合に true（取りこぼし防止）。
+func shouldNotifyEndingSoon(remaining, interval, threshold time.Duration) bool {
+	if remaining <= 0 {
+		return false
+	}
+	if remaining <= threshold {
+		return true
+	}
+	return remaining-interval <= 0
+}
+
+const markRemindedAttempts = 3
+
+// markRemindedWithRetry は通知成功後に reminded フラグを設定する。DB 障害時は稀に重複通知の可能性あり。
+func (w *PollingWorker) markRemindedWithRetry(ctx context.Context, itemID int64) {
+	var err error
+	for attempt := 0; attempt < markRemindedAttempts; attempt++ {
+		if err = w.repo.MarkReminded(ctx, itemID); err == nil {
+			return
+		}
+	}
+	log.Printf("[PollingWorker] mark reminded failed after %d attempts: %v", markRemindedAttempts, err)
+}
+
+// effectiveEndTime は API の終了時刻を優先し、なければ DB 保存値を使う。
+func effectiveEndTime(data *auction.AuctionData, item *watch.WatchItem) *time.Time {
+	if data.EndTime != nil {
+		return data.EndTime
+	}
+	return item.EndTime
 }
 
 func groupByAuctionID(items []*watch.WatchItem) map[string][]*watch.WatchItem {

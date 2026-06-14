@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -376,6 +377,31 @@ func TestWatchRepository_Add_withEndTime(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestWatchRepository_Add_onConflictResetsReminded(t *testing.T) {
+	f := &fakeHTTP{}
+	repo := NewWatchRepository(&Client{h: f})
+	ctx := context.Background()
+	item := &watch.WatchItem{
+		AuctionID: "a", UserID: "u", GuildID: "g", ChannelID: "c", MessageID: "m",
+		LastKnownPrice: 1000,
+	}
+	if err := repo.Add(ctx, item); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.Add(ctx, &watch.WatchItem{
+		AuctionID: "a", UserID: "u", GuildID: "g", ChannelID: "c", MessageID: "m",
+		LastKnownPrice: 2000,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.executeStatements) < 2 {
+		t.Fatalf("expected 2 execute calls, got %d", len(f.executeStatements))
+	}
+	if !strings.Contains(f.executeStatements[1], "reminded = 0") {
+		t.Fatalf("expected reminded reset in upsert SQL, got %q", f.executeStatements[1])
 	}
 }
 
