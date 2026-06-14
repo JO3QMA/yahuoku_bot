@@ -29,7 +29,7 @@ type discordRunner interface {
 // botDeps は run の依存注入用（テストで差し替え）。
 type botDeps struct {
 	LoadConfig           func(string) (*config.Config, error)
-	NewGeminiClient      func(cfg *config.Config) (appauction.ProductExtractor, error)
+	NewGeminiClient      func(cfg *config.Config) (appauction.Extractor, error)
 	OpenRqlite           func(ctx context.Context, url string, opts ...infrarqlite.NewClientOption) (*infrarqlite.Client, error)
 	OpenSQLite           func(path string, opts ...infrasqlite.OpenOption) (*sql.DB, error)
 	NewWatchRepoRqlite   func(*infrarqlite.Client) watch.Repository
@@ -68,7 +68,7 @@ func mergeBotDeps(d *botDeps) {
 		d.LoadConfig = config.Load
 	}
 	if d.NewGeminiClient == nil {
-		d.NewGeminiClient = func(cfg *config.Config) (appauction.ProductExtractor, error) {
+		d.NewGeminiClient = func(cfg *config.Config) (appauction.Extractor, error) {
 			return gemini.NewClient(cfg.GeminiAPIKey, bootstrap.GeminiOptions(cfg))
 		}
 	}

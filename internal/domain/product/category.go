@@ -1,6 +1,6 @@
 package product
 
-// Category は商品ジャンルの識別子。
+// Category は Product の種別判別軸。
 type Category string
 
 const (
@@ -18,7 +18,7 @@ const (
 	CategoryOther      Category = "other"
 )
 
-// AllCategories は判別対象の全ジャンル。
+// AllCategories は判別対象の全 Category。
 var AllCategories = []Category{
 	CategoryServer,
 	CategoryRackRail,

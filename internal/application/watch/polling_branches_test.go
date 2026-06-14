@@ -12,7 +12,7 @@ import (
 )
 
 func TestGroupByAuctionID(t *testing.T) {
-	items := []*dwatch.WatchItem{
+	items := []*dwatch.Watch{
 		{AuctionID: "a"}, {AuctionID: "a"}, {AuctionID: "b"},
 	}
 	g := groupByAuctionID(items)
@@ -23,9 +23,9 @@ func TestGroupByAuctionID(t *testing.T) {
 
 type errRepo struct{}
 
-func (errRepo) Add(context.Context, *dwatch.WatchItem) error { return nil }
+func (errRepo) Add(context.Context, *dwatch.Watch) error { return nil }
 func (errRepo) Remove(context.Context, string, string, string) error { return nil }
-func (errRepo) ListActive(context.Context) ([]*dwatch.WatchItem, error) {
+func (errRepo) ListActive(context.Context) ([]*dwatch.Watch, error) {
 	return nil, errors.New("list")
 }
 func (errRepo) UpdatePrice(context.Context, int64, int64) error { return nil }
@@ -33,7 +33,7 @@ func (errRepo) MarkReminded(context.Context, int64) error      { return nil }
 func (errRepo) UpdateThreadID(context.Context, string, string) error {
 	return nil
 }
-func (errRepo) FindByMessage(context.Context, string) ([]*dwatch.WatchItem, error) {
+func (errRepo) FindByMessage(context.Context, string) ([]*dwatch.Watch, error) {
 	return nil, nil
 }
 func (errRepo) RemoveByAuctionID(context.Context, string) error { return nil }
@@ -64,7 +64,7 @@ func TestPollingWorker_poll_getAuctionErr(t *testing.T) {
 	t.Cleanup(func() { _ = db.Close() })
 	repo := sqlite.NewWatchRepository(db)
 	end := time.Now().Add(time.Hour)
-	_ = repo.Add(context.Background(), &dwatch.WatchItem{
+	_ = repo.Add(context.Background(), &dwatch.Watch{
 		AuctionID: "x", UserID: "u", GuildID: "g", ChannelID: "c", MessageID: "m",
 		LastKnownPrice: 1, EndTime: &end,
 	})
@@ -80,14 +80,14 @@ func TestPollingWorker_processGroup_canceled(t *testing.T) {
 	t.Cleanup(func() { _ = db.Close() })
 	repo := sqlite.NewWatchRepository(db)
 	end := time.Now().Add(time.Hour)
-	_ = repo.Add(context.Background(), &dwatch.WatchItem{
+	_ = repo.Add(context.Background(), &dwatch.Watch{
 		AuctionID: "x", UserID: "u", GuildID: "g", ChannelID: "c", MessageID: "m",
 		LastKnownPrice: 1, EndTime: &end,
 	})
 	w := NewPollingWorker(repo, &stubFetch{}, &noopN{}, 60, 1)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	items := []*dwatch.WatchItem{{AuctionID: "x", LastKnownPrice: 1}}
+	items := []*dwatch.Watch{{AuctionID: "x", LastKnownPrice: 1}}
 	w.processGroup(ctx, items, &auction.AuctionData{
 		AuctionID: "x", CurrentPrice: 2, Status: "AUCTION_STATUS_ACTIVE", EndTime: &end,
 	})
@@ -101,12 +101,12 @@ func TestPollingWorker_processGroup_canceledStatus(t *testing.T) {
 	t.Cleanup(func() { _ = db.Close() })
 	repo := sqlite.NewWatchRepository(db)
 	end := time.Now().Add(time.Hour)
-	_ = repo.Add(context.Background(), &dwatch.WatchItem{
+	_ = repo.Add(context.Background(), &dwatch.Watch{
 		AuctionID: "x", UserID: "u", GuildID: "g", ChannelID: "c", MessageID: "m",
 		LastKnownPrice: 1, EndTime: &end,
 	})
 	w := NewPollingWorker(repo, &stubFetch{}, &noopN{}, 60, 1)
-	items := []*dwatch.WatchItem{{ID: 1, AuctionID: "x", LastKnownPrice: 1, Reminded: false}}
+	items := []*dwatch.Watch{{ID: 1, AuctionID: "x", LastKnownPrice: 1, Reminded: false}}
 	w.processGroup(context.Background(), items, &auction.AuctionData{
 		AuctionID: "x", Status: "AUCTION_STATUS_CANCELED", CurrentPrice: 1, EndTime: &end,
 	})
@@ -116,7 +116,7 @@ func TestPollingWorker_processGroup_notifyPriceErr(t *testing.T) {
 	end := time.Now().Add(time.Hour)
 	repo := &memRepoPoll{}
 	w := NewPollingWorker(repo, &stubFetch{}, &errN{}, 60, 1)
-	items := []*dwatch.WatchItem{{ID: 1, AuctionID: "a", LastKnownPrice: 1}}
+	items := []*dwatch.Watch{{ID: 1, AuctionID: "a", LastKnownPrice: 1}}
 	w.processGroup(context.Background(), items, &auction.AuctionData{
 		AuctionID: "a", CurrentPrice: 9, Status: "AUCTION_STATUS_ACTIVE", EndTime: &end,
 	})
@@ -126,7 +126,7 @@ func TestPollingWorker_processGroup_updatePriceErr(t *testing.T) {
 	end := time.Now().Add(time.Hour)
 	repo := &memRepoPoll{upErr: errors.New("u")}
 	w := NewPollingWorker(repo, &stubFetch{}, &noopN{}, 60, 1)
-	items := []*dwatch.WatchItem{{ID: 1, AuctionID: "a", LastKnownPrice: 1}}
+	items := []*dwatch.Watch{{ID: 1, AuctionID: "a", LastKnownPrice: 1}}
 	w.processGroup(context.Background(), items, &auction.AuctionData{
 		AuctionID: "a", CurrentPrice: 9, Status: "AUCTION_STATUS_ACTIVE", EndTime: &end,
 	})
@@ -136,7 +136,7 @@ func TestPollingWorker_processGroup_endingNotifyErr(t *testing.T) {
 	end := time.Now().Add(5 * time.Minute)
 	repo := &memRepoPoll{}
 	w := NewPollingWorker(repo, &stubFetch{}, &errN{}, 60, 1)
-	items := []*dwatch.WatchItem{{ID: 1, AuctionID: "a", LastKnownPrice: 1, Reminded: false}}
+	items := []*dwatch.Watch{{ID: 1, AuctionID: "a", LastKnownPrice: 1, Reminded: false}}
 	w.processGroup(context.Background(), items, &auction.AuctionData{
 		AuctionID: "a", CurrentPrice: 1, Status: "AUCTION_STATUS_ACTIVE", EndTime: &end,
 	})
@@ -146,7 +146,7 @@ func TestPollingWorker_processGroup_markRemindedErr(t *testing.T) {
 	end := time.Now().Add(5 * time.Minute)
 	repo := &memRepoPoll{mrErr: errors.New("m")}
 	w := NewPollingWorker(repo, &stubFetch{}, &noopN{}, 60, 1)
-	items := []*dwatch.WatchItem{{ID: 1, AuctionID: "a", LastKnownPrice: 1, Reminded: false}}
+	items := []*dwatch.Watch{{ID: 1, AuctionID: "a", LastKnownPrice: 1, Reminded: false}}
 	w.processGroup(context.Background(), items, &auction.AuctionData{
 		AuctionID: "a", CurrentPrice: 1, Status: "AUCTION_STATUS_ACTIVE", EndTime: &end,
 	})
@@ -156,7 +156,7 @@ func TestPollingWorker_processGroup_removeByAuctionErr(t *testing.T) {
 	end := time.Now()
 	repo := &memRepoPoll{rmAuctionErr: errors.New("r")}
 	w := NewPollingWorker(repo, &stubFetch{}, &noopN{}, 60, 1)
-	items := []*dwatch.WatchItem{{AuctionID: "a"}}
+	items := []*dwatch.Watch{{AuctionID: "a"}}
 	w.processGroup(context.Background(), items, &auction.AuctionData{
 		AuctionID: "a", Status: "AUCTION_STATUS_FINISHED", EndTime: &end,
 	})
@@ -201,11 +201,11 @@ func TestPollingWorker_Start_tickerTick(t *testing.T) {
 
 type memRepoTwoAuction struct{}
 
-func (memRepoTwoAuction) Add(context.Context, *dwatch.WatchItem) error { return nil }
+func (memRepoTwoAuction) Add(context.Context, *dwatch.Watch) error { return nil }
 func (memRepoTwoAuction) Remove(context.Context, string, string, string) error { return nil }
-func (memRepoTwoAuction) ListActive(context.Context) ([]*dwatch.WatchItem, error) {
+func (memRepoTwoAuction) ListActive(context.Context) ([]*dwatch.Watch, error) {
 	e := time.Now().Add(time.Hour)
-	return []*dwatch.WatchItem{
+	return []*dwatch.Watch{
 		{ID: 1, AuctionID: "a", UserID: "u", GuildID: "g", ChannelID: "c", MessageID: "m1", LastKnownPrice: 1, EndTime: &e},
 		{ID: 2, AuctionID: "b", UserID: "u", GuildID: "g", ChannelID: "c", MessageID: "m2", LastKnownPrice: 1, EndTime: &e},
 	}, nil
@@ -213,7 +213,7 @@ func (memRepoTwoAuction) ListActive(context.Context) ([]*dwatch.WatchItem, error
 func (memRepoTwoAuction) UpdatePrice(context.Context, int64, int64) error { return nil }
 func (memRepoTwoAuction) MarkReminded(context.Context, int64) error { return nil }
 func (memRepoTwoAuction) UpdateThreadID(context.Context, string, string) error { return nil }
-func (memRepoTwoAuction) FindByMessage(context.Context, string) ([]*dwatch.WatchItem, error) {
+func (memRepoTwoAuction) FindByMessage(context.Context, string) ([]*dwatch.Watch, error) {
 	return nil, nil
 }
 func (memRepoTwoAuction) RemoveByAuctionID(context.Context, string) error { return nil }
@@ -235,17 +235,17 @@ func (errFetch) GetAuction(context.Context, string) (*auction.AuctionData, error
 
 type noopN struct{}
 
-func (noopN) NotifyPriceIncrease(context.Context, *dwatch.WatchItem, int64, int64, string) error {
+func (noopN) NotifyPriceAlert(context.Context, *dwatch.Watch, int64, int64, string) error {
 	return nil
 }
-func (noopN) NotifyEndingSoon(context.Context, *dwatch.WatchItem, int64, string, time.Duration) error { return nil }
+func (noopN) NotifyEndingReminder(context.Context, *dwatch.Watch, int64, string, time.Duration) error { return nil }
 
 type errN struct{}
 
-func (errN) NotifyPriceIncrease(context.Context, *dwatch.WatchItem, int64, int64, string) error {
+func (errN) NotifyPriceAlert(context.Context, *dwatch.Watch, int64, int64, string) error {
 	return errors.New("n")
 }
-func (errN) NotifyEndingSoon(context.Context, *dwatch.WatchItem, int64, string, time.Duration) error {
+func (errN) NotifyEndingReminder(context.Context, *dwatch.Watch, int64, string, time.Duration) error {
 	return errors.New("n")
 }
 
@@ -257,13 +257,13 @@ type memRepoPoll struct {
 	mrFailUntil    int // 最初の N 回 MarkReminded を失敗させる（リトライテスト用）
 }
 
-func (m *memRepoPoll) Add(context.Context, *dwatch.WatchItem) error { return nil }
+func (m *memRepoPoll) Add(context.Context, *dwatch.Watch) error { return nil }
 func (m *memRepoPoll) Remove(context.Context, string, string, string) error {
 	return nil
 }
-func (m *memRepoPoll) ListActive(context.Context) ([]*dwatch.WatchItem, error) {
+func (m *memRepoPoll) ListActive(context.Context) ([]*dwatch.Watch, error) {
 	end := time.Now().Add(time.Hour)
-	return []*dwatch.WatchItem{{
+	return []*dwatch.Watch{{
 		ID: 1, AuctionID: "a", UserID: "u", GuildID: "g", ChannelID: "c", MessageID: "m",
 		LastKnownPrice: 1, EndTime: &end,
 	}}, nil
@@ -280,7 +280,7 @@ func (m *memRepoPoll) MarkReminded(_ context.Context, id int64) error {
 func (m *memRepoPoll) UpdateThreadID(context.Context, string, string) error {
 	return nil
 }
-func (m *memRepoPoll) FindByMessage(context.Context, string) ([]*dwatch.WatchItem, error) {
+func (m *memRepoPoll) FindByMessage(context.Context, string) ([]*dwatch.Watch, error) {
 	return nil, nil
 }
 func (m *memRepoPoll) RemoveByAuctionID(context.Context, string) error { return m.rmAuctionErr }
@@ -289,7 +289,7 @@ func TestPollingWorker_processGroup_endingNotifyErr_noMarkReminded(t *testing.T)
 	end := time.Now().Add(5 * time.Minute)
 	repo := &memRepoPoll{}
 	w := NewPollingWorker(repo, &stubFetch{}, &errN{}, 60, 1)
-	items := []*dwatch.WatchItem{{ID: 1, AuctionID: "a", LastKnownPrice: 1, Reminded: false, EndTime: &end}}
+	items := []*dwatch.Watch{{ID: 1, AuctionID: "a", LastKnownPrice: 1, Reminded: false, EndTime: &end}}
 	w.processGroup(context.Background(), items, &auction.AuctionData{
 		AuctionID: "a", CurrentPrice: 1, Status: "AUCTION_STATUS_ACTIVE", EndTime: &end,
 	})
@@ -303,7 +303,7 @@ func TestPollingWorker_processGroup_fallbackItemEndTime(t *testing.T) {
 	repo := &memRepoPoll{}
 	notifier := &trackEndingN{}
 	w := NewPollingWorker(repo, &stubFetch{}, notifier, 60, 1)
-	items := []*dwatch.WatchItem{{ID: 1, AuctionID: "a", LastKnownPrice: 1, Reminded: false, EndTime: &end}}
+	items := []*dwatch.Watch{{ID: 1, AuctionID: "a", LastKnownPrice: 1, Reminded: false, EndTime: &end}}
 	w.processGroup(context.Background(), items, &auction.AuctionData{
 		AuctionID: "a", CurrentPrice: 1, Status: "AUCTION_STATUS_ACTIVE", EndTime: nil,
 	})
@@ -320,7 +320,7 @@ func TestPollingWorker_processGroup_triggerWindowWithLongInterval(t *testing.T) 
 	repo := &memRepoPoll{}
 	notifier := &trackEndingN{}
 	w := NewPollingWorker(repo, &stubFetch{}, notifier, 60, 1, WithPollInterval(15*time.Minute))
-	items := []*dwatch.WatchItem{{ID: 1, AuctionID: "a", LastKnownPrice: 1, Reminded: false, EndTime: &end}}
+	items := []*dwatch.Watch{{ID: 1, AuctionID: "a", LastKnownPrice: 1, Reminded: false, EndTime: &end}}
 	w.processGroup(context.Background(), items, &auction.AuctionData{
 		AuctionID: "a", CurrentPrice: 1, Status: "AUCTION_STATUS_ACTIVE", EndTime: &end,
 	})
@@ -334,7 +334,7 @@ func TestPollingWorker_processGroup_noEarlyTrigger(t *testing.T) {
 	repo := &memRepoPoll{}
 	notifier := &trackEndingN{}
 	w := NewPollingWorker(repo, &stubFetch{}, notifier, 60, 1, WithPollInterval(15*time.Minute))
-	items := []*dwatch.WatchItem{{ID: 1, AuctionID: "a", LastKnownPrice: 1, Reminded: false, EndTime: &end}}
+	items := []*dwatch.Watch{{ID: 1, AuctionID: "a", LastKnownPrice: 1, Reminded: false, EndTime: &end}}
 	w.processGroup(context.Background(), items, &auction.AuctionData{
 		AuctionID: "a", CurrentPrice: 1, Status: "AUCTION_STATUS_ACTIVE", EndTime: &end,
 	})
@@ -351,7 +351,7 @@ func TestPollingWorker_processGroup_markRemindedRetry(t *testing.T) {
 	repo := &memRepoPoll{mrFailUntil: 2}
 	notifier := &trackEndingN{}
 	w := NewPollingWorker(repo, &stubFetch{}, notifier, 60, 1)
-	items := []*dwatch.WatchItem{{ID: 1, AuctionID: "a", LastKnownPrice: 1, Reminded: false, EndTime: &end}}
+	items := []*dwatch.Watch{{ID: 1, AuctionID: "a", LastKnownPrice: 1, Reminded: false, EndTime: &end}}
 	w.processGroup(context.Background(), items, &auction.AuctionData{
 		AuctionID: "a", CurrentPrice: 1, Status: "AUCTION_STATUS_ACTIVE", EndTime: &end,
 	})
@@ -363,7 +363,7 @@ func TestPollingWorker_processGroup_markRemindedRetry(t *testing.T) {
 	}
 }
 
-func TestShouldNotifyEndingSoon(t *testing.T) {
+func TestShouldSendEndingReminder(t *testing.T) {
 	threshold := 10 * time.Minute
 	interval := 15 * time.Minute
 	cases := []struct {
@@ -378,7 +378,7 @@ func TestShouldNotifyEndingSoon(t *testing.T) {
 		{-1 * time.Minute, false},
 	}
 	for _, tc := range cases {
-		got := shouldNotifyEndingSoon(tc.remaining, interval, threshold)
+		got := shouldSendEndingReminder(tc.remaining, interval, threshold)
 		if got != tc.want {
 			t.Errorf("remaining=%v: got %v, want %v", tc.remaining, got, tc.want)
 		}
@@ -389,10 +389,10 @@ type trackEndingN struct {
 	called bool
 }
 
-func (trackEndingN) NotifyPriceIncrease(context.Context, *dwatch.WatchItem, int64, int64, string) error {
+func (trackEndingN) NotifyPriceAlert(context.Context, *dwatch.Watch, int64, int64, string) error {
 	return nil
 }
-func (t *trackEndingN) NotifyEndingSoon(context.Context, *dwatch.WatchItem, int64, string, time.Duration) error {
+func (t *trackEndingN) NotifyEndingReminder(context.Context, *dwatch.Watch, int64, string, time.Duration) error {
 	t.called = true
 	return nil
 }

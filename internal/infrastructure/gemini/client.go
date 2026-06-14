@@ -7,13 +7,13 @@ import (
 	"jo3qma.com/yahoo_auctions_bot/internal/domain/product"
 )
 
-// Client はGemini APIを用いて商品説明から商品情報を抽出するクライアント。
+// Client は Gemini API で Extraction を行うクライアント。
 type Client interface {
-	ExtractProduct(ctx context.Context, in appauction.ExtractInput) (*product.ProductDetail, error)
+	Extract(ctx context.Context, in appauction.ExtractInput) (*product.Product, error)
 }
 
 type pipelineRunner interface {
-	run(ctx context.Context, in appauction.ExtractInput) (*product.ProductDetail, error)
+	run(ctx context.Context, in appauction.ExtractInput) (*product.Product, error)
 }
 
 // client はClientの実装。
@@ -21,7 +21,7 @@ type client struct {
 	runner pipelineRunner
 }
 
-// NewClient は多段推論パイプライン付き Gemini クライアントを生成する。
+// NewClient は多段 Extraction パイプライン付き Gemini クライアントを生成する。
 func NewClient(apiKey string, opts Options) (Client, error) {
 	opts = opts.Normalize()
 	api, err := newGenAIAPI(apiKey)
@@ -41,7 +41,7 @@ func NewClientWithAPI(api *genAIAPI, opts Options) Client {
 	return &client{runner: newPipeline(api, opts.Normalize())}
 }
 
-// ExtractProduct はタイトル・説明・画像からジャンル判別とテンプレート項目を抽出する。
-func (c *client) ExtractProduct(ctx context.Context, in appauction.ExtractInput) (*product.ProductDetail, error) {
+// Extract はタイトル・説明・画像から Category 判別と Field 抽出（Extraction）を行う。
+func (c *client) Extract(ctx context.Context, in appauction.ExtractInput) (*product.Product, error) {
 	return c.runner.run(ctx, in)
 }

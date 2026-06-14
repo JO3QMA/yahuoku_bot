@@ -25,7 +25,7 @@ func newPipeline(api *genAIAPI, opts Options) *pipeline {
 }
 
 // run は Stage1/2 を並列実行し、不足キーがあれば Stage3 で補完して Stage4 で統合する。
-func (p *pipeline) run(ctx context.Context, in appauction.ExtractInput) (*product.ProductDetail, error) {
+func (p *pipeline) run(ctx context.Context, in appauction.ExtractInput) (*product.Product, error) {
 	timeout := p.opts.PipelineTimeoutSec
 	if timeout <= 0 {
 		timeout = pipelineTimeout
@@ -98,7 +98,7 @@ func (p *pipeline) runStage2(ctx context.Context, title, plainDesc string, image
 	return parseStage2JSON(text)
 }
 
-func (p *pipeline) runStage4(ctx context.Context, title, plainDesc string, s1 *stage1Result, s2 *stage2Result, agentFields []product.Field, searchNotes []string) (*product.ProductDetail, error) {
+func (p *pipeline) runStage4(ctx context.Context, title, plainDesc string, s1 *stage1Result, s2 *stage2Result, agentFields []product.Field, searchNotes []string) (*product.Product, error) {
 	text, err := p.api.generateJSON(ctx, p.opts.FastModel, buildMergePrompt(title, plainDesc, s1, s2, agentFields, searchNotes), productSchema())
 	if err != nil {
 		return nil, fmt.Errorf("stage4: %w", err)
@@ -107,5 +107,5 @@ func (p *pipeline) runStage4(ctx context.Context, title, plainDesc string, s1 *s
 	if err != nil {
 		return nil, err
 	}
-	return toProductDetail(raw), nil
+	return toProduct(raw), nil
 }

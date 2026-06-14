@@ -9,8 +9,8 @@ import (
 	"jo3qma.com/yahoo_auctions_bot/internal/infrastructure/auction"
 )
 
-// AuctionPreview はEmbed表示用に統合されたオークション情報。
-type AuctionPreview struct {
+// Preview は Discord 表示用に Auction と Product を統合したデータ。
+type Preview struct {
 	AuctionID    string
 	Title        string
 	URL          string
@@ -18,51 +18,51 @@ type AuctionPreview struct {
 	Status       string
 	Images       []string
 	EndTime      *time.Time
-	Product      *product.ProductDetail
+	Product      *product.Product
 }
 
-// AuctionFetcher はオークション情報を取得するインターフェース。
+// AuctionFetcher は Auction 情報を取得するインターフェース。
 type AuctionFetcher interface {
 	GetAuction(ctx context.Context, auctionID string) (*auction.AuctionData, error)
 }
 
-// ProductExtractor は商品説明からジャンル別商品情報を抽出するインターフェース。
-type ProductExtractor interface {
-	ExtractProduct(ctx context.Context, in ExtractInput) (*product.ProductDetail, error)
+// Extractor は Auction のテキスト・画像から Product を導出する（Extraction）インターフェース。
+type Extractor interface {
+	Extract(ctx context.Context, in ExtractInput) (*product.Product, error)
 }
 
-// PreviewUsecase はオークションURLからプレビュー情報を取得するユースケース。
+// PreviewUsecase は Auction URL から Preview を取得するユースケース。
 type PreviewUsecase struct {
-	auctionClient  AuctionFetcher
-	productExtractor ProductExtractor
+	auctionClient AuctionFetcher
+	extractor     Extractor
 }
 
-// NewPreviewUsecase はPreviewUsecaseを生成する。
-func NewPreviewUsecase(ac AuctionFetcher, pe ProductExtractor) *PreviewUsecase {
-	return &PreviewUsecase{auctionClient: ac, productExtractor: pe}
+// NewPreviewUsecase は PreviewUsecase を生成する。
+func NewPreviewUsecase(ac AuctionFetcher, ex Extractor) *PreviewUsecase {
+	return &PreviewUsecase{auctionClient: ac, extractor: ex}
 }
 
-// Execute はオークションIDからプレビュー情報を取得する。
-func (u *PreviewUsecase) Execute(ctx context.Context, auctionID string) (*AuctionPreview, error) {
+// Execute は auctionID から Preview を取得する。
+func (u *PreviewUsecase) Execute(ctx context.Context, auctionID string) (*Preview, error) {
 	data, err := u.auctionClient.GetAuction(ctx, auctionID)
 	if err != nil {
 		return nil, err
 	}
 
-	productData, err := u.productExtractor.ExtractProduct(ctx, ExtractInput{
+	productData, err := u.extractor.Extract(ctx, ExtractInput{
 		Title:       data.Title,
 		Description: data.Description,
 		ImageURLs:   data.Images,
 	})
 	if err != nil {
-		log.Printf("[yahoo_auctions_bot] product extract failed for %s: %v", auctionID, err)
+		log.Printf("[yahoo_auctions_bot] extraction failed for %s: %v", auctionID, err)
 		if productData == nil {
-			productData = product.EmptyProductDetail()
+			productData = product.EmptyProduct()
 		}
 	}
 
 	url := "https://page.auctions.yahoo.co.jp/jp/auction/" + auctionID
-	return &AuctionPreview{
+	return &Preview{
 		AuctionID:    data.AuctionID,
 		Title:        data.Title,
 		URL:          url,

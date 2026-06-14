@@ -21,7 +21,7 @@ func NewWatchRepository(client *Client) *WatchRepository {
 	return &WatchRepository{client: client}
 }
 
-func (r *WatchRepository) Add(ctx context.Context, item *watch.WatchItem) error {
+func (r *WatchRepository) Add(ctx context.Context, item *watch.Watch) error {
 	// reminded = 0: 再登録時にリマインドを再送可能にする
 	query := `
 		INSERT INTO watch_items (auction_id, user_id, guild_id, channel_id, message_id, last_known_price, end_time, reminded, thread_id)
@@ -66,7 +66,7 @@ func (r *WatchRepository) RemoveByAuctionID(ctx context.Context, auctionID strin
 	return nil
 }
 
-func (r *WatchRepository) ListActive(ctx context.Context) ([]*watch.WatchItem, error) {
+func (r *WatchRepository) ListActive(ctx context.Context) ([]*watch.Watch, error) {
 	q := `SELECT id, auction_id, user_id, guild_id, channel_id, message_id, last_known_price, end_time, reminded, thread_id, created_at FROM watch_items`
 	resp, err := r.client.h.QuerySingle(ctx, q)
 	if err != nil {
@@ -99,7 +99,7 @@ func (r *WatchRepository) UpdateThreadID(ctx context.Context, messageID, threadI
 	return nil
 }
 
-func (r *WatchRepository) FindByMessage(ctx context.Context, messageID string) ([]*watch.WatchItem, error) {
+func (r *WatchRepository) FindByMessage(ctx context.Context, messageID string) ([]*watch.Watch, error) {
 	q := `SELECT id, auction_id, user_id, guild_id, channel_id, message_id, last_known_price, end_time, reminded, thread_id, created_at FROM watch_items WHERE message_id = ?`
 	resp, err := r.client.h.QuerySingle(ctx, q, messageID)
 	if err != nil {
@@ -108,7 +108,7 @@ func (r *WatchRepository) FindByMessage(ctx context.Context, messageID string) (
 	return parseQueryResults(resp)
 }
 
-func parseQueryResults(resp *rqlitehttp.QueryResponse) ([]*watch.WatchItem, error) {
+func parseQueryResults(resp *rqlitehttp.QueryResponse) ([]*watch.Watch, error) {
 	if ok, i, msg := resp.HasError(); ok {
 		return nil, fmt.Errorf("query error at %d: %s", i, msg)
 	}
@@ -118,9 +118,9 @@ func parseQueryResults(resp *rqlitehttp.QueryResponse) ([]*watch.WatchItem, erro
 	}
 	// 単一 SELECT の結果は results[0] に入る
 	qr := results[0]
-	var items []*watch.WatchItem
+	var items []*watch.Watch
 	for _, row := range qr.Values {
-		item, err := rowToWatchItem(row)
+		item, err := rowToWatch(row)
 		if err != nil {
 			return nil, err
 		}
@@ -130,11 +130,11 @@ func parseQueryResults(resp *rqlitehttp.QueryResponse) ([]*watch.WatchItem, erro
 }
 
 // row は id, auction_id, user_id, guild_id, channel_id, message_id, last_known_price, end_time, reminded, thread_id, created_at の順
-func rowToWatchItem(row []any) (*watch.WatchItem, error) {
+func rowToWatch(row []any) (*watch.Watch, error) {
 	if len(row) < 11 {
 		return nil, fmt.Errorf("row has %d columns, want 11", len(row))
 	}
-	item := &watch.WatchItem{}
+	item := &watch.Watch{}
 	if v, err := toInt64(row[0]); err == nil {
 		item.ID = v
 	}

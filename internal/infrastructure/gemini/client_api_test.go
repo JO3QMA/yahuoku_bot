@@ -15,7 +15,7 @@ func TestNewClient_emptyAPIKey(t *testing.T) {
 	}
 }
 
-func TestClient_ExtractProduct_realAPIRejectsInvalidKey(t *testing.T) {
+func TestClient_Extract_realAPIRejectsInvalidKey(t *testing.T) {
 	if testing.Short() {
 		t.Skip("network")
 	}
@@ -25,7 +25,7 @@ func TestClient_ExtractProduct_realAPIRejectsInvalidKey(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
-	_, err = c.ExtractProduct(ctx, appauction.ExtractInput{Title: "title", Description: "description body"})
+	_, err = c.Extract(ctx, appauction.ExtractInput{Title: "title", Description: "description body"})
 	if err == nil {
 		t.Fatal("expected error from Gemini API")
 	}

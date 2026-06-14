@@ -17,7 +17,7 @@ import (
 // previewDeps は RunPreview の依存注入用。
 type previewDeps struct {
 	LoadConfig       func(path string) (*config.Config, error)
-	NewGeminiClient  func(cfg *config.Config) (appauction.ProductExtractor, error)
+	NewGeminiClient  func(cfg *config.Config) (appauction.Extractor, error)
 	NewAuctionClient func(baseURL string) infraauction.Client
 }
 
@@ -26,7 +26,7 @@ func mergePreviewDeps(d *previewDeps) {
 		d.LoadConfig = config.Load
 	}
 	if d.NewGeminiClient == nil {
-		d.NewGeminiClient = func(cfg *config.Config) (appauction.ProductExtractor, error) {
+		d.NewGeminiClient = func(cfg *config.Config) (appauction.Extractor, error) {
 			return gemini.NewClient(cfg.GeminiAPIKey, bootstrap.GeminiOptions(cfg))
 		}
 	}

@@ -1,14 +1,14 @@
 # yahoo_auctions_bot
 
-Discord 上でヤフオク（Yahoo! オークション）の商品 URL に反応し、オークション情報と商品ジャンル別スペックのプレビューを Embed で返す Bot です。別リポジトリの **yahoo_auctions API**（Connect RPC）と **Google Gen AI SDK**（Gemini）を組み合わせて動作します。
+Discord 上でヤフオク（Yahoo! オークション）の URL に反応し、Auction 情報と Category 別 Field の Preview を Embed で返す Bot です。別リポジトリの **yahoo_auctions API**（Connect RPC）と **Google Gen AI SDK**（Gemini）を組み合わせて動作します。
 
-商品情報は **多段推論パイプライン**（テキスト分類 → 画像解析 → 不足時のみ Web 検索 → 統合）で抽出します。
+Product 情報は **多段 Extraction パイプライン**（テキスト分類 → 画像解析 → 不足時のみ Web 検索 → 統合）で導出します。
 
 ## できること
 
-- **メッセージ監視**: メッセージ内のヤフオク URL（`page.auctions.yahoo.co.jp/.../auction/<id>`）を検出し、商品ジャンル（サーバー・GPU・NIC 等）を判別してテンプレートに沿った情報を Embed で投稿します。
-- **ウォッチ**: Bot が投稿したプレビューに 🔔（ベル）リアクションを付けると、そのオークションを監視リストに登録します（バックグラウンドで定期的にチェック）。
-- **プレビュー CLI**（開発用）: オークション ID を渡すと JSON でプレビュー結果を標準出力します（`cmd/preview`）。
+- **メッセージ監視**: メッセージ内のヤフオク URL（`page.auctions.yahoo.co.jp/.../auction/<id>`）を検出し、Category（サーバー・GPU・NIC 等）を判別して FieldTemplate に沿った Preview を Embed で投稿します。
+- **Watch**: Bot が投稿した Preview に 🔔（ベル）リアクションを付けると、その Auction の Watch を登録します（バックグラウンドで定期的にチェック）。
+- **プレビュー CLI**（開発用）: オークション ID を渡すと JSON で Preview 結果を標準出力します（`cmd/preview`）。
 
 ## 必要なもの
 

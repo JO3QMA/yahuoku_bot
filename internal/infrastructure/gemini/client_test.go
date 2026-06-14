@@ -78,20 +78,20 @@ func Test_extractTextFromResponse(t *testing.T) {
 }
 
 type stubRunner struct {
-	result *product.ProductDetail
+	result *product.Product
 	err    error
 }
 
-func (s *stubRunner) run(context.Context, appauction.ExtractInput) (*product.ProductDetail, error) {
+func (s *stubRunner) run(context.Context, appauction.ExtractInput) (*product.Product, error) {
 	return s.result, s.err
 }
 
-func TestClient_ExtractProduct_viaStub(t *testing.T) {
-	c := NewClientWithRunner(&stubRunner{result: &product.ProductDetail{
+func TestClient_Extract_viaStub(t *testing.T) {
+	c := NewClientWithRunner(&stubRunner{result: &product.Product{
 		Category: product.CategoryServer,
 		Fields:   []product.Field{{Key: "cpu_model_line", Value: "X"}},
 	}})
-	pd, err := c.ExtractProduct(context.Background(), appauction.ExtractInput{Title: "t", Description: "d"})
+	pd, err := c.Extract(context.Background(), appauction.ExtractInput{Title: "t", Description: "d"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,9 +100,9 @@ func TestClient_ExtractProduct_viaStub(t *testing.T) {
 	}
 }
 
-func TestClient_ExtractProduct_errors(t *testing.T) {
+func TestClient_Extract_errors(t *testing.T) {
 	c := NewClientWithRunner(&stubRunner{err: errors.New("gen")})
-	_, err := c.ExtractProduct(context.Background(), appauction.ExtractInput{Title: "t"})
+	_, err := c.Extract(context.Background(), appauction.ExtractInput{Title: "t"})
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -171,7 +171,7 @@ func Test_pipeline_stage1_only(t *testing.T) {
 		t.Fatal(err)
 	}
 	c := NewClientWithRunner(newPipeline(api, Options{FastModel: "m"}))
-	pd, err := c.ExtractProduct(context.Background(), appauction.ExtractInput{Title: "t", Description: "d"})
+	pd, err := c.Extract(context.Background(), appauction.ExtractInput{Title: "t", Description: "d"})
 	if err != nil {
 		t.Fatal(err)
 	}

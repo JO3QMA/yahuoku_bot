@@ -14,7 +14,7 @@ func TestNewBot_smoke(t *testing.T) {
 	end := time.Now()
 	pu := appauction.NewPreviewUsecase(&stubPreviewFetch{data: &infraauction.AuctionData{
 		AuctionID: "a", Title: "T", CurrentPrice: 1, Status: "S", Description: "d", EndTime: &end,
-	}}, &stubProductExt{pd: &product.ProductDetail{}})
+	}}, &stubProductExt{pd: &product.Product{}})
 	repo := &memWatchRepo{}
 	wu := appwatch.NewWatchUsecase(repo)
 	ac := &stubAuction{data: &infraauction.AuctionData{CurrentPrice: 1}}

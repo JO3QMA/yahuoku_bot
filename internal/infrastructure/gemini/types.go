@@ -11,7 +11,7 @@ import (
 type stage1Result struct {
 	Category         string          `json:"category"`
 	Condition        string          `json:"condition"`
-	ShippingFree     *bool           `json:"shipping_free"`
+	FreeShipping     *bool           `json:"shipping_free"`
 	Fields           []product.Field `json:"fields"`
 	MissingKeys      []string        `json:"missing_keys"`
 	CandidateQueries []string        `json:"candidate_queries"`
@@ -36,7 +36,7 @@ type agentFieldsResult struct {
 type extractResponse struct {
 	Category     string          `json:"category"`
 	Condition    string          `json:"condition"`
-	ShippingFree *bool           `json:"shipping_free"`
+	FreeShipping *bool           `json:"shipping_free"`
 	Fields       []product.Field `json:"fields"`
 }
 
@@ -88,12 +88,12 @@ func parseAgentFieldsJSON(text string) (*agentFieldsResult, error) {
 	return &raw, nil
 }
 
-func toProductDetail(raw *extractResponse) *product.ProductDetail {
+func toProduct(raw *extractResponse) *product.Product {
 	cat := product.ParseCategory(raw.Category)
-	return &product.ProductDetail{
+	return &product.Product{
 		Category:     cat,
 		Condition:    raw.Condition,
-		ShippingFree: raw.ShippingFree,
+		FreeShipping: raw.FreeShipping,
 		Fields:       product.ValidateFields(cat, raw.Fields),
 	}
 }

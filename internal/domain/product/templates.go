@@ -2,15 +2,15 @@ package product
 
 import "log"
 
-// FieldDef はジャンル別テンプレートの1項目定義。
-type FieldDef struct {
+// FieldTemplate は Category ごとのスペック欄項目定義。
+type FieldTemplate struct {
 	Key    string
 	Label  string
 	Inline bool
 }
 
-// TemplatesFor はジャンルに対応するテンプレート項目定義を返す。
-func TemplatesFor(cat Category) []FieldDef {
+// TemplatesFor は Category に対応する FieldTemplate 一覧を返す。
+func TemplatesFor(cat Category) []FieldTemplate {
 	switch cat {
 	case CategoryServer:
 		return serverTemplate
@@ -84,7 +84,7 @@ func FieldValueMap(fields []Field) map[string]string {
 	return m
 }
 
-var serverTemplate = []FieldDef{
+var serverTemplate = []FieldTemplate{
 	{Key: "server_model", Label: "サーバー機種名", Inline: false},
 	{Key: "cpu_model_line", Label: "CPU型番", Inline: false},
 	{Key: "core_thread_info", Label: "CPUコア数/スレッド数", Inline: false},
@@ -95,7 +95,7 @@ var serverTemplate = []FieldDef{
 	{Key: "other_notes", Label: "その他特記事項", Inline: false},
 }
 
-var rackRailTemplate = []FieldDef{
+var rackRailTemplate = []FieldTemplate{
 	{Key: "compatible_models", Label: "対応機種/メーカー", Inline: false},
 	{Key: "rail_type", Label: "レール種別", Inline: true},
 	{Key: "depth_u", Label: "深さ/U", Inline: true},
@@ -103,7 +103,7 @@ var rackRailTemplate = []FieldDef{
 	{Key: "other_notes", Label: "その他特記事項", Inline: false},
 }
 
-var nicTemplate = []FieldDef{
+var nicTemplate = []FieldTemplate{
 	{Key: "model", Label: "型番", Inline: false},
 	{Key: "interface_speed", Label: "IF/速度", Inline: true},
 	{Key: "port_count", Label: "ポート数", Inline: true},
@@ -111,7 +111,7 @@ var nicTemplate = []FieldDef{
 	{Key: "other_notes", Label: "その他特記事項", Inline: false},
 }
 
-var storageTemplate = []FieldDef{
+var storageTemplate = []FieldTemplate{
 	{Key: "model", Label: "型番", Inline: false},
 	{Key: "media_type", Label: "メディア種別", Inline: true},
 	{Key: "interface", Label: "接続IF", Inline: true},
@@ -120,14 +120,14 @@ var storageTemplate = []FieldDef{
 	{Key: "other_notes", Label: "その他特記事項", Inline: false},
 }
 
-var gpuTemplate = []FieldDef{
+var gpuTemplate = []FieldTemplate{
 	{Key: "model", Label: "型番", Inline: false},
 	{Key: "vram", Label: "VRAM", Inline: true},
 	{Key: "quantity", Label: "個数", Inline: true},
 	{Key: "other_notes", Label: "その他特記事項", Inline: false},
 }
 
-var cpuTemplate = []FieldDef{
+var cpuTemplate = []FieldTemplate{
 	{Key: "model", Label: "型番", Inline: false},
 	{Key: "core_thread_info", Label: "コア/スレッド", Inline: true},
 	{Key: "frequency", Label: "周波数", Inline: true},
@@ -136,7 +136,7 @@ var cpuTemplate = []FieldDef{
 	{Key: "other_notes", Label: "その他特記事項", Inline: false},
 }
 
-var memoryTemplate = []FieldDef{
+var memoryTemplate = []FieldTemplate{
 	{Key: "model_spec", Label: "型番/規格", Inline: false},
 	{Key: "capacity", Label: "容量", Inline: true},
 	{Key: "quantity", Label: "枚数", Inline: true},
@@ -144,7 +144,7 @@ var memoryTemplate = []FieldDef{
 	{Key: "other_notes", Label: "その他特記事項", Inline: false},
 }
 
-var serverRackTemplate = []FieldDef{
+var serverRackTemplate = []FieldTemplate{
 	{Key: "model", Label: "型番/メーカー", Inline: false},
 	{Key: "u_height", Label: "U数", Inline: true},
 	{Key: "depth", Label: "深さ", Inline: true},
@@ -152,14 +152,14 @@ var serverRackTemplate = []FieldDef{
 	{Key: "other_notes", Label: "その他特記事項", Inline: false},
 }
 
-var upsTemplate = []FieldDef{
+var upsTemplate = []FieldTemplate{
 	{Key: "model", Label: "型番", Inline: false},
 	{Key: "capacity", Label: "容量(VA/W)", Inline: true},
 	{Key: "battery_status", Label: "バッテリー状態", Inline: true},
 	{Key: "other_notes", Label: "その他特記事項", Inline: false},
 }
 
-var networkTemplate = []FieldDef{
+var networkTemplate = []FieldTemplate{
 	{Key: "device_type", Label: "機器種別(SW/RT/AP)", Inline: true},
 	{Key: "model", Label: "型番", Inline: false},
 	{Key: "port_spec", Label: "ポート仕様", Inline: true},
@@ -167,7 +167,7 @@ var networkTemplate = []FieldDef{
 	{Key: "other_notes", Label: "その他特記事項", Inline: false},
 }
 
-var desktopNUCTemplate = []FieldDef{
+var desktopNUCTemplate = []FieldTemplate{
 	{Key: "model", Label: "モデル名", Inline: false},
 	{Key: "cpu", Label: "CPU", Inline: false},
 	{Key: "memory", Label: "メモリ", Inline: true},
@@ -176,12 +176,12 @@ var desktopNUCTemplate = []FieldDef{
 	{Key: "other_notes", Label: "その他特記事項", Inline: false},
 }
 
-var otherTemplate = []FieldDef{
+var otherTemplate = []FieldTemplate{
 	{Key: "summary", Label: "概要", Inline: false},
 	{Key: "other_notes", Label: "その他", Inline: false},
 }
 
-// CategoryFieldKeysForPrompt はプロンプト用にジャンル別キー一覧を返す。
+// CategoryFieldKeysForPrompt はプロンプト用に Category 別 FieldTemplate キー一覧を返す。
 func CategoryFieldKeysForPrompt() map[Category][]string {
 	out := make(map[Category][]string, len(AllCategories))
 	for _, cat := range AllCategories {

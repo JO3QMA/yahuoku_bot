@@ -47,7 +47,7 @@ func TestRunPreview_geminiClientErr(t *testing.T) {
 		LoadConfig: func(string) (*config.Config, error) {
 			return &config.Config{GeminiAPIKey: "k"}, nil
 		},
-		NewGeminiClient: func(cfg *config.Config) (appauction.ProductExtractor, error) {
+		NewGeminiClient: func(cfg *config.Config) (appauction.Extractor, error) {
 			return nil, errors.New("gc")
 		},
 	})
@@ -58,8 +58,8 @@ func TestRunPreview_geminiClientErr(t *testing.T) {
 
 type fakePreviewGem struct{}
 
-func (fakePreviewGem) ExtractProduct(context.Context, appauction.ExtractInput) (*product.ProductDetail, error) {
-	return &product.ProductDetail{
+func (fakePreviewGem) Extract(context.Context, appauction.ExtractInput) (*product.Product, error) {
+	return &product.Product{
 		Category: product.CategoryGPU,
 		Fields:   []product.Field{{Key: "model", Value: "x"}},
 	}, nil
@@ -70,7 +70,7 @@ func TestRunPreview_executeErr(t *testing.T) {
 		LoadConfig: func(string) (*config.Config, error) {
 			return &config.Config{GeminiAPIKey: "k", APIEndpoint: "http://localhost:8080"}, nil
 		},
-		NewGeminiClient: func(cfg *config.Config) (appauction.ProductExtractor, error) {
+		NewGeminiClient: func(cfg *config.Config) (appauction.Extractor, error) {
 			return &fakePreviewGem{}, nil
 		},
 		NewAuctionClient: func(string) infraauction.Client {
@@ -93,7 +93,7 @@ func TestRunPreview_encodeErr(t *testing.T) {
 		LoadConfig: func(string) (*config.Config, error) {
 			return &config.Config{GeminiAPIKey: "k", APIEndpoint: "http://localhost:8080"}, nil
 		},
-		NewGeminiClient: func(cfg *config.Config) (appauction.ProductExtractor, error) {
+		NewGeminiClient: func(cfg *config.Config) (appauction.Extractor, error) {
 			return &fakePreviewGem{}, nil
 		},
 		NewAuctionClient: func(string) infraauction.Client {
@@ -124,7 +124,7 @@ func TestRunPreview_emptyProductExit(t *testing.T) {
 		LoadConfig: func(string) (*config.Config, error) {
 			return &config.Config{GeminiAPIKey: "k", APIEndpoint: "http://localhost:8080"}, nil
 		},
-		NewGeminiClient: func(cfg *config.Config) (appauction.ProductExtractor, error) {
+		NewGeminiClient: func(cfg *config.Config) (appauction.Extractor, error) {
 			return &emptyProductGem{}, nil
 		},
 		NewAuctionClient: func(string) infraauction.Client {
@@ -138,8 +138,8 @@ func TestRunPreview_emptyProductExit(t *testing.T) {
 
 type emptyProductGem struct{}
 
-func (emptyProductGem) ExtractProduct(context.Context, appauction.ExtractInput) (*product.ProductDetail, error) {
-	return &product.ProductDetail{}, nil
+func (emptyProductGem) Extract(context.Context, appauction.ExtractInput) (*product.Product, error) {
+	return &product.Product{}, nil
 }
 
 func TestRunPreview_success(t *testing.T) {
@@ -148,7 +148,7 @@ func TestRunPreview_success(t *testing.T) {
 		LoadConfig: func(string) (*config.Config, error) {
 			return &config.Config{GeminiAPIKey: "k", APIEndpoint: "http://localhost:8080"}, nil
 		},
-		NewGeminiClient: func(cfg *config.Config) (appauction.ProductExtractor, error) {
+		NewGeminiClient: func(cfg *config.Config) (appauction.Extractor, error) {
 			return &fakePreviewGem{}, nil
 		},
 		NewAuctionClient: func(string) infraauction.Client {
@@ -164,15 +164,15 @@ func TestRunPreview_success(t *testing.T) {
 	}
 }
 
-func TestProductDetail_IsEffectivelyEmpty_cli(t *testing.T) {
-	var nilPD *product.ProductDetail
+func TestProduct_IsEffectivelyEmpty_cli(t *testing.T) {
+	var nilPD *product.Product
 	if !nilPD.IsEffectivelyEmpty() {
 		t.Fatal("nil")
 	}
-	if !product.EmptyProductDetail().IsEffectivelyEmpty() {
+	if !product.EmptyProduct().IsEffectivelyEmpty() {
 		t.Fatal("empty")
 	}
-	p := &product.ProductDetail{Condition: "中古"}
+	p := &product.Product{Condition: "中古"}
 	if p.IsEffectivelyEmpty() {
 		t.Fatal("has condition")
 	}

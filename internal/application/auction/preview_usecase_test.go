@@ -23,11 +23,11 @@ func (f *fakeFetcher) GetAuction(ctx context.Context, auctionID string) (*infraa
 }
 
 type fakeExtractor struct {
-	product *product.ProductDetail
+	product *product.Product
 	err     error
 }
 
-func (f *fakeExtractor) ExtractProduct(ctx context.Context, in ExtractInput) (*product.ProductDetail, error) {
+func (f *fakeExtractor) Extract(ctx context.Context, in ExtractInput) (*product.Product, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -40,7 +40,7 @@ func TestPreviewUsecase_Execute_success(t *testing.T) {
 		AuctionID: "a1", Title: "T", CurrentPrice: 500,
 		Status: "S", Images: []string{"i"}, Description: "d", EndTime: &end,
 	}}
-	fe := &fakeExtractor{product: &product.ProductDetail{
+	fe := &fakeExtractor{product: &product.Product{
 		Category: product.CategoryServer,
 		Fields:   []product.Field{{Key: "cpu_model_line", Value: "cpu"}},
 	}}
@@ -87,7 +87,7 @@ func TestPreviewUsecase_Execute_partialExtractSuccess(t *testing.T) {
 		AuctionID: "a1", Title: "T", CurrentPrice: 500,
 		Status: "S", Description: "d", EndTime: &end,
 	}}
-	partial := &product.ProductDetail{
+	partial := &product.Product{
 		Category: product.CategoryGPU,
 		Fields:   []product.Field{{Key: "model", Value: "RTX 3080"}},
 	}
@@ -105,10 +105,10 @@ func TestPreviewUsecase_Execute_partialExtractSuccess(t *testing.T) {
 }
 
 type fakeExtractorPartial struct {
-	detail *product.ProductDetail
+	detail *product.Product
 	err    error
 }
 
-func (f *fakeExtractorPartial) ExtractProduct(context.Context, ExtractInput) (*product.ProductDetail, error) {
+func (f *fakeExtractorPartial) Extract(context.Context, ExtractInput) (*product.Product, error) {
 	return f.detail, f.err
 }

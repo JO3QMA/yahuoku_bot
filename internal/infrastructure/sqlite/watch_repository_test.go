@@ -24,7 +24,7 @@ func TestWatchRepository_AddAndList(t *testing.T) {
 	ctx := context.Background()
 
 	endTime := time.Now().Add(1 * time.Hour).UTC().Truncate(time.Second)
-	item := &watch.WatchItem{
+	item := &watch.Watch{
 		AuctionID:      "abc12345678",
 		UserID:         "user1",
 		GuildID:        "guild1",
@@ -62,7 +62,7 @@ func TestWatchRepository_UpsertOnConflict(t *testing.T) {
 	repo := setupTestDB(t)
 	ctx := context.Background()
 
-	item := &watch.WatchItem{
+	item := &watch.Watch{
 		AuctionID: "abc12345678", UserID: "user1", GuildID: "g1",
 		ChannelID: "c1", MessageID: "m1", LastKnownPrice: 1000,
 	}
@@ -91,7 +91,7 @@ func TestWatchRepository_Remove(t *testing.T) {
 	repo := setupTestDB(t)
 	ctx := context.Background()
 
-	item := &watch.WatchItem{
+	item := &watch.Watch{
 		AuctionID: "abc12345678", UserID: "user1", GuildID: "g1",
 		ChannelID: "c1", MessageID: "m1", LastKnownPrice: 1000,
 	}
@@ -117,7 +117,7 @@ func TestWatchRepository_RemoveByAuctionID(t *testing.T) {
 	ctx := context.Background()
 
 	for _, uid := range []string{"user1", "user2", "user3"} {
-		item := &watch.WatchItem{
+		item := &watch.Watch{
 			AuctionID: "abc12345678", UserID: uid, GuildID: "g1",
 			ChannelID: "c1", MessageID: "m1", LastKnownPrice: 1000,
 		}
@@ -143,7 +143,7 @@ func TestWatchRepository_UpdatePrice(t *testing.T) {
 	repo := setupTestDB(t)
 	ctx := context.Background()
 
-	item := &watch.WatchItem{
+	item := &watch.Watch{
 		AuctionID: "abc12345678", UserID: "user1", GuildID: "g1",
 		ChannelID: "c1", MessageID: "m1", LastKnownPrice: 1000,
 	}
@@ -166,7 +166,7 @@ func TestWatchRepository_MarkReminded(t *testing.T) {
 	repo := setupTestDB(t)
 	ctx := context.Background()
 
-	item := &watch.WatchItem{
+	item := &watch.Watch{
 		AuctionID: "abc12345678", UserID: "user1", GuildID: "g1",
 		ChannelID: "c1", MessageID: "m1", LastKnownPrice: 1000,
 	}
@@ -189,7 +189,7 @@ func TestWatchRepository_ReAddResetsReminded(t *testing.T) {
 	repo := setupTestDB(t)
 	ctx := context.Background()
 
-	item := &watch.WatchItem{
+	item := &watch.Watch{
 		AuctionID: "abc12345678", UserID: "user1", GuildID: "g1",
 		ChannelID: "c1", MessageID: "m1", LastKnownPrice: 1000,
 	}
@@ -203,7 +203,7 @@ func TestWatchRepository_ReAddResetsReminded(t *testing.T) {
 	}
 
 	end := time.Now().Add(time.Hour)
-	if err := repo.Add(ctx, &watch.WatchItem{
+	if err := repo.Add(ctx, &watch.Watch{
 		AuctionID: "abc12345678", UserID: "user1", GuildID: "g1",
 		ChannelID: "c1", MessageID: "m1", LastKnownPrice: 2000, EndTime: &end,
 	}); err != nil {
@@ -224,7 +224,7 @@ func TestWatchRepository_UpdateThreadID(t *testing.T) {
 	ctx := context.Background()
 
 	for _, uid := range []string{"user1", "user2"} {
-		item := &watch.WatchItem{
+		item := &watch.Watch{
 			AuctionID: "abc12345678", UserID: uid, GuildID: "g1",
 			ChannelID: "c1", MessageID: "m1", LastKnownPrice: 1000,
 		}
@@ -252,11 +252,11 @@ func TestWatchRepository_FindByMessage(t *testing.T) {
 	repo := setupTestDB(t)
 	ctx := context.Background()
 
-	item1 := &watch.WatchItem{
+	item1 := &watch.Watch{
 		AuctionID: "auc1", UserID: "u1", GuildID: "g1",
 		ChannelID: "c1", MessageID: "m1", LastKnownPrice: 1000,
 	}
-	item2 := &watch.WatchItem{
+	item2 := &watch.Watch{
 		AuctionID: "auc1", UserID: "u1", GuildID: "g1",
 		ChannelID: "c1", MessageID: "m2", LastKnownPrice: 2000,
 	}
