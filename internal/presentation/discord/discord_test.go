@@ -494,10 +494,10 @@ func TestThreadNotifier_sendEndingSoonNotification_direct(t *testing.T) {
 	api := &stubThreadAPI{}
 	n := NewThreadNotifier(api, &memWatchRepo{})
 	item := &domainwatch.WatchItem{UserID: "200", AuctionID: "a"}
-	if err := n.sendEndingSoonNotification(discord.ChannelID(99), item, 500, 8*time.Minute); err != nil {
+	if err := n.sendEndingSoonNotification(discord.ChannelID(99), item, 500, 8*time.Minute+30*time.Second); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(api.lastSend.Content), "残り約8分") {
+	if !strings.Contains(string(api.lastSend.Content), "残り約9分") {
 		t.Fatalf("content %q", api.lastSend.Content)
 	}
 }

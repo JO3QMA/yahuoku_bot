@@ -77,10 +77,7 @@ func (n *ThreadNotifier) NotifyEndingSoon(ctx context.Context, item *domainwatch
 }
 
 func (n *ThreadNotifier) sendEndingSoonNotification(threadID discord.ChannelID, item *domainwatch.WatchItem, currentPrice int64, remaining time.Duration) error {
-	minutes := int(remaining.Minutes())
-	if minutes < 1 {
-		minutes = 1
-	}
+	minutes := remainingMinutesForDisplay(remaining)
 	content := fmt.Sprintf(
 		"<@%s> オークション終了まで残り約%d分です。現在価格: ¥%s",
 		item.UserID,
@@ -100,6 +97,18 @@ func (n *ThreadNotifier) sendEndingSoonNotification(threadID discord.ChannelID, 
 
 	logThreadEndingSoonSent(item.AuctionID, item.UserID)
 	return nil
+}
+
+// remainingMinutesForDisplay は残り時間を通知文言用の分に切り上げる（1分未満は1分）。
+func remainingMinutesForDisplay(d time.Duration) int {
+	if d <= 0 {
+		return 1
+	}
+	minutes := int((d + time.Minute - 1) / time.Minute)
+	if minutes < 1 {
+		return 1
+	}
+	return minutes
 }
 
 func logThreadEndingSoonSent(auctionID, userID string) {

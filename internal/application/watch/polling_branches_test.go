@@ -254,6 +254,7 @@ type memRepoPoll struct {
 	mrErr          error
 	rmAuctionErr   error
 	markedReminded []int64
+	mrFailUntil    int // 最初の N 回 MarkReminded を失敗させる（リトライテスト用）
 }
 
 func (m *memRepoPoll) Add(context.Context, *dwatch.WatchItem) error { return nil }
@@ -270,6 +271,10 @@ func (m *memRepoPoll) ListActive(context.Context) ([]*dwatch.WatchItem, error) {
 func (m *memRepoPoll) UpdatePrice(context.Context, int64, int64) error { return m.upErr }
 func (m *memRepoPoll) MarkReminded(_ context.Context, id int64) error {
 	m.markedReminded = append(m.markedReminded, id)
+	if m.mrFailUntil > 0 {
+		m.mrFailUntil--
+		return errors.New("transient")
+	}
 	return m.mrErr
 }
 func (m *memRepoPoll) UpdateThreadID(context.Context, string, string) error {
@@ -321,6 +326,62 @@ func TestPollingWorker_processGroup_triggerWindowWithLongInterval(t *testing.T) 
 	})
 	if !notifier.called {
 		t.Fatal("expected ending soon within extended trigger window")
+	}
+}
+
+func TestPollingWorker_processGroup_noEarlyTrigger(t *testing.T) {
+	end := time.Now().Add(20 * time.Minute)
+	repo := &memRepoPoll{}
+	notifier := &trackEndingN{}
+	w := NewPollingWorker(repo, &stubFetch{}, notifier, 60, 1, WithPollInterval(15*time.Minute))
+	items := []*dwatch.WatchItem{{ID: 1, AuctionID: "a", LastKnownPrice: 1, Reminded: false, EndTime: &end}}
+	w.processGroup(context.Background(), items, &auction.AuctionData{
+		AuctionID: "a", CurrentPrice: 1, Status: "AUCTION_STATUS_ACTIVE", EndTime: &end,
+	})
+	if notifier.called {
+		t.Fatal("expected no ending soon notification before threshold window")
+	}
+	if len(repo.markedReminded) != 0 {
+		t.Fatalf("expected no MarkReminded, got %v", repo.markedReminded)
+	}
+}
+
+func TestPollingWorker_processGroup_markRemindedRetry(t *testing.T) {
+	end := time.Now().Add(5 * time.Minute)
+	repo := &memRepoPoll{mrFailUntil: 2}
+	notifier := &trackEndingN{}
+	w := NewPollingWorker(repo, &stubFetch{}, notifier, 60, 1)
+	items := []*dwatch.WatchItem{{ID: 1, AuctionID: "a", LastKnownPrice: 1, Reminded: false, EndTime: &end}}
+	w.processGroup(context.Background(), items, &auction.AuctionData{
+		AuctionID: "a", CurrentPrice: 1, Status: "AUCTION_STATUS_ACTIVE", EndTime: &end,
+	})
+	if !notifier.called {
+		t.Fatal("expected ending soon notification")
+	}
+	if len(repo.markedReminded) != 3 {
+		t.Fatalf("expected 3 MarkReminded attempts, got %d", len(repo.markedReminded))
+	}
+}
+
+func TestShouldNotifyEndingSoon(t *testing.T) {
+	threshold := 10 * time.Minute
+	interval := 15 * time.Minute
+	cases := []struct {
+		remaining time.Duration
+		want      bool
+	}{
+		{5 * time.Minute, true},
+		{10 * time.Minute, true},
+		{12 * time.Minute, true},  // next poll after end
+		{20 * time.Minute, false}, // next poll at 5min, still in window
+		{0, false},
+		{-1 * time.Minute, false},
+	}
+	for _, tc := range cases {
+		got := shouldNotifyEndingSoon(tc.remaining, interval, threshold)
+		if got != tc.want {
+			t.Errorf("remaining=%v: got %v, want %v", tc.remaining, got, tc.want)
+		}
 	}
 }
 

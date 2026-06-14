@@ -22,6 +22,7 @@ func NewWatchRepository(client *Client) *WatchRepository {
 }
 
 func (r *WatchRepository) Add(ctx context.Context, item *watch.WatchItem) error {
+	// reminded = 0: 再登録時にリマインドを再送可能にする
 	query := `
 		INSERT INTO watch_items (auction_id, user_id, guild_id, channel_id, message_id, last_known_price, end_time, reminded, thread_id)
 		VALUES (?, ?, ?, ?, ?, ?, ?, 0, '')
