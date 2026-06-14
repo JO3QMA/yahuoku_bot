@@ -10,12 +10,12 @@ import (
 )
 
 type memRepo struct {
-	items []*domainwatch.WatchItem
+	items []*domainwatch.Watch
 	addErr error
 	remErr error
 }
 
-func (m *memRepo) Add(ctx context.Context, item *domainwatch.WatchItem) error {
+func (m *memRepo) Add(ctx context.Context, item *domainwatch.Watch) error {
 	if m.addErr != nil {
 		return m.addErr
 	}
@@ -27,7 +27,7 @@ func (m *memRepo) Remove(ctx context.Context, auctionID, userID, messageID strin
 	return m.remErr
 }
 
-func (m *memRepo) ListActive(ctx context.Context) ([]*domainwatch.WatchItem, error) {
+func (m *memRepo) ListActive(ctx context.Context) ([]*domainwatch.Watch, error) {
 	return nil, nil
 }
 
@@ -36,7 +36,7 @@ func (m *memRepo) MarkReminded(ctx context.Context, id int64) error             
 func (m *memRepo) UpdateThreadID(ctx context.Context, messageID, threadID string) error {
 	return nil
 }
-func (m *memRepo) FindByMessage(ctx context.Context, messageID string) ([]*domainwatch.WatchItem, error) {
+func (m *memRepo) FindByMessage(ctx context.Context, messageID string) ([]*domainwatch.Watch, error) {
 	return nil, nil
 }
 func (m *memRepo) RemoveByAuctionID(ctx context.Context, auctionID string) error { return nil }

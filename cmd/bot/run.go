@@ -12,6 +12,7 @@ import (
 
 	appauction "jo3qma.com/yahoo_auctions_bot/internal/application/auction"
 	appwatch "jo3qma.com/yahoo_auctions_bot/internal/application/watch"
+	"jo3qma.com/yahoo_auctions_bot/internal/bootstrap"
 	"jo3qma.com/yahoo_auctions_bot/internal/config"
 	"jo3qma.com/yahoo_auctions_bot/internal/domain/watch"
 	infraauction "jo3qma.com/yahoo_auctions_bot/internal/infrastructure/auction"
@@ -28,7 +29,7 @@ type discordRunner interface {
 // botDeps は run の依存注入用（テストで差し替え）。
 type botDeps struct {
 	LoadConfig           func(string) (*config.Config, error)
-	NewGeminiClient      func(key, model string) (gemini.Client, error)
+	NewGeminiClient      func(cfg *config.Config) (appauction.Extractor, error)
 	OpenRqlite           func(ctx context.Context, url string, opts ...infrarqlite.NewClientOption) (*infrarqlite.Client, error)
 	OpenSQLite           func(path string, opts ...infrasqlite.OpenOption) (*sql.DB, error)
 	NewWatchRepoRqlite   func(*infrarqlite.Client) watch.Repository
@@ -67,7 +68,9 @@ func mergeBotDeps(d *botDeps) {
 		d.LoadConfig = config.Load
 	}
 	if d.NewGeminiClient == nil {
-		d.NewGeminiClient = gemini.NewClient
+		d.NewGeminiClient = func(cfg *config.Config) (appauction.Extractor, error) {
+			return gemini.NewClient(cfg.GeminiAPIKey, bootstrap.GeminiOptions(cfg))
+		}
 	}
 	if d.OpenRqlite == nil {
 		d.OpenRqlite = infrarqlite.Open
@@ -118,7 +121,7 @@ func run(ctx context.Context, deps *botDeps) error {
 	}
 
 	auctionClient := infraauction.NewClient(cfg.APIEndpoint, nil)
-	geminiClient, err := deps.NewGeminiClient(cfg.GeminiAPIKey, cfg.GeminiModel)
+	geminiClient, err := deps.NewGeminiClient(cfg)
 	if err != nil {
 		return fmt.Errorf("gemini client: %w", err)
 	}

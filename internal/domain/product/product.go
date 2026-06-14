@@ -1,26 +1,26 @@
 package product
 
-// Field はテンプレート1項目のキーと値。
+// Field は Product のスペック欄1項目（key と value）。
 type Field struct {
 	Key   string `json:"key"`
 	Value string `json:"value"`
 }
 
-// ProductDetail はGeminiが抽出した商品情報。
-type ProductDetail struct {
+// Product は Extraction で得られた Auction 上の売り物情報。
+type Product struct {
 	Category     Category `json:"category"`
 	Condition    string   `json:"condition"`
-	ShippingFree *bool    `json:"shipping_free"`
+	FreeShipping *bool    `json:"shipping_free"`
 	Fields       []Field  `json:"fields"`
 }
 
-// EmptyProductDetail は抽出失敗時のフォールバック。
-func EmptyProductDetail() *ProductDetail {
-	return &ProductDetail{Category: CategoryOther, Fields: nil}
+// EmptyProduct は Extraction 失敗時のフォールバック Product。
+func EmptyProduct() *Product {
+	return &Product{Category: CategoryOther, Fields: nil}
 }
 
-// IsEffectivelyEmpty は実質的に抽出結果が空かどうかを返す。
-func (p *ProductDetail) IsEffectivelyEmpty() bool {
+// IsEffectivelyEmpty は実質的に Extraction 結果が空かどうかを返す。
+func (p *Product) IsEffectivelyEmpty() bool {
 	if p == nil {
 		return true
 	}

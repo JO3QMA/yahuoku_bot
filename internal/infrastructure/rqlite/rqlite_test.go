@@ -184,14 +184,14 @@ func TestParseQueryResults_empty(t *testing.T) {
 	}
 }
 
-func TestRowToWatchItem_shortRow(t *testing.T) {
-	_, err := rowToWatchItem([]any{1})
+func TestRowToWatch_shortRow(t *testing.T) {
+	_, err := rowToWatch([]any{1})
 	if err == nil {
 		t.Fatal("expected error")
 	}
 }
 
-func TestRowToWatchItem_types(t *testing.T) {
+func TestRowToWatch_types(t *testing.T) {
 	created := time.Now().UTC().Truncate(time.Second)
 	row := []any{
 		json.Number("1"), "a", "u", "g", "c", "m",
@@ -201,7 +201,7 @@ func TestRowToWatchItem_types(t *testing.T) {
 		"",
 		created.Format(time.RFC3339),
 	}
-	item, err := rowToWatchItem(row)
+	item, err := rowToWatch(row)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -210,7 +210,7 @@ func TestRowToWatchItem_types(t *testing.T) {
 	}
 	row[6] = float64(100)
 	row[8] = int64(1)
-	item2, err := rowToWatchItem(row)
+	item2, err := rowToWatch(row)
 	if err != nil || !item2.Reminded {
 		t.Fatal(item2, err)
 	}
@@ -242,7 +242,7 @@ func TestWatchRepository_Add_nilEndTime(t *testing.T) {
 	f := &fakeHTTP{}
 	repo := NewWatchRepository(&Client{h: f})
 	ctx := context.Background()
-	err := repo.Add(ctx, &watch.WatchItem{
+	err := repo.Add(ctx, &watch.Watch{
 		AuctionID: "a", UserID: "u", GuildID: "g", ChannelID: "c", MessageID: "m",
 		LastKnownPrice: 1,
 		EndTime:        nil,
@@ -323,7 +323,7 @@ func (execFailHTTP) Close() error { return nil }
 func TestWatchRepository_executeFailures(t *testing.T) {
 	repo := NewWatchRepository(&Client{h: execFailHTTP{}})
 	ctx := context.Background()
-	_ = repo.Add(ctx, &watch.WatchItem{AuctionID: "a", UserID: "u", GuildID: "g", ChannelID: "c", MessageID: "m", LastKnownPrice: 1})
+	_ = repo.Add(ctx, &watch.Watch{AuctionID: "a", UserID: "u", GuildID: "g", ChannelID: "c", MessageID: "m", LastKnownPrice: 1})
 	_ = repo.Remove(ctx, "a", "u", "m")
 	_ = repo.RemoveByAuctionID(ctx, "a")
 	_ = repo.UpdatePrice(ctx, 1, 2)
@@ -370,7 +370,7 @@ func TestWatchRepository_Add_withEndTime(t *testing.T) {
 	repo := NewWatchRepository(&Client{h: f})
 	et := time.Now().UTC().Truncate(time.Second)
 	ctx := context.Background()
-	err := repo.Add(ctx, &watch.WatchItem{
+	err := repo.Add(ctx, &watch.Watch{
 		AuctionID: "a", UserID: "u", GuildID: "g", ChannelID: "c", MessageID: "m",
 		LastKnownPrice: 1,
 		EndTime:        &et,
@@ -384,14 +384,14 @@ func TestWatchRepository_Add_onConflictResetsReminded(t *testing.T) {
 	f := &fakeHTTP{}
 	repo := NewWatchRepository(&Client{h: f})
 	ctx := context.Background()
-	item := &watch.WatchItem{
+	item := &watch.Watch{
 		AuctionID: "a", UserID: "u", GuildID: "g", ChannelID: "c", MessageID: "m",
 		LastKnownPrice: 1000,
 	}
 	if err := repo.Add(ctx, item); err != nil {
 		t.Fatal(err)
 	}
-	if err := repo.Add(ctx, &watch.WatchItem{
+	if err := repo.Add(ctx, &watch.Watch{
 		AuctionID: "a", UserID: "u", GuildID: "g", ChannelID: "c", MessageID: "m",
 		LastKnownPrice: 2000,
 	}); err != nil {

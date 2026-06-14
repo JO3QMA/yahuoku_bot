@@ -21,6 +21,9 @@ coverage.txt
 # 依存（vendor を使う場合）
 /vendor/
 
+# Node (pre-commit tooling)
+/node_modules/
+
 # IDE・エディタ
 .idea/
 .vscode/

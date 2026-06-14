@@ -1,12 +1,14 @@
 # yahoo_auctions_bot
 
-Discord 上でヤフオク（Yahoo! オークション）の商品 URL に反応し、オークション情報と商品ジャンル別スペックのプレビューを Embed で返す Bot です。別リポジトリの **yahoo_auctions API**（Connect RPC）と **Google Gemini** を組み合わせて動作します。
+Discord 上でヤフオク（Yahoo! オークション）の URL に反応し、Auction 情報と Category 別 Field の Preview を Embed で返す Bot です。別リポジトリの **yahoo_auctions API**（Connect RPC）と **Google Gen AI SDK**（Gemini）を組み合わせて動作します。
+
+Product 情報は **多段 Extraction パイプライン**（テキスト分類 → 画像解析 → 不足時のみ Web 検索 → 統合）で導出します。
 
 ## できること
 
-- **メッセージ監視**: メッセージ内のヤフオク URL（`page.auctions.yahoo.co.jp/.../auction/<id>`）を検出し、商品ジャンル（サーバー・GPU・NIC 等）を判別してテンプレートに沿った情報を Embed で投稿します。
-- **ウォッチ**: Bot が投稿したプレビューに 🔔（ベル）リアクションを付けると、そのオークションを監視リストに登録します（バックグラウンドで定期的にチェック）。
-- **プレビュー CLI**（開発用）: オークション ID を渡すと JSON でプレビュー結果を標準出力します（`cmd/preview`）。
+- **メッセージ監視**: メッセージ内のヤフオク URL（`page.auctions.yahoo.co.jp/.../auction/<id>`）を検出し、Category（サーバー・GPU・NIC 等）を判別して FieldTemplate に沿った Preview を Embed で投稿します。
+- **Watch**: Bot が投稿した Preview に 🔔（ベル）リアクションを付けると、その Auction の Watch を登録します（バックグラウンドで定期的にチェック）。
+- **プレビュー CLI**（開発用）: オークション ID を渡すと JSON で Preview 結果を標準出力します（`cmd/preview`）。
 
 ## 必要なもの
 
@@ -38,7 +40,12 @@ cp config.yaml.example config.yaml
 
 | 変数 | 説明 | 既定 |
 |------|------|------|
-| `GEMINI_MODEL` | 使用する Gemini モデル | `gemini-2.5-flash-lite` |
+| `GEMINI_MODEL` | Stage1/4 用 Gemini モデル | `gemini-2.5-flash-lite` |
+| `GEMINI_MODEL_VISION` | Stage2 画像解析用モデル | `gemini-2.5-flash` |
+| `GEMINI_MODEL_AGENT` | Stage3 エージェント補完用モデル | `gemini-2.5-flash` |
+| `GEMINI_MAX_IMAGES` | 推論に使う最大画像数 | `3` |
+| `GEMINI_MAX_SEARCH_CALLS` | 1商品あたりの最大 Web 検索回数 | `3` |
+| `GEMINI_PIPELINE_TIMEOUT_SEC` | 多段推論パイプラインのタイムアウト（秒） | `45` |
 | `API_ENDPOINT` | オークション API のベース URL | `http://localhost:8080` |
 | `CONFIG_PATH` | `config.yaml` のパス（Bot・`cmd/preview` の両方で参照） | `config.yaml` |
 | `RQLITE_URL` | 設定時は **rqlite** に接続（本番・Compose 向け）。未設定時は SQLite | （未設定） |

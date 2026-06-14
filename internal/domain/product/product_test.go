@@ -62,17 +62,17 @@ func TestValidateFields_orderAndFilter(t *testing.T) {
 	}
 }
 
-func TestProductDetail_JSONRoundTrip(t *testing.T) {
+func TestProduct_JSONRoundTrip(t *testing.T) {
 	sf := true
-	p := &ProductDetail{
-		Category: CategoryServer, Condition: "新品", ShippingFree: &sf,
+	p := &Product{
+		Category: CategoryServer, Condition: "新品", FreeShipping: &sf,
 		Fields: []Field{{Key: "cpu_model_line", Value: "Xeon"}},
 	}
 	b, err := json.Marshal(p)
 	if err != nil {
 		t.Fatal(err)
 	}
-	var out ProductDetail
+	var out Product
 	if err := json.Unmarshal(b, &out); err != nil {
 		t.Fatal(err)
 	}
@@ -81,14 +81,14 @@ func TestProductDetail_JSONRoundTrip(t *testing.T) {
 	}
 }
 
-func TestProductDetail_IsEffectivelyEmpty(t *testing.T) {
-	if !EmptyProductDetail().IsEffectivelyEmpty() {
+func TestProduct_IsEffectivelyEmpty(t *testing.T) {
+	if !EmptyProduct().IsEffectivelyEmpty() {
 		t.Fatal("empty")
 	}
-	if (&ProductDetail{Category: CategoryGPU}).IsEffectivelyEmpty() {
+	if (&Product{Category: CategoryGPU}).IsEffectivelyEmpty() {
 		t.Fatal("has category")
 	}
-	if (&ProductDetail{Category: CategoryOther, Condition: "中古"}).IsEffectivelyEmpty() {
+	if (&Product{Category: CategoryOther, Condition: "中古"}).IsEffectivelyEmpty() {
 		t.Fatal("has condition")
 	}
 }

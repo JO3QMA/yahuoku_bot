@@ -18,7 +18,7 @@ func TestWatchRepository_Add_error(t *testing.T) {
 	}
 	mock.ExpectExec("INSERT INTO watch_items").WillReturnError(errors.New("e"))
 	repo := NewWatchRepository(db)
-	err = repo.Add(context.Background(), &watch.WatchItem{
+	err = repo.Add(context.Background(), &watch.Watch{
 		AuctionID: "a", UserID: "u", GuildID: "g", ChannelID: "c", MessageID: "m",
 		LastKnownPrice: 1,
 	})
@@ -146,7 +146,7 @@ func TestWatchRepository_FindByMessage_scanErr(t *testing.T) {
 	}
 }
 
-func TestScanWatchItems_rowsErr(t *testing.T) {
+func TestScanWatchs_rowsErr(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {
 		t.Fatal(err)

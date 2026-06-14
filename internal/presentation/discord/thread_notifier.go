@@ -20,7 +20,7 @@ type ThreadAPI interface {
 	SendMessageComplex(channelID discord.ChannelID, data api.SendMessageData) (*discord.Message, error)
 }
 
-// ThreadNotifier はDiscordスレッドを通じて監視通知を送信する。
+// ThreadNotifier は NotificationThread 経由で PriceAlert / EndingReminder を送信する。
 type ThreadNotifier struct {
 	api  ThreadAPI
 	repo domainwatch.Repository
@@ -31,16 +31,16 @@ func NewThreadNotifier(api ThreadAPI, repo domainwatch.Repository) *ThreadNotifi
 	return &ThreadNotifier{api: api, repo: repo}
 }
 
-// NotifyPriceIncrease は価格上昇時の通知をスレッドに送信する。
-func (n *ThreadNotifier) NotifyPriceIncrease(ctx context.Context, item *domainwatch.WatchItem, oldPrice, newPrice int64, title string) error {
+// NotifyPriceAlert は PriceAlert を NotificationThread に送信する。
+func (n *ThreadNotifier) NotifyPriceAlert(ctx context.Context, item *domainwatch.Watch, oldPrice, newPrice int64, title string) error {
 	threadID, err := n.ensureThread(ctx, item, title)
 	if err != nil {
 		return fmt.Errorf("ensure thread: %w", err)
 	}
-	return n.sendPriceIncreaseNotification(threadID, item, oldPrice, newPrice)
+	return n.sendPriceAlert(threadID, item, oldPrice, newPrice)
 }
 
-func (n *ThreadNotifier) sendPriceIncreaseNotification(threadID discord.ChannelID, item *domainwatch.WatchItem, oldPrice, newPrice int64) error {
+func (n *ThreadNotifier) sendPriceAlert(threadID discord.ChannelID, item *domainwatch.Watch, oldPrice, newPrice int64) error {
 	content := fmt.Sprintf(
 		"<@%s> 価格が上昇しました: ¥%s → ¥%s",
 		item.UserID,
@@ -58,25 +58,25 @@ func (n *ThreadNotifier) sendPriceIncreaseNotification(threadID discord.ChannelI
 		return fmt.Errorf("send price notification: %w", err)
 	}
 
-	logThreadPriceIncreaseSent(item.AuctionID, item.UserID)
+	logPriceAlertSent(item.AuctionID, item.UserID)
 	return nil
 }
 
-// logThreadPriceIncreaseSent は価格上昇通知送信成功をログする（テストでカバーしやすくするため分離）。
-func logThreadPriceIncreaseSent(auctionID, userID string) {
-	log.Printf("[ThreadNotifier] price increase notification sent for auction %s (user=%s)", auctionID, userID)
+// logPriceAlertSent は PriceAlert 送信成功をログする（テストでカバーしやすくするため分離）。
+func logPriceAlertSent(auctionID, userID string) {
+	log.Printf("[ThreadNotifier] price alert sent for auction %s (user=%s)", auctionID, userID)
 }
 
-// NotifyEndingSoon は終了間近通知をスレッドに送信する。
-func (n *ThreadNotifier) NotifyEndingSoon(ctx context.Context, item *domainwatch.WatchItem, currentPrice int64, title string, remaining time.Duration) error {
+// NotifyEndingReminder は EndingReminder を NotificationThread に送信する。
+func (n *ThreadNotifier) NotifyEndingReminder(ctx context.Context, item *domainwatch.Watch, currentPrice int64, title string, remaining time.Duration) error {
 	threadID, err := n.ensureThread(ctx, item, title)
 	if err != nil {
 		return fmt.Errorf("ensure thread: %w", err)
 	}
-	return n.sendEndingSoonNotification(threadID, item, currentPrice, remaining)
+	return n.sendEndingReminder(threadID, item, currentPrice, remaining)
 }
 
-func (n *ThreadNotifier) sendEndingSoonNotification(threadID discord.ChannelID, item *domainwatch.WatchItem, currentPrice int64, remaining time.Duration) error {
+func (n *ThreadNotifier) sendEndingReminder(threadID discord.ChannelID, item *domainwatch.Watch, currentPrice int64, remaining time.Duration) error {
 	minutes := remainingMinutesForDisplay(remaining)
 	content := fmt.Sprintf(
 		"<@%s> オークション終了まで残り約%d分です。現在価格: ¥%s",
@@ -95,7 +95,7 @@ func (n *ThreadNotifier) sendEndingSoonNotification(threadID discord.ChannelID, 
 		return fmt.Errorf("send ending notification: %w", err)
 	}
 
-	logThreadEndingSoonSent(item.AuctionID, item.UserID)
+	logEndingReminderSent(item.AuctionID, item.UserID)
 	return nil
 }
 
@@ -111,17 +111,17 @@ func remainingMinutesForDisplay(d time.Duration) int {
 	return minutes
 }
 
-func logThreadEndingSoonSent(auctionID, userID string) {
-	log.Printf("[ThreadNotifier] ending soon notification sent for auction %s (user=%s)", auctionID, userID)
+func logEndingReminderSent(auctionID, userID string) {
+	log.Printf("[ThreadNotifier] ending reminder sent for auction %s (user=%s)", auctionID, userID)
 }
 
-func (n *ThreadNotifier) ensureThread(ctx context.Context, item *domainwatch.WatchItem, title string) (discord.ChannelID, error) {
-	// 既存スレッドがあればそのまま使う
+func (n *ThreadNotifier) ensureThread(ctx context.Context, item *domainwatch.Watch, title string) (discord.ChannelID, error) {
+	// 既存 NotificationThread があればそのまま使う
 	if item.ThreadID != "" {
 		return discord.ChannelID(mustSnowflake(item.ThreadID)), nil
 	}
 
-	// 同じメッセージに対して既にスレッドが作られていないかDBで確認
+	// 同一 Preview メッセージの NotificationThread を DB で共有
 	siblings, err := n.repo.FindByMessage(ctx, item.MessageID)
 	if err == nil {
 		for _, s := range siblings {

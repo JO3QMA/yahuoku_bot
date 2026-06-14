@@ -2,8 +2,8 @@ package watch
 
 import "time"
 
-// WatchItem は監視対象のオークション商品を表すドメインモデル。
-type WatchItem struct {
+// Watch はユーザーが Auction を追跡する登録レコード。
+type Watch struct {
 	ID             int64
 	AuctionID      string
 	UserID         string

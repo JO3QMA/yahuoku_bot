@@ -14,7 +14,7 @@ import (
 // 例: https://page.auctions.yahoo.co.jp/jp/auction/xxxx1234
 var yahooAuctionURLRe = regexp.MustCompile(`auctions?\.yahoo\.co\.jp/[^/]+/auction/([a-zA-Z0-9]{8,11})`)
 
-// Handler はメッセージ監視とURL抽出を行うハンドラー。
+// Handler はメッセージを監視し、ヤフオク URL から Preview を生成するハンドラー。
 type Handler struct {
 	usecase   *auction.PreviewUsecase
 	embed     *EmbedBuilder

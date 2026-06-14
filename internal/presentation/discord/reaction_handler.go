@@ -26,7 +26,7 @@ type BotIdentifier interface {
 	Me() (*discord.User, error)
 }
 
-// ReactionHandler はリアクションイベントを処理し、監視の登録/解除を行う。
+// ReactionHandler はリアクションイベントを処理し、Watch の登録/解除を行う。
 type ReactionHandler struct {
 	watchUsecase  *appwatch.WatchUsecase
 	auctionClient infraauction.Client

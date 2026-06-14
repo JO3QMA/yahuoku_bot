@@ -18,7 +18,7 @@ type EmbedSender interface {
 	SendMessageComplex(channelID discord.ChannelID, data api.SendMessageData) (*discord.Message, error)
 }
 
-// EmbedBuilder はAuctionPreviewからDiscord Embedを構築・送信する。
+// EmbedBuilder はPreviewからDiscord Embedを構築・送信する。
 type EmbedBuilder struct {
 	sender EmbedSender
 }
@@ -28,8 +28,8 @@ func NewEmbedBuilder(sender EmbedSender) *EmbedBuilder {
 	return &EmbedBuilder{sender: sender}
 }
 
-// Build はAuctionPreviewからDiscord Embedを構築する。
-func (b *EmbedBuilder) Build(preview *auction.AuctionPreview) discord.Embed {
+// Build はPreviewからDiscord Embedを構築する。
+func (b *EmbedBuilder) Build(preview *auction.Preview) discord.Embed {
 	emb := discord.NewEmbed()
 	emb.Title = preview.Title
 	emb.URL = discord.URL(preview.URL)
@@ -117,18 +117,18 @@ func formatEndTime(endTime *time.Time) string {
 	return fmt.Sprintf("%d日", int(d.Hours()/24))
 }
 
-func formatShipping(p *product.ProductDetail) string {
-	if p == nil || p.ShippingFree == nil {
+func formatShipping(p *product.Product) string {
+	if p == nil || p.FreeShipping == nil {
 		return "不明"
 	}
-	if *p.ShippingFree {
+	if *p.FreeShipping {
 		return "送料無料"
 	}
 	return "落札者負担"
 }
 
-// formatProductFields はジャンル別テンプレートに従い EmbedField を返す。空・不明の項目は含めない。
-func formatProductFields(p *product.ProductDetail) []discord.EmbedField {
+// formatProductFields は FieldTemplate に従い EmbedField を返す。空・不明の Field は含めない。
+func formatProductFields(p *product.Product) []discord.EmbedField {
 	if p == nil {
 		return nil
 	}

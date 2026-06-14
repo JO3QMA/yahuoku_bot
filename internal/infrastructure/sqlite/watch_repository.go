@@ -19,7 +19,7 @@ func NewWatchRepository(db *sql.DB) *WatchRepository {
 	return &WatchRepository{db: db}
 }
 
-func (r *WatchRepository) Add(ctx context.Context, item *watch.WatchItem) error {
+func (r *WatchRepository) Add(ctx context.Context, item *watch.Watch) error {
 	// reminded = 0: 再登録時にリマインドを再送可能にする
 	query := `
 		INSERT INTO watch_items (auction_id, user_id, guild_id, channel_id, message_id, last_known_price, end_time, reminded, thread_id)
@@ -63,14 +63,14 @@ func (r *WatchRepository) RemoveByAuctionID(ctx context.Context, auctionID strin
 	return nil
 }
 
-func (r *WatchRepository) ListActive(ctx context.Context) ([]*watch.WatchItem, error) {
+func (r *WatchRepository) ListActive(ctx context.Context) ([]*watch.Watch, error) {
 	rows, err := r.db.QueryContext(ctx, `SELECT id, auction_id, user_id, guild_id, channel_id, message_id, last_known_price, end_time, reminded, thread_id, created_at FROM watch_items`)
 	if err != nil {
 		return nil, fmt.Errorf("list watch items: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
-	return scanWatchItems(rows)
+	return scanWatchs(rows)
 }
 
 func (r *WatchRepository) UpdatePrice(ctx context.Context, id int64, newPrice int64) error {
@@ -97,7 +97,7 @@ func (r *WatchRepository) UpdateThreadID(ctx context.Context, messageID, threadI
 	return nil
 }
 
-func (r *WatchRepository) FindByMessage(ctx context.Context, messageID string) ([]*watch.WatchItem, error) {
+func (r *WatchRepository) FindByMessage(ctx context.Context, messageID string) ([]*watch.Watch, error) {
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, auction_id, user_id, guild_id, channel_id, message_id, last_known_price, end_time, reminded, thread_id, created_at FROM watch_items WHERE message_id = ?`,
 		messageID,
@@ -107,13 +107,13 @@ func (r *WatchRepository) FindByMessage(ctx context.Context, messageID string) (
 	}
 	defer func() { _ = rows.Close() }()
 
-	return scanWatchItems(rows)
+	return scanWatchs(rows)
 }
 
-func scanWatchItems(rows *sql.Rows) ([]*watch.WatchItem, error) {
-	var items []*watch.WatchItem
+func scanWatchs(rows *sql.Rows) ([]*watch.Watch, error) {
+	var items []*watch.Watch
 	for rows.Next() {
-		var item watch.WatchItem
+		var item watch.Watch
 		var endTime sql.NullString
 		var reminded int
 		err := rows.Scan(

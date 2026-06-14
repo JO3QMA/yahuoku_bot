@@ -31,7 +31,7 @@ type endingNotification struct {
 	CurrentPrice int64
 }
 
-func (m *mockNotifier) NotifyPriceIncrease(_ context.Context, item *domainwatch.WatchItem, oldPrice, newPrice int64, _ string) error {
+func (m *mockNotifier) NotifyPriceAlert(_ context.Context, item *domainwatch.Watch, oldPrice, newPrice int64, _ string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.priceIncreases = append(m.priceIncreases, priceNotification{
@@ -40,7 +40,7 @@ func (m *mockNotifier) NotifyPriceIncrease(_ context.Context, item *domainwatch.
 	return nil
 }
 
-func (m *mockNotifier) NotifyEndingSoon(_ context.Context, item *domainwatch.WatchItem, currentPrice int64, _ string, _ time.Duration) error {
+func (m *mockNotifier) NotifyEndingReminder(_ context.Context, item *domainwatch.Watch, currentPrice int64, _ string, _ time.Duration) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.endingSoonAlerts = append(m.endingSoonAlerts, endingNotification{
@@ -67,12 +67,12 @@ func setupTestRepo(t *testing.T) domainwatch.Repository {
 	return sqlite.NewWatchRepository(db)
 }
 
-func TestPollingWorker_PriceIncrease(t *testing.T) {
+func TestPollingWorker_PriceAlert(t *testing.T) {
 	repo := setupTestRepo(t)
 	ctx := context.Background()
 
 	endTime := time.Now().Add(2 * time.Hour)
-	if err := repo.Add(ctx, &domainwatch.WatchItem{
+	if err := repo.Add(ctx, &domainwatch.Watch{
 		AuctionID: "auc1", UserID: "u1", GuildID: "g1",
 		ChannelID: "c1", MessageID: "m1", LastKnownPrice: 1000, EndTime: &endTime,
 	}); err != nil {
@@ -111,12 +111,12 @@ func TestPollingWorker_PriceIncrease(t *testing.T) {
 	}
 }
 
-func TestPollingWorker_EndingSoon(t *testing.T) {
+func TestPollingWorker_EndingReminder(t *testing.T) {
 	repo := setupTestRepo(t)
 	ctx := context.Background()
 
 	endTime := time.Now().Add(5 * time.Minute)
-	if err := repo.Add(ctx, &domainwatch.WatchItem{
+	if err := repo.Add(ctx, &domainwatch.Watch{
 		AuctionID: "auc1", UserID: "u1", GuildID: "g1",
 		ChannelID: "c1", MessageID: "m1", LastKnownPrice: 1000, EndTime: &endTime,
 	}); err != nil {
@@ -156,7 +156,7 @@ func TestPollingWorker_FinishedAuctionCleanup(t *testing.T) {
 	ctx := context.Background()
 
 	endTime := time.Now().Add(-1 * time.Hour)
-	if err := repo.Add(ctx, &domainwatch.WatchItem{
+	if err := repo.Add(ctx, &domainwatch.Watch{
 		AuctionID: "auc1", UserID: "u1", GuildID: "g1",
 		ChannelID: "c1", MessageID: "m1", LastKnownPrice: 1000, EndTime: &endTime,
 	}); err != nil {

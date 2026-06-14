@@ -6,11 +6,11 @@ AIエージェントがこのリポジトリで作業する際のコンテキス
 
 ## プロジェクト概要
 
-**yahoo_auctions_bot** は、Discord上でヤフオク（Yahoo! オークション）の商品URLに反応し、オークション情報と商品ジャンル別スペックのプレビューをEmbedで返すDiscord Botです。
+**yahoo_auctions_bot** は、Discord上でヤフオク（Yahoo! オークション）の URL に反応し、Auction 情報と Category 別 Field の Preview を Embed で返す Discord Bot です。
 
 - **入力**: Discordメッセージ内のヤフオクURL（`page.auctions.yahoo.co.jp/.../auction/<id>`）
-- **処理**: 外部APIで商品取得 → Geminiでジャンル判別・テンプレート項目抽出 → Embed生成
-- **出力**: 同一チャンネルへEmbed送信（現在価格・残り時間・商品状態・送料・商品ジャンル・ジャンル別スペックなど）
+- **処理**: 外部 API で Auction 取得 → 多段 Extraction パイプライン（分類・画像解析・オンデマンド検索・統合）→ Embed 生成
+- **出力**: 同一チャンネルへ Embed 送信（現在価格・残り時間・Condition・送料・Category・Field など）
 
 ---
 
@@ -18,7 +18,7 @@ AIエージェントがこのリポジトリで作業する際のコンテキス
 
 - **レイヤー**: クリーン/ヘキサゴナル寄りの構成
   - `cmd/bot` — エントリポイント。設定読み込み・DI・Bot起動
-  - `internal/domain` — ドメイン仕様（例: `product.ProductDetail`）
+  - `internal/domain` — ドメイン仕様（例: `product.Product`, `watch.Watch`）
   - `internal/application` — ユースケース（例: `PreviewUsecase`）
   - `internal/infrastructure` — 外部サービス（オークションAPI Connect RPC、Gemini）
   - `internal/presentation` — Discord（arikawa 利用、ハンドラー・Embed）
@@ -28,7 +28,7 @@ AIエージェントがこのリポジトリで作業する際のコンテキス
 - **外部連携**
   - **yahoo_auctions API**: `API_ENDPOINT` の Connect RPC（`GetAuction`）。別リポジトリ `yahoo_auctions` が提供想定。
   - **protobuf**: `github.com/jo3qma/protobuf/gen/go` の生成コードを使用。APIの型・RPCはここに依存。
-  - **Gemini**: 商品説明から `product.ProductDetail`（ジャンル + テンプレート項目）をJSONで抽出（`gemini-2.5-flash-lite` 想定）。
+  - **Gemini**（`google.golang.org/genai`）: タイトル・説明・商品画像から `product.Product` を多段 Extraction パイプラインで導出。不足 Field は Function Calling 経由で Google Search をオンデマンド実行。
   - **Discord**: arikawa v3（Gateway、メッセージ、Embed送信）。
 
 ---
@@ -36,7 +36,7 @@ AIエージェントがこのリポジトリで作業する際のコンテキス
 ## 技術スタック・バージョン
 
 - **Go**: 1.25.4（`go.mod` に準拠）
-- **主要ライブラリ**: connectrpc.com/connect, arikawa/v3, google/generative-ai-go, gopkg.in/yaml.v3
+- **主要ライブラリ**: connectrpc.com/connect, arikawa/v3, google.golang.org/genai, gopkg.in/yaml.v3
 - **設定**: 環境変数（direnv で `.env` を読み込む想定） + YAML（`config.yaml`）。`config.Load(configPath)` で統合。
 
 ---
@@ -47,7 +47,12 @@ AIエージェントがこのリポジトリで作業する際のコンテキス
 |------|------|------|
 | 環境変数 | `DISCORD_TOKEN` | 必須。Botトークン |
 | 環境変数 | `GEMINI_API_KEY` | 必須。Gemini APIキー |
-| 環境変数 | `GEMINI_MODEL` | 任意。使用するGeminiモデル（未設定時 `gemini-2.5-flash-lite`） |
+| 環境変数 | `GEMINI_MODEL` | 任意。Stage1/4 用モデル（未設定時 `gemini-2.5-flash-lite`） |
+| 環境変数 | `GEMINI_MODEL_VISION` | 任意。Stage2 画像解析用（未設定時 `gemini-2.5-flash`） |
+| 環境変数 | `GEMINI_MODEL_AGENT` | 任意。Stage3 エージェント補完用（未設定時 `gemini-2.5-flash`） |
+| 環境変数 | `GEMINI_MAX_IMAGES` | 任意。Extraction に使う最大画像数（未設定時 `3`） |
+| 環境変数 | `GEMINI_MAX_SEARCH_CALLS` | 任意。1 Product あたりの最大検索回数（未設定時 `3`） |
+| 環境変数 | `GEMINI_PIPELINE_TIMEOUT_SEC` | 任意。多段 Extraction パイプラインのタイムアウト秒（未設定時 `45`） |
 | 環境変数 | `API_ENDPOINT` | オークションAPIのベースURL（未設定時 `http://localhost:8080`） |
 | 環境変数 | `CONFIG_PATH` | 任意。YAML設定パス（未設定時 `config.yaml`） |
 | YAML | `allowed.guilds` | 空でなければ、ここに列挙したサーバーのみ反応 |
@@ -60,7 +65,7 @@ AIエージェントがこのリポジトリで作業する際のコンテキス
 ## ディレクトリ・ファイル慣習
 
 - **パッケージ名**: ディレクトリ名と一致（`discord`, `auction`, `config`, `product`, `gemini` など）。
-- **インターフェース**: ユースケースが依存する「取得」「抽出」などは application 内でインターフェース定義し、infrastructure が実装（例: `AuctionFetcher`, `ProductExtractor`）。
+- **インターフェース**: ユースケースが依存する取得・Extraction などは application 内でインターフェース定義し、infrastructure が実装（例: `AuctionFetcher`, `Extractor`）。
 - **コメント**: 公開型・関数は日本語で説明を付ける（「〜を返す」「〜を行う」など）。
 - **エントリ**: 実行バイナリは `cmd/bot/main.go` からビルド。Dockerでは `./cmd/bot` をビルドし、`discord-bot` として実行。
 
@@ -100,6 +105,22 @@ AIエージェントがこのリポジトリで作業する際のコンテキス
 
 - **yahoo_auctions**: オークション情報を返すAPI。本BotはそのConnect RPCクライアントとして動作。
 - **protobuf**: Connect用の.proto定義と生成Goコード。本Botは `gen/go` を参照。
+
+---
+
+## Agent skills
+
+### Issue tracker
+
+Issues live in this repo's GitHub Issues (`JO3QMA/yahuoku_bot`). See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Five canonical triage roles map to GitHub labels (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context layout: `CONTEXT.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
 
 ---
 
