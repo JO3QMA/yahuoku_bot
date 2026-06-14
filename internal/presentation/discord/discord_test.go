@@ -135,7 +135,7 @@ type noopNotifier struct{}
 func (n *noopNotifier) NotifyPriceIncrease(context.Context, *domainwatch.WatchItem, int64, int64, string) error {
 	return nil
 }
-func (n *noopNotifier) NotifyEndingSoon(context.Context, *domainwatch.WatchItem, int64, string) error {
+func (n *noopNotifier) NotifyEndingSoon(context.Context, *domainwatch.WatchItem, int64, string, time.Duration) error {
 	return nil
 }
 
@@ -250,12 +250,13 @@ func TestEmbedBuilder_Build_and_Send(t *testing.T) {
 		Product: &product.ProductDetail{
 			Category: product.CategoryServer, Condition: "新品", ShippingFree: &sf,
 			Fields: []product.Field{
-				{Key: "cpu_model_line", Value: "c"},
+				{Key: "server_model", Value: "Fujitsu Primergy RX1330 M4"},
+				{Key: "cpu_model_line", Value: "Intel Core Ultra 7 355 @4.25GHz x1"},
 				{Key: "core_thread_info", Value: "x"},
 				{Key: "socket_count", Value: "2"},
-				{Key: "memory_info", Value: "m"},
-				{Key: "storage_type", Value: "s"},
-				{Key: "storage_capacity", Value: "cap"},
+				{Key: "memory_info", Value: "DDR4 Unbuffered 2133MHz 8GB x8 Total: 64GB"},
+				{Key: "storage_info", Value: "SSD 256GB x1"},
+				{Key: "gpu", Value: "AMD Radeon RX9070XT x2"},
 				{Key: "other_notes", Value: "o"},
 			},
 		},
@@ -301,6 +302,7 @@ type stubThreadAPI struct {
 	startErr error
 	sendErr  error
 	ch       *discord.Channel
+	lastSend api.SendMessageData
 }
 
 func (s *stubThreadAPI) StartThreadWithMessage(channelID discord.ChannelID, messageID discord.MessageID, data api.StartThreadData) (*discord.Channel, error) {
@@ -314,6 +316,7 @@ func (s *stubThreadAPI) StartThreadWithMessage(channelID discord.ChannelID, mess
 }
 
 func (s *stubThreadAPI) SendMessageComplex(channelID discord.ChannelID, data api.SendMessageData) (*discord.Message, error) {
+	s.lastSend = data
 	if s.sendErr != nil {
 		return nil, s.sendErr
 	}
@@ -341,7 +344,7 @@ func TestThreadNotifier(t *testing.T) {
 		UserID: uid.String(), ChannelID: bid.String(), MessageID: bid.String(),
 		AuctionID: "a2", ThreadID: "",
 	}
-	if err := n.NotifyEndingSoon(ctx, item2, 5, "t2"); err != nil {
+	if err := n.NotifyEndingSoon(ctx, item2, 5, "t2", 5*time.Minute); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -397,7 +400,7 @@ func TestThreadNotifier_startThreadErr_endingSoon(t *testing.T) {
 	item := &domainwatch.WatchItem{
 		UserID: "200", ChannelID: "100", MessageID: "20", AuctionID: "a", ThreadID: "",
 	}
-	err := n.NotifyEndingSoon(ctx, item, 1, "t")
+	err := n.NotifyEndingSoon(ctx, item, 1, "t", time.Minute)
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -409,7 +412,7 @@ func TestThreadNotifier_sendErr(t *testing.T) {
 	api := &stubThreadAPI{sendErr: errors.New("se")}
 	n := NewThreadNotifier(api, repo)
 	item := &domainwatch.WatchItem{UserID: "200", ChannelID: "100", MessageID: "20", ThreadID: "99"}
-	err := n.NotifyEndingSoon(ctx, item, 1, "t")
+	err := n.NotifyEndingSoon(ctx, item, 1, "t", time.Minute)
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -489,10 +492,14 @@ func TestThreadNotifier_sendPriceIncreaseNotification_direct(t *testing.T) {
 }
 
 func TestThreadNotifier_sendEndingSoonNotification_direct(t *testing.T) {
-	n := NewThreadNotifier(&stubThreadAPI{}, &memWatchRepo{})
+	api := &stubThreadAPI{}
+	n := NewThreadNotifier(api, &memWatchRepo{})
 	item := &domainwatch.WatchItem{UserID: "200", AuctionID: "a"}
-	if err := n.sendEndingSoonNotification(discord.ChannelID(99), item, 500); err != nil {
+	if err := n.sendEndingSoonNotification(discord.ChannelID(99), item, 500, 8*time.Minute+30*time.Second); err != nil {
 		t.Fatal(err)
+	}
+	if !strings.Contains(string(api.lastSend.Content), "残り約9分") {
+		t.Fatalf("content %q", api.lastSend.Content)
 	}
 }
 
@@ -508,7 +515,7 @@ func TestThreadNotifier_sendPriceIncrease_sendErr(t *testing.T) {
 func TestThreadNotifier_sendEndingSoon_sendErr(t *testing.T) {
 	n := NewThreadNotifier(&stubThreadAPI{sendErr: errors.New("se")}, &memWatchRepo{})
 	item := &domainwatch.WatchItem{UserID: "200", AuctionID: "a"}
-	err := n.sendEndingSoonNotification(discord.ChannelID(99), item, 1)
+	err := n.sendEndingSoonNotification(discord.ChannelID(99), item, 1, time.Minute)
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -526,7 +533,7 @@ func TestThreadNotifier_successLogLines(t *testing.T) {
 	if err := n.NotifyPriceIncrease(ctx, item, 1, 2, "t"); err != nil {
 		t.Fatal(err)
 	}
-	if err := n.NotifyEndingSoon(ctx, item, 500, "t"); err != nil {
+	if err := n.NotifyEndingSoon(ctx, item, 500, "t", 10*time.Minute); err != nil {
 		t.Fatal(err)
 	}
 	out := buf.String()

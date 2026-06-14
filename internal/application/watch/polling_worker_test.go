@@ -40,7 +40,7 @@ func (m *mockNotifier) NotifyPriceIncrease(_ context.Context, item *domainwatch.
 	return nil
 }
 
-func (m *mockNotifier) NotifyEndingSoon(_ context.Context, item *domainwatch.WatchItem, currentPrice int64, _ string) error {
+func (m *mockNotifier) NotifyEndingSoon(_ context.Context, item *domainwatch.WatchItem, currentPrice int64, _ string, _ time.Duration) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.endingSoonAlerts = append(m.endingSoonAlerts, endingNotification{

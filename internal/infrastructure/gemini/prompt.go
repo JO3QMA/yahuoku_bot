@@ -33,6 +33,17 @@ func classificationRules() string {
 `
 }
 
+func serverValueExamples() string {
+	return `
+【server ジャンルの value 形式例】
+- server_model: Fujitsu Primergy RX1330 M4
+- cpu_model_line: Intel Core Ultra 7 355 @4.25GHz x1
+- memory_info: DDR4 Unbuffered 2133MHz 8GB x8 Total: 64GB
+- storage_info: SSD 256GB x1
+- gpu: AMD Radeon RX9070XT x2（GPU非搭載の場合は fields に含めない）
+`
+}
+
 func buildStage1Prompt(title, plainDesc string) string {
 	var b strings.Builder
 	b.WriteString(`以下のヤフオク商品のタイトルと説明文から、商品ジャンルを1つ判別し、該当ジャンルのテンプレート項目を抽出してください。
@@ -42,6 +53,7 @@ func buildStage1Prompt(title, plainDesc string) string {
 `)
 	b.WriteString(categoryBlock())
 	b.WriteString(classificationRules())
+	b.WriteString(serverValueExamples())
 	b.WriteString(`
 【出力形式】
 - category, condition, shipping_free, fields（判別ジャンルのテンプレートキーのみ）
@@ -50,7 +62,9 @@ func buildStage1Prompt(title, plainDesc string) string {
 
 【重要】
 - タイトルを特に重視してください
+- 商品説明が空の場合はタイトルのみから抽出してください
 - 確実に分かる項目だけ fields に入れ、推測で埋めないでください
+- fields の key は選択したジャンルのテンプレートキーのみ使用してください
 
 【タイトル】
 `)
