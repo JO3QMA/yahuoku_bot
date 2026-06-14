@@ -1,0 +1,14 @@
+{
+  "name": "yahoo_auctions_bot",
+  "private": true,
+  "scripts": {
+    "prepare": "husky",
+    "typecheck": "go vet ./...",
+    "test": "go test ./..."
+  },
+  "devDependencies": {
+    "husky": "^9.1.7",
+    "lint-staged": "^15.5.0",
+    "prettier": "^3.5.3"
+  }
+}
