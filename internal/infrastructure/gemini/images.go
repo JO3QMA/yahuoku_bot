@@ -58,7 +58,7 @@ func (f *imageFetcher) fetchOne(ctx context.Context, rawURL string) (fetchedImag
 	if err != nil {
 		return fetchedImage{}, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return fetchedImage{}, fmt.Errorf("status %d", resp.StatusCode)
 	}

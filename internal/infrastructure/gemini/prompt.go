@@ -184,8 +184,3 @@ func stage2EvidenceJSON(s2 *stage2Result) string {
 	}
 	return b.String()
 }
-
-// buildExtractPrompt は後方互換テスト用に Stage1 プロンプトのエイリアス。
-func buildExtractPrompt(title, plainDesc string) string {
-	return buildStage1Prompt(title, plainDesc)
-}
