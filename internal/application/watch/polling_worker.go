@@ -2,6 +2,7 @@ package watch
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"time"
 
@@ -134,7 +135,9 @@ func (w *PollingWorker) processGroup(ctx context.Context, items []*watch.WatchIt
 					log.Printf("[PollingWorker] notify ending soon: %v", err)
 					continue
 				}
-				w.markRemindedWithRetry(ctx, item.ID)
+				if err := w.markRemindedWithRetry(ctx, item.ID); err != nil {
+					log.Printf("[PollingWorker] %v", err)
+				}
 			}
 		}
 	}
@@ -155,14 +158,14 @@ func shouldNotifyEndingSoon(remaining, interval, threshold time.Duration) bool {
 const markRemindedAttempts = 3
 
 // markRemindedWithRetry は通知成功後に reminded フラグを設定する。DB 障害時は稀に重複通知の可能性あり。
-func (w *PollingWorker) markRemindedWithRetry(ctx context.Context, itemID int64) {
+func (w *PollingWorker) markRemindedWithRetry(ctx context.Context, itemID int64) error {
 	var err error
 	for attempt := 0; attempt < markRemindedAttempts; attempt++ {
 		if err = w.repo.MarkReminded(ctx, itemID); err == nil {
-			return
+			return nil
 		}
 	}
-	log.Printf("[PollingWorker] mark reminded failed after %d attempts: %v", markRemindedAttempts, err)
+	return fmt.Errorf("mark reminded failed after %d attempts: %w", markRemindedAttempts, err)
 }
 
 // effectiveEndTime は API の終了時刻を優先し、なければ DB 保存値を使う。

@@ -29,8 +29,9 @@ type Config struct {
 	GeminiModel          string // Stage1/4 用。空の場合は gemini-2.5-flash-lite
 	GeminiModelVision    string // Stage2 用。空の場合は gemini-2.5-flash
 	GeminiModelAgent     string // Stage3 用。空の場合は gemini-2.5-flash
-	GeminiMaxImages      int    // 推論に使う最大画像数 (default: 3)
-	GeminiMaxSearchCalls int    // 1商品あたりの最大検索回数 (default: 3)
+	GeminiMaxImages           int    // 推論に使う最大画像数 (default: 3)
+	GeminiMaxSearchCalls      int    // 1商品あたりの最大検索回数 (default: 3)
+	GeminiPipelineTimeoutSec  int    // 多段推論パイプラインのタイムアウト秒 (default: 45)
 	APIEndpoint     string
 	AllowedGuilds   []string
 	AllowedChannels []string
@@ -50,8 +51,9 @@ func Load(configPath string) (*Config, error) {
 		GeminiModel:          strings.TrimSpace(os.Getenv("GEMINI_MODEL")),
 		GeminiModelVision:    strings.TrimSpace(os.Getenv("GEMINI_MODEL_VISION")),
 		GeminiModelAgent:     strings.TrimSpace(os.Getenv("GEMINI_MODEL_AGENT")),
-		GeminiMaxImages:      getEnvInt("GEMINI_MAX_IMAGES", 3),
-		GeminiMaxSearchCalls: getEnvInt("GEMINI_MAX_SEARCH_CALLS", 3),
+		GeminiMaxImages:          getEnvInt("GEMINI_MAX_IMAGES", 3),
+		GeminiMaxSearchCalls:     getEnvInt("GEMINI_MAX_SEARCH_CALLS", 3),
+		GeminiPipelineTimeoutSec: getEnvInt("GEMINI_PIPELINE_TIMEOUT_SEC", 45),
 		APIEndpoint:  strings.TrimSpace(os.Getenv("API_ENDPOINT")),
 		DBPath:    strings.TrimSpace(os.Getenv("DB_PATH")),
 		RqliteURL: strings.TrimSpace(os.Getenv("RQLITE_URL")),

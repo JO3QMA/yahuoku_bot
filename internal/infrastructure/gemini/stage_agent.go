@@ -45,6 +45,7 @@ func agentToolConfig() *genai.GenerateContentConfig {
 }
 
 func (p *pipeline) runStage3(ctx context.Context, title, plainDesc string, s1 *stage1Result, s2 *stage2Result) ([]product.Field, []string, error) {
+	// lookup_spec の Function Calling ループ。検索上限に達するか done:true の JSON が返るまで繰り返す。
 	contents := []*genai.Content{
 		genai.NewContentFromText(buildStage3Prompt(title, plainDesc, s1, s2), genai.RoleUser),
 	}
@@ -72,10 +73,7 @@ func (p *pipeline) runStage3(ctx context.Context, title, plainDesc string, s1 *s
 					continue
 				}
 				fr := p.executeLookupSpec(ctx, call, &searchCount, &searchNotes)
-				contents = append(contents, genai.NewContentFromParts(
-					[]*genai.Part{genai.NewPartFromFunctionResponse(call.Name, fr)},
-					genai.RoleUser,
-				))
+				contents = append(contents, genai.NewContentFromFunctionResponse(call.Name, fr, genai.RoleUser))
 			}
 			continue
 		}
@@ -89,7 +87,7 @@ func (p *pipeline) runStage3(ctx context.Context, title, plainDesc string, s1 *s
 		break
 	}
 
-	// 検索結果を踏まえて JSON でフィールドを確定する。
+	// FC ループで JSON が得られない場合、検索メモを踏まえた最終 JSON 生成にフォールバックする。
 	finalPrompt := buildStage3FinalPrompt(title, plainDesc, s1, s2, searchNotes)
 	text, err := p.api.generateJSON(ctx, p.opts.AgentModel, finalPrompt, agentFieldsSchema())
 	if err != nil {
@@ -112,11 +110,11 @@ func (p *pipeline) executeLookupSpec(ctx context.Context, call *genai.FunctionCa
 		return map[string]any{"error": "empty query"}
 	}
 	summary, queries, err := p.api.groundedSearch(ctx, p.opts.AgentModel, query)
-	*searchCount++
 	if err != nil {
 		log.Printf("[gemini] lookup_spec search failed: %v", err)
 		return map[string]any{"error": err.Error()}
 	}
+	*searchCount++
 	if len(queries) > 0 {
 		log.Printf("[gemini] grounding search queries for %q: %v", fieldKey, queries)
 	}

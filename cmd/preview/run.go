@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	appauction "jo3qma.com/yahoo_auctions_bot/internal/application/auction"
+	"jo3qma.com/yahoo_auctions_bot/internal/bootstrap"
 	"jo3qma.com/yahoo_auctions_bot/internal/config"
 	infraauction "jo3qma.com/yahoo_auctions_bot/internal/infrastructure/auction"
 	"jo3qma.com/yahoo_auctions_bot/internal/infrastructure/gemini"
@@ -16,7 +17,7 @@ import (
 // previewDeps は RunPreview の依存注入用。
 type previewDeps struct {
 	LoadConfig       func(path string) (*config.Config, error)
-	NewGeminiClient  func(cfg *config.Config) (gemini.Client, error)
+	NewGeminiClient  func(cfg *config.Config) (appauction.ProductExtractor, error)
 	NewAuctionClient func(baseURL string) infraauction.Client
 }
 
@@ -25,8 +26,8 @@ func mergePreviewDeps(d *previewDeps) {
 		d.LoadConfig = config.Load
 	}
 	if d.NewGeminiClient == nil {
-		d.NewGeminiClient = func(cfg *config.Config) (gemini.Client, error) {
-			return gemini.NewClient(cfg.GeminiAPIKey, gemini.OptionsFromConfig(cfg))
+		d.NewGeminiClient = func(cfg *config.Config) (appauction.ProductExtractor, error) {
+			return gemini.NewClient(cfg.GeminiAPIKey, bootstrap.GeminiOptions(cfg))
 		}
 	}
 	if d.NewAuctionClient == nil {

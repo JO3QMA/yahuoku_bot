@@ -114,9 +114,9 @@ func buildStage3Prompt(title, plainDesc string, s1 *stage1Result, s2 *stage2Resu
 		b.WriteString("\n\n【Stage2 画像解析】\n")
 		b.WriteString(stage2EvidenceJSON(s2))
 	}
-	if s1 != nil && len(s1.MissingKeys) > 0 {
+	if keys := remainingMissingKeys(s1, s2); len(keys) > 0 {
 		b.WriteString("\n\n【補完対象キー】\n")
-		b.WriteString(strings.Join(s1.MissingKeys, ", "))
+		b.WriteString(strings.Join(keys, ", "))
 	}
 	return b.String()
 }

@@ -3,7 +3,6 @@ package gemini
 import (
 	"context"
 	"fmt"
-	"log"
 	"time"
 
 	appauction "jo3qma.com/yahoo_auctions_bot/internal/application/auction"
@@ -25,8 +24,13 @@ func newPipeline(api *genAIAPI, opts Options) *pipeline {
 	}
 }
 
+// run は Stage1/2 を並列実行し、不足キーがあれば Stage3 で補完して Stage4 で統合する。
 func (p *pipeline) run(ctx context.Context, in appauction.ExtractInput) (*product.ProductDetail, error) {
-	ctx, cancel := context.WithTimeout(ctx, pipelineTimeout*time.Second)
+	timeout := p.opts.PipelineTimeoutSec
+	if timeout <= 0 {
+		timeout = pipelineTimeout
+	}
+	ctx, cancel := context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
 	defer cancel()
 
 	title := sanitizeUTF8(in.Title)
@@ -55,24 +59,23 @@ func (p *pipeline) run(ctx context.Context, in appauction.ExtractInput) (*produc
 
 	var agentFields []product.Field
 	var searchNotes []string
-	if shouldRunStage3(s1) {
-		fields, notes, err := p.runStage3(ctx, title, plainDesc, s1, s2)
-		if err != nil {
-			log.Printf("[gemini] stage3 failed, continuing with merge: %v", err)
-		} else {
-			agentFields = fields
-			searchNotes = notes
-		}
+	var stage3Err error
+	if shouldRunStage3(s1, s2) {
+		agentFields, searchNotes, stage3Err = p.runStage3(ctx, title, plainDesc, s1, s2)
 	}
 
-	return p.runStage4(ctx, title, plainDesc, s1, s2, agentFields, searchNotes)
+	detail, err := p.runStage4(ctx, title, plainDesc, s1, s2, agentFields, searchNotes)
+	if err != nil {
+		return nil, err
+	}
+	if stage3Err != nil {
+		return detail, fmt.Errorf("stage3: %w", stage3Err)
+	}
+	return detail, nil
 }
 
-func shouldRunStage3(s1 *stage1Result) bool {
-	if s1 == nil {
-		return false
-	}
-	return len(s1.MissingKeys) > 0
+func shouldRunStage3(s1 *stage1Result, s2 *stage2Result) bool {
+	return len(remainingMissingKeys(s1, s2)) > 0
 }
 
 func (p *pipeline) runStage1(ctx context.Context, title, plainDesc string) (*stage1Result, error) {

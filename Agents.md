@@ -52,6 +52,7 @@ AIエージェントがこのリポジトリで作業する際のコンテキス
 | 環境変数 | `GEMINI_MODEL_AGENT` | 任意。Stage3 エージェント補完用（未設定時 `gemini-2.5-flash`） |
 | 環境変数 | `GEMINI_MAX_IMAGES` | 任意。推論に使う最大画像数（未設定時 `3`） |
 | 環境変数 | `GEMINI_MAX_SEARCH_CALLS` | 任意。1商品あたりの最大検索回数（未設定時 `3`） |
+| 環境変数 | `GEMINI_PIPELINE_TIMEOUT_SEC` | 任意。多段推論パイプラインのタイムアウト秒（未設定時 `45`） |
 | 環境変数 | `API_ENDPOINT` | オークションAPIのベースURL（未設定時 `http://localhost:8080`） |
 | 環境変数 | `CONFIG_PATH` | 任意。YAML設定パス（未設定時 `config.yaml`） |
 | YAML | `allowed.guilds` | 空でなければ、ここに列挙したサーバーのみ反応 |

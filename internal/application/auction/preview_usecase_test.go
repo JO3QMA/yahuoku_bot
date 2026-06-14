@@ -80,3 +80,35 @@ func TestPreviewUsecase_Execute_extractErrorContinues(t *testing.T) {
 		t.Fatalf("got %s", out.Product.Category)
 	}
 }
+
+func TestPreviewUsecase_Execute_partialExtractSuccess(t *testing.T) {
+	end := time.Now().Add(time.Hour)
+	ff := &fakeFetcher{data: &infraauction.AuctionData{
+		AuctionID: "a1", Title: "T", CurrentPrice: 500,
+		Status: "S", Description: "d", EndTime: &end,
+	}}
+	partial := &product.ProductDetail{
+		Category: product.CategoryGPU,
+		Fields:   []product.Field{{Key: "model", Value: "RTX 3080"}},
+	}
+	u := NewPreviewUsecase(ff, &fakeExtractorPartial{detail: partial, err: errors.New("stage3")})
+	out, err := u.Execute(context.Background(), "a1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.Product.Category != product.CategoryGPU {
+		t.Fatalf("got %s", out.Product.Category)
+	}
+	if len(out.Product.Fields) != 1 || out.Product.Fields[0].Value != "RTX 3080" {
+		t.Fatalf("product %+v", out.Product)
+	}
+}
+
+type fakeExtractorPartial struct {
+	detail *product.ProductDetail
+	err    error
+}
+
+func (f *fakeExtractorPartial) ExtractProduct(context.Context, ExtractInput) (*product.ProductDetail, error) {
+	return f.detail, f.err
+}

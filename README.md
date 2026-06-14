@@ -45,6 +45,7 @@ cp config.yaml.example config.yaml
 | `GEMINI_MODEL_AGENT` | Stage3 エージェント補完用モデル | `gemini-2.5-flash` |
 | `GEMINI_MAX_IMAGES` | 推論に使う最大画像数 | `3` |
 | `GEMINI_MAX_SEARCH_CALLS` | 1商品あたりの最大 Web 検索回数 | `3` |
+| `GEMINI_PIPELINE_TIMEOUT_SEC` | 多段推論パイプラインのタイムアウト（秒） | `45` |
 | `API_ENDPOINT` | オークション API のベース URL | `http://localhost:8080` |
 | `CONFIG_PATH` | `config.yaml` のパス（Bot・`cmd/preview` の両方で参照） | `config.yaml` |
 | `RQLITE_URL` | 設定時は **rqlite** に接続（本番・Compose 向け）。未設定時は SQLite | （未設定） |

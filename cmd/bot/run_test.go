@@ -16,7 +16,6 @@ import (
 	"jo3qma.com/yahoo_auctions_bot/internal/domain/product"
 	"jo3qma.com/yahoo_auctions_bot/internal/domain/watch"
 	infraauction "jo3qma.com/yahoo_auctions_bot/internal/infrastructure/auction"
-	"jo3qma.com/yahoo_auctions_bot/internal/infrastructure/gemini"
 	infrarqlite "jo3qma.com/yahoo_auctions_bot/internal/infrastructure/rqlite"
 	infrasqlite "jo3qma.com/yahoo_auctions_bot/internal/infrastructure/sqlite"
 	"jo3qma.com/yahoo_auctions_bot/internal/presentation/discord"
@@ -95,7 +94,7 @@ func TestRun_geminiError(t *testing.T) {
 		LoadConfig: func(string) (*config.Config, error) {
 			return &config.Config{DiscordToken: "t", GeminiAPIKey: "k"}, nil
 		},
-		NewGeminiClient: func(cfg *config.Config) (gemini.Client, error) {
+		NewGeminiClient: func(cfg *config.Config) (appauction.ProductExtractor, error) {
 			return nil, errors.New("g")
 		},
 	})
@@ -109,7 +108,7 @@ func TestRun_rqliteError(t *testing.T) {
 		LoadConfig: func(string) (*config.Config, error) {
 			return &config.Config{DiscordToken: "t", GeminiAPIKey: "k", RqliteURL: "http://x"}, nil
 		},
-		NewGeminiClient: func(cfg *config.Config) (gemini.Client, error) {
+		NewGeminiClient: func(cfg *config.Config) (appauction.ProductExtractor, error) {
 			return &fakeGemini{}, nil
 		},
 		OpenRqlite: func(ctx context.Context, url string, opts ...infrarqlite.NewClientOption) (*infrarqlite.Client, error) {
@@ -126,7 +125,7 @@ func TestRun_sqliteError(t *testing.T) {
 		LoadConfig: func(string) (*config.Config, error) {
 			return &config.Config{DiscordToken: "t", GeminiAPIKey: "k", DBPath: "x.db"}, nil
 		},
-		NewGeminiClient: func(cfg *config.Config) (gemini.Client, error) {
+		NewGeminiClient: func(cfg *config.Config) (appauction.ProductExtractor, error) {
 			return &fakeGemini{}, nil
 		},
 		OpenSQLite: func(string, ...infrasqlite.OpenOption) (*sql.DB, error) {
@@ -147,7 +146,7 @@ func TestRun_discordNewBotError(t *testing.T) {
 				DBPath: dir + "/w.db", APIEndpoint: "http://localhost:8080",
 			}, nil
 		},
-		NewGeminiClient: func(cfg *config.Config) (gemini.Client, error) { return &fakeGemini{}, nil },
+		NewGeminiClient: func(cfg *config.Config) (appauction.ProductExtractor, error) { return &fakeGemini{}, nil },
 		NewDiscordBot: func(string, *appauction.PreviewUsecase, *discord.AllowedFilter, *appwatch.WatchUsecase, infraauction.Client, watch.Repository, discord.BotConfig) (discordRunner, error) {
 			return nil, errors.New("bot")
 		},
@@ -168,7 +167,7 @@ func TestRun_success_sqlite(t *testing.T) {
 				DBPath: dir + "/w.db", APIEndpoint: "http://localhost:8080",
 			}, nil
 		},
-		NewGeminiClient: func(cfg *config.Config) (gemini.Client, error) { return &fakeGemini{}, nil },
+		NewGeminiClient: func(cfg *config.Config) (appauction.ProductExtractor, error) { return &fakeGemini{}, nil },
 		NewDiscordBot: func(string, *appauction.PreviewUsecase, *discord.AllowedFilter, *appwatch.WatchUsecase, infraauction.Client, watch.Repository, discord.BotConfig) (discordRunner, error) {
 			return fakeRunner{}, nil
 		},
@@ -189,7 +188,7 @@ func TestRun_tokenPrefix(t *testing.T) {
 				DBPath: dir + "/w2.db", APIEndpoint: "http://localhost:8080",
 			}, nil
 		},
-		NewGeminiClient: func(cfg *config.Config) (gemini.Client, error) { return &fakeGemini{}, nil },
+		NewGeminiClient: func(cfg *config.Config) (appauction.ProductExtractor, error) { return &fakeGemini{}, nil },
 		NewDiscordBot: func(token string, _ *appauction.PreviewUsecase, _ *discord.AllowedFilter, _ *appwatch.WatchUsecase, _ infraauction.Client, _ watch.Repository, _ discord.BotConfig) (discordRunner, error) {
 			if token != "Bot rawtoken" {
 				t.Fatalf("token=%q", token)
@@ -210,7 +209,7 @@ func TestRunWithSignal_parentCancelled(t *testing.T) {
 				DBPath: dir + "/ws.db", APIEndpoint: "http://localhost:8080",
 			}, nil
 		},
-		NewGeminiClient: func(cfg *config.Config) (gemini.Client, error) { return &fakeGemini{}, nil },
+		NewGeminiClient: func(cfg *config.Config) (appauction.ProductExtractor, error) { return &fakeGemini{}, nil },
 		NewDiscordBot: func(string, *appauction.PreviewUsecase, *discord.AllowedFilter, *appwatch.WatchUsecase, infraauction.Client, watch.Repository, discord.BotConfig) (discordRunner, error) {
 			return fakeRunner{}, nil
 		},
@@ -254,7 +253,7 @@ func TestRun_configPathFromEnv(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	err := run(ctx, &botDeps{
-		NewGeminiClient: func(cfg *config.Config) (gemini.Client, error) { return &fakeGemini{}, nil },
+		NewGeminiClient: func(cfg *config.Config) (appauction.ProductExtractor, error) { return &fakeGemini{}, nil },
 		NewDiscordBot: func(string, *appauction.PreviewUsecase, *discord.AllowedFilter, *appwatch.WatchUsecase, infraauction.Client, watch.Repository, discord.BotConfig) (discordRunner, error) {
 			return fakeRunner{}, nil
 		},
@@ -275,7 +274,7 @@ func TestRun_rqliteBranchOK(t *testing.T) {
 				RqliteURL: "http://noop", DBPath: dir + "/unused.db",
 			}, nil
 		},
-		NewGeminiClient: func(cfg *config.Config) (gemini.Client, error) { return &fakeGemini{}, nil },
+		NewGeminiClient: func(cfg *config.Config) (appauction.ProductExtractor, error) { return &fakeGemini{}, nil },
 		OpenRqlite: func(ctx context.Context, url string, opts ...infrarqlite.NewClientOption) (*infrarqlite.Client, error) {
 			return infrarqlite.Open(ctx, url, append([]infrarqlite.NewClientOption{
 				infrarqlite.WithRqliteHTTPClientFactory(func(string, *http.Client) (infrarqlite.HTTPClient, error) {
@@ -379,7 +378,7 @@ func TestRunWithSignal_onSigint(t *testing.T) {
 				DBPath: dir + "/w.db", APIEndpoint: "http://localhost:8080",
 			}, nil
 		},
-		NewGeminiClient: func(cfg *config.Config) (gemini.Client, error) { return &fakeGemini{}, nil },
+		NewGeminiClient: func(cfg *config.Config) (appauction.ProductExtractor, error) { return &fakeGemini{}, nil },
 		NewDiscordBot: func(string, *appauction.PreviewUsecase, *discord.AllowedFilter, *appwatch.WatchUsecase, infraauction.Client, watch.Repository, discord.BotConfig) (discordRunner, error) {
 			return waitCtxRunner{}, nil
 		},
@@ -429,7 +428,7 @@ func TestRun_botRunLogsNonCancelError(t *testing.T) {
 				DBPath: dir + "/w.db", APIEndpoint: "http://localhost:8080",
 			}, nil
 		},
-		NewGeminiClient: func(cfg *config.Config) (gemini.Client, error) { return &fakeGemini{}, nil },
+		NewGeminiClient: func(cfg *config.Config) (appauction.ProductExtractor, error) { return &fakeGemini{}, nil },
 		NewDiscordBot: func(string, *appauction.PreviewUsecase, *discord.AllowedFilter, *appwatch.WatchUsecase, infraauction.Client, watch.Repository, discord.BotConfig) (discordRunner, error) {
 			return errRunner{}, nil
 		},

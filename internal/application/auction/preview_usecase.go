@@ -56,7 +56,9 @@ func (u *PreviewUsecase) Execute(ctx context.Context, auctionID string) (*Auctio
 	})
 	if err != nil {
 		log.Printf("[yahoo_auctions_bot] product extract failed for %s: %v", auctionID, err)
-		productData = product.EmptyProductDetail()
+		if productData == nil {
+			productData = product.EmptyProductDetail()
+		}
 	}
 
 	url := "https://page.auctions.yahoo.co.jp/jp/auction/" + auctionID

@@ -35,8 +35,8 @@ func TestLoad_envDefaults(t *testing.T) {
 	if cfg.CheckIntervalMinutes != 5 || cfg.PollDelayMs != 2000 {
 		t.Fatalf("intervals: %d %d", cfg.CheckIntervalMinutes, cfg.PollDelayMs)
 	}
-	if cfg.GeminiMaxImages != 3 || cfg.GeminiMaxSearchCalls != 3 {
-		t.Fatalf("gemini limits: %d %d", cfg.GeminiMaxImages, cfg.GeminiMaxSearchCalls)
+	if cfg.GeminiMaxImages != 3 || cfg.GeminiMaxSearchCalls != 3 || cfg.GeminiPipelineTimeoutSec != 45 {
+		t.Fatalf("gemini limits: %d %d timeout %d", cfg.GeminiMaxImages, cfg.GeminiMaxSearchCalls, cfg.GeminiPipelineTimeoutSec)
 	}
 }
 
@@ -104,5 +104,17 @@ func TestLoad_validEnvInts(t *testing.T) {
 	}
 	if cfg.CheckIntervalMinutes != 17 || cfg.PollDelayMs != 42 {
 		t.Fatalf("got %d %d", cfg.CheckIntervalMinutes, cfg.PollDelayMs)
+	}
+}
+
+func TestLoad_geminiPipelineTimeout(t *testing.T) {
+	t.Setenv("GEMINI_PIPELINE_TIMEOUT_SEC", "90")
+	t.Cleanup(func() { _ = os.Unsetenv("GEMINI_PIPELINE_TIMEOUT_SEC") })
+	cfg, err := Load(filepath.Join(t.TempDir(), "none.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.GeminiPipelineTimeoutSec != 90 {
+		t.Fatalf("got %d", cfg.GeminiPipelineTimeoutSec)
 	}
 }

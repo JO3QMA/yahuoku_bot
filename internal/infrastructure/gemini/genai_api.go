@@ -81,7 +81,13 @@ func (a *genAIAPI) generateWithTools(ctx context.Context, model string, contents
 	return a.generate(ctx, model, contents, config)
 }
 
+// groundedSearchHook はテストが groundedSearch を差し替えるためのフック（本番では nil）。
+var groundedSearchHook func(ctx context.Context, api *genAIAPI, model, query string) (summary string, queries []string, err error)
+
 func (a *genAIAPI) groundedSearch(ctx context.Context, model, query string) (summary string, queries []string, err error) {
+	if groundedSearchHook != nil {
+		return groundedSearchHook(ctx, a, model, query)
+	}
 	contents := []*genai.Content{
 		genai.NewContentFromText(
 			"次のクエリについて、商品スペックの補完に使える事実だけを簡潔に日本語でまとめてください。\n\nクエリ: "+query,
