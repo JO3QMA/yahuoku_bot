@@ -5,9 +5,11 @@ import (
 	"log"
 	"regexp"
 
+	"github.com/diamondburned/arikawa/v3/discord"
 	"github.com/diamondburned/arikawa/v3/gateway"
 
 	"jo3qma.com/yahoo_auctions_bot/internal/application/auction"
+	appmarket "jo3qma.com/yahoo_auctions_bot/internal/application/market"
 )
 
 // yahooAuctionURLRe はヤフオクURLからオークションIDを抽出する正規表現。
@@ -16,9 +18,10 @@ var yahooAuctionURLRe = regexp.MustCompile(`auctions?\.yahoo\.co\.jp/[^/]+/aucti
 
 // Handler はメッセージを監視し、ヤフオク URL から Preview を生成するハンドラー。
 type Handler struct {
-	usecase   *auction.PreviewUsecase
-	embed     *EmbedBuilder
-	allowed   *AllowedFilter
+	usecase *auction.PreviewUsecase
+	market  *appmarket.EstimateUsecase
+	embed   *EmbedBuilder
+	allowed *AllowedFilter
 }
 
 // AllowedFilter はconfigに基づくサーバー・チャンネルフィルタ。
@@ -62,8 +65,8 @@ func (f *AllowedFilter) Allow(guildID, channelID string) bool {
 }
 
 // NewHandler はHandlerを生成する。
-func NewHandler(usecase *auction.PreviewUsecase, embed *EmbedBuilder, allowed *AllowedFilter) *Handler {
-	return &Handler{usecase: usecase, embed: embed, allowed: allowed}
+func NewHandler(usecase *auction.PreviewUsecase, market *appmarket.EstimateUsecase, embed *EmbedBuilder, allowed *AllowedFilter) *Handler {
+	return &Handler{usecase: usecase, market: market, embed: embed, allowed: allowed}
 }
 
 // HandleMessageCreate はMessageCreateEventを処理する。arikawaのAddHandlerに渡す。
@@ -104,9 +107,30 @@ func (h *Handler) HandleMessageCreate(e *gateway.MessageCreateEvent) {
 		}
 
 		emb := h.embed.Build(preview)
-		_, err = h.embed.Send(e, emb)
+		msg, err := h.embed.Send(e, emb)
 		if err != nil {
 			log.Printf("[yahoo_auctions_bot] SendMessage: %v", err)
+			continue
 		}
+
+		if h.market != nil && msg != nil {
+			go h.attachMarketEstimate(ctx, preview, msg.ID, e.ChannelID)
+		}
+	}
+}
+
+func (h *Handler) attachMarketEstimate(ctx context.Context, preview *auction.Preview, messageID discord.MessageID, channelID discord.ChannelID) {
+	est, err := h.market.Execute(ctx, preview.Title, preview.Description, preview.Product)
+	if err != nil {
+		log.Printf("[yahoo_auctions_bot] MarketEstimate %s: %v", preview.AuctionID, err)
+		return
+	}
+	if est == nil {
+		return
+	}
+	preview.MarketEstimate = est
+	emb := h.embed.Build(preview)
+	if err := h.embed.Edit(channelID, messageID, emb); err != nil {
+		log.Printf("[yahoo_auctions_bot] EditMessage market %s: %v", preview.AuctionID, err)
 	}
 }

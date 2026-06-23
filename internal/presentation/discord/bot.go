@@ -8,6 +8,7 @@ import (
 	"github.com/diamondburned/arikawa/v3/state"
 
 	"jo3qma.com/yahoo_auctions_bot/internal/application/auction"
+	appmarket "jo3qma.com/yahoo_auctions_bot/internal/application/market"
 	appwatch "jo3qma.com/yahoo_auctions_bot/internal/application/watch"
 	infraauction "jo3qma.com/yahoo_auctions_bot/internal/infrastructure/auction"
 	domainwatch "jo3qma.com/yahoo_auctions_bot/internal/domain/watch"
@@ -31,6 +32,7 @@ type BotConfig struct {
 func NewBot(
 	token string,
 	previewUsecase *auction.PreviewUsecase,
+	marketUsecase *appmarket.EstimateUsecase,
 	allowed *AllowedFilter,
 	watchUsecase *appwatch.WatchUsecase,
 	auctionClient infraauction.Client,
@@ -46,7 +48,7 @@ func NewBot(
 	)
 
 	embed := NewEmbedBuilder(s)
-	h := NewHandler(previewUsecase, embed, allowed)
+	h := NewHandler(previewUsecase, marketUsecase, embed, allowed)
 
 	reactionHandler := NewReactionHandler(watchUsecase, auctionClient, s, s)
 

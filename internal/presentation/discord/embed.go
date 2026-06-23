@@ -13,9 +13,10 @@ import (
 	"jo3qma.com/yahoo_auctions_bot/internal/domain/product"
 )
 
-// EmbedSender はメッセージ送信に必要なDiscord APIのインターフェース。*state.State が満たす。
+// EmbedSender はメッセージ送信・編集に必要なDiscord APIのインターフェース。*state.State が満たす。
 type EmbedSender interface {
 	SendMessageComplex(channelID discord.ChannelID, data api.SendMessageData) (*discord.Message, error)
+	EditMessageComplex(channelID discord.ChannelID, messageID discord.MessageID, data api.EditMessageData) (*discord.Message, error)
 }
 
 // EmbedBuilder はPreviewからDiscord Embedを構築・送信する。
@@ -44,6 +45,12 @@ func (b *EmbedBuilder) Build(preview *auction.Preview) discord.Embed {
 	// 現在価格
 	priceStr := formatPrice(preview.CurrentPrice)
 	fields = append(fields, discord.EmbedField{Name: "現在価格", Value: priceStr, Inline: true})
+
+	if preview.MarketEstimate != nil {
+		fields = append(fields, discord.EmbedField{
+			Name: "相場", Value: preview.MarketEstimate.DisplayValue(), Inline: true,
+		})
+	}
 
 	// 残り時間
 	timeStr := formatEndTime(preview.EndTime)
@@ -80,6 +87,14 @@ func (b *EmbedBuilder) Send(e *gateway.MessageCreateEvent, emb discord.Embed) (*
 	return b.sender.SendMessageComplex(e.ChannelID, api.SendMessageData{
 		Embeds: []discord.Embed{emb},
 	})
+}
+
+// Edit は既存メッセージの Embed を更新する。
+func (b *EmbedBuilder) Edit(channelID discord.ChannelID, messageID discord.MessageID, emb discord.Embed) error {
+	_, err := b.sender.EditMessageComplex(channelID, messageID, api.EditMessageData{
+		Embeds: &[]discord.Embed{emb},
+	})
+	return err
 }
 
 func formatPrice(price int64) string {

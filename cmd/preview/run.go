@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	appauction "jo3qma.com/yahoo_auctions_bot/internal/application/auction"
+	appmarket "jo3qma.com/yahoo_auctions_bot/internal/application/market"
 	"jo3qma.com/yahoo_auctions_bot/internal/bootstrap"
 	"jo3qma.com/yahoo_auctions_bot/internal/config"
 	infraauction "jo3qma.com/yahoo_auctions_bot/internal/infrastructure/auction"
@@ -19,6 +20,7 @@ type previewDeps struct {
 	LoadConfig       func(path string) (*config.Config, error)
 	NewGeminiClient  func(cfg *config.Config) (appauction.Extractor, error)
 	NewAuctionClient func(baseURL string) infraauction.Client
+	NewMarketUsecase func(cfg *config.Config) (*appmarket.EstimateUsecase, error)
 }
 
 func mergePreviewDeps(d *previewDeps) {
@@ -34,6 +36,9 @@ func mergePreviewDeps(d *previewDeps) {
 		d.NewAuctionClient = func(baseURL string) infraauction.Client {
 			return infraauction.NewClient(baseURL, (*http.Client)(nil))
 		}
+	}
+	if d.NewMarketUsecase == nil {
+		d.NewMarketUsecase = bootstrap.MarketEstimateUsecase
 	}
 }
 
@@ -73,6 +78,17 @@ func RunPreview(stdout io.Writer, argv []string, cfgPath string, deps *previewDe
 	if err != nil {
 		log.Printf("preview execute: %v", err)
 		return 2
+	}
+
+	if marketUC, err := deps.NewMarketUsecase(cfg); err != nil {
+		log.Printf("market estimate init: %v", err)
+	} else if marketUC != nil {
+		est, err := marketUC.Execute(ctx, preview.Title, preview.Description, preview.Product)
+		if err != nil {
+			log.Printf("market estimate: %v", err)
+		} else {
+			preview.MarketEstimate = est
+		}
 	}
 
 	enc := json.NewEncoder(stdout)

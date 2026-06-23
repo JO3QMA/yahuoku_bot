@@ -32,6 +32,8 @@ type Config struct {
 	GeminiMaxImages           int    // 推論に使う最大画像数 (default: 3)
 	GeminiMaxSearchCalls      int    // 1商品あたりの最大検索回数 (default: 3)
 	GeminiPipelineTimeoutSec  int    // 多段推論パイプラインのタイムアウト秒 (default: 45)
+	MarketEstimateMinSamples  int    // MarketEstimate API 最小件数 (default: 5)
+	MarketEstimateLookbackDays int   // Comparable 参照日数 (default: 90)
 	APIEndpoint     string
 	AllowedGuilds   []string
 	AllowedChannels []string
@@ -54,6 +56,8 @@ func Load(configPath string) (*Config, error) {
 		GeminiMaxImages:          getEnvInt("GEMINI_MAX_IMAGES", 3),
 		GeminiMaxSearchCalls:     getEnvInt("GEMINI_MAX_SEARCH_CALLS", 3),
 		GeminiPipelineTimeoutSec: getEnvInt("GEMINI_PIPELINE_TIMEOUT_SEC", 45),
+		MarketEstimateMinSamples:  getEnvInt("MARKET_ESTIMATE_MIN_SAMPLES", 5),
+		MarketEstimateLookbackDays: getEnvInt("MARKET_ESTIMATE_LOOKBACK_DAYS", 90),
 		APIEndpoint:  strings.TrimSpace(os.Getenv("API_ENDPOINT")),
 		DBPath:    strings.TrimSpace(os.Getenv("DB_PATH")),
 		RqliteURL: strings.TrimSpace(os.Getenv("RQLITE_URL")),

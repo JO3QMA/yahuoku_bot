@@ -11,6 +11,7 @@ import (
 	"time"
 
 	appauction "jo3qma.com/yahoo_auctions_bot/internal/application/auction"
+	appmarket "jo3qma.com/yahoo_auctions_bot/internal/application/market"
 	appwatch "jo3qma.com/yahoo_auctions_bot/internal/application/watch"
 	"jo3qma.com/yahoo_auctions_bot/internal/config"
 	"jo3qma.com/yahoo_auctions_bot/internal/domain/product"
@@ -147,7 +148,7 @@ func TestRun_discordNewBotError(t *testing.T) {
 			}, nil
 		},
 		NewGeminiClient: func(cfg *config.Config) (appauction.Extractor, error) { return &fakeGemini{}, nil },
-		NewDiscordBot: func(string, *appauction.PreviewUsecase, *discord.AllowedFilter, *appwatch.WatchUsecase, infraauction.Client, watch.Repository, discord.BotConfig) (discordRunner, error) {
+		NewDiscordBot: func(string, *appauction.PreviewUsecase, *appmarket.EstimateUsecase, *discord.AllowedFilter, *appwatch.WatchUsecase, infraauction.Client, watch.Repository, discord.BotConfig) (discordRunner, error) {
 			return nil, errors.New("bot")
 		},
 	})
@@ -168,7 +169,7 @@ func TestRun_success_sqlite(t *testing.T) {
 			}, nil
 		},
 		NewGeminiClient: func(cfg *config.Config) (appauction.Extractor, error) { return &fakeGemini{}, nil },
-		NewDiscordBot: func(string, *appauction.PreviewUsecase, *discord.AllowedFilter, *appwatch.WatchUsecase, infraauction.Client, watch.Repository, discord.BotConfig) (discordRunner, error) {
+		NewDiscordBot: func(string, *appauction.PreviewUsecase, *appmarket.EstimateUsecase, *discord.AllowedFilter, *appwatch.WatchUsecase, infraauction.Client, watch.Repository, discord.BotConfig) (discordRunner, error) {
 			return fakeRunner{}, nil
 		},
 	})
@@ -189,7 +190,7 @@ func TestRun_tokenPrefix(t *testing.T) {
 			}, nil
 		},
 		NewGeminiClient: func(cfg *config.Config) (appauction.Extractor, error) { return &fakeGemini{}, nil },
-		NewDiscordBot: func(token string, _ *appauction.PreviewUsecase, _ *discord.AllowedFilter, _ *appwatch.WatchUsecase, _ infraauction.Client, _ watch.Repository, _ discord.BotConfig) (discordRunner, error) {
+		NewDiscordBot: func(token string, _ *appauction.PreviewUsecase, _ *appmarket.EstimateUsecase, _ *discord.AllowedFilter, _ *appwatch.WatchUsecase, _ infraauction.Client, _ watch.Repository, _ discord.BotConfig) (discordRunner, error) {
 			if token != "Bot rawtoken" {
 				t.Fatalf("token=%q", token)
 			}
@@ -210,7 +211,7 @@ func TestRunWithSignal_parentCancelled(t *testing.T) {
 			}, nil
 		},
 		NewGeminiClient: func(cfg *config.Config) (appauction.Extractor, error) { return &fakeGemini{}, nil },
-		NewDiscordBot: func(string, *appauction.PreviewUsecase, *discord.AllowedFilter, *appwatch.WatchUsecase, infraauction.Client, watch.Repository, discord.BotConfig) (discordRunner, error) {
+		NewDiscordBot: func(string, *appauction.PreviewUsecase, *appmarket.EstimateUsecase, *discord.AllowedFilter, *appwatch.WatchUsecase, infraauction.Client, watch.Repository, discord.BotConfig) (discordRunner, error) {
 			return fakeRunner{}, nil
 		},
 	})
@@ -254,7 +255,7 @@ func TestRun_configPathFromEnv(t *testing.T) {
 	cancel()
 	err := run(ctx, &botDeps{
 		NewGeminiClient: func(cfg *config.Config) (appauction.Extractor, error) { return &fakeGemini{}, nil },
-		NewDiscordBot: func(string, *appauction.PreviewUsecase, *discord.AllowedFilter, *appwatch.WatchUsecase, infraauction.Client, watch.Repository, discord.BotConfig) (discordRunner, error) {
+		NewDiscordBot: func(string, *appauction.PreviewUsecase, *appmarket.EstimateUsecase, *discord.AllowedFilter, *appwatch.WatchUsecase, infraauction.Client, watch.Repository, discord.BotConfig) (discordRunner, error) {
 			return fakeRunner{}, nil
 		},
 	})
@@ -285,7 +286,7 @@ func TestRun_rqliteBranchOK(t *testing.T) {
 		NewWatchRepoRqlite: func(*infrarqlite.Client) watch.Repository {
 			return &memRepoRqlite{}
 		},
-		NewDiscordBot: func(string, *appauction.PreviewUsecase, *discord.AllowedFilter, *appwatch.WatchUsecase, infraauction.Client, watch.Repository, discord.BotConfig) (discordRunner, error) {
+		NewDiscordBot: func(string, *appauction.PreviewUsecase, *appmarket.EstimateUsecase, *discord.AllowedFilter, *appwatch.WatchUsecase, infraauction.Client, watch.Repository, discord.BotConfig) (discordRunner, error) {
 			return fakeRunner{}, nil
 		},
 	})
@@ -379,7 +380,7 @@ func TestRunWithSignal_onSigint(t *testing.T) {
 			}, nil
 		},
 		NewGeminiClient: func(cfg *config.Config) (appauction.Extractor, error) { return &fakeGemini{}, nil },
-		NewDiscordBot: func(string, *appauction.PreviewUsecase, *discord.AllowedFilter, *appwatch.WatchUsecase, infraauction.Client, watch.Repository, discord.BotConfig) (discordRunner, error) {
+		NewDiscordBot: func(string, *appauction.PreviewUsecase, *appmarket.EstimateUsecase, *discord.AllowedFilter, *appwatch.WatchUsecase, infraauction.Client, watch.Repository, discord.BotConfig) (discordRunner, error) {
 			return waitCtxRunner{}, nil
 		},
 	}
@@ -411,7 +412,7 @@ func TestDefaultNewDiscordBot_invokesNewBot(t *testing.T) {
 	pu := appauction.NewPreviewUsecase(ac, &fakeGemini{})
 	wu := appwatch.NewWatchUsecase(repo)
 	af := discord.NewAllowedFilter(nil, nil)
-	_, errBot := defaultNewDiscordBot("Bot unit-test-token.invalid", pu, af, wu, ac, repo, discord.BotConfig{CheckIntervalMinutes: 60, PollDelayMs: 1})
+	_, errBot := defaultNewDiscordBot("Bot unit-test-token.invalid", pu, nil, af, wu, ac, repo, discord.BotConfig{CheckIntervalMinutes: 60, PollDelayMs: 1})
 	if errBot != nil {
 		t.Logf("NewBot: %v (still covers defaultNewDiscordBot)", errBot)
 	}
@@ -429,7 +430,7 @@ func TestRun_botRunLogsNonCancelError(t *testing.T) {
 			}, nil
 		},
 		NewGeminiClient: func(cfg *config.Config) (appauction.Extractor, error) { return &fakeGemini{}, nil },
-		NewDiscordBot: func(string, *appauction.PreviewUsecase, *discord.AllowedFilter, *appwatch.WatchUsecase, infraauction.Client, watch.Repository, discord.BotConfig) (discordRunner, error) {
+		NewDiscordBot: func(string, *appauction.PreviewUsecase, *appmarket.EstimateUsecase, *discord.AllowedFilter, *appwatch.WatchUsecase, infraauction.Client, watch.Repository, discord.BotConfig) (discordRunner, error) {
 			return errRunner{}, nil
 		},
 	})
