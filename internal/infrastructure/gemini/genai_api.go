@@ -3,6 +3,9 @@ package gemini
 import (
 	"context"
 	"fmt"
+	"log"
+	"strings"
+	"time"
 
 	"google.golang.org/genai"
 )
@@ -35,6 +38,33 @@ func newGenAIAPI(apiKey string) (*genAIAPI, error) {
 }
 
 func (a *genAIAPI) generate(ctx context.Context, model string, contents []*genai.Content, config *genai.GenerateContentConfig) (*genai.GenerateContentResponse, error) {
+	const maxRetries = 5
+	backoff := []time.Duration{0, 500 * time.Millisecond, time.Second, 2 * time.Second, 4 * time.Second}
+	var lastErr error
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		if attempt > 0 {
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(backoff[attempt]):
+			}
+		}
+		resp, err := a.generateOnce(ctx, model, contents, config)
+		if err == nil {
+			return resp, nil
+		}
+		lastErr = err
+		if !isRetryableGeminiError(err) {
+			return nil, err
+		}
+		if attempt < maxRetries-1 {
+			log.Printf("[gemini] retry %d/%d: %v", attempt+2, maxRetries, err)
+		}
+	}
+	return nil, lastErr
+}
+
+func (a *genAIAPI) generateOnce(ctx context.Context, model string, contents []*genai.Content, config *genai.GenerateContentConfig) (*genai.GenerateContentResponse, error) {
 	if generateHook != nil {
 		return generateHook(ctx, a.client, model, contents, config)
 	}
@@ -43,6 +73,11 @@ func (a *genAIAPI) generate(ctx context.Context, model string, contents []*genai
 		return nil, fmt.Errorf("gemini generate: %w", err)
 	}
 	return resp, nil
+}
+
+func isRetryableGeminiError(err error) bool {
+	s := err.Error()
+	return strings.Contains(s, "503") || strings.Contains(s, "429")
 }
 
 func (a *genAIAPI) generateJSON(ctx context.Context, model, prompt string, schema *genai.Schema) (string, error) {
