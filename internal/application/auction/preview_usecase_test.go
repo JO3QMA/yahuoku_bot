@@ -27,7 +27,7 @@ type fakeExtractor struct {
 	err     error
 }
 
-func (f *fakeExtractor) Extract(ctx context.Context, in ExtractInput) (*product.Product, error) {
+func (f *fakeExtractor) Extract(ctx context.Context, in product.ExtractInput) (*product.Product, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -109,6 +109,6 @@ type fakeExtractorPartial struct {
 	err    error
 }
 
-func (f *fakeExtractorPartial) Extract(context.Context, ExtractInput) (*product.Product, error) {
+func (f *fakeExtractorPartial) Extract(context.Context, product.ExtractInput) (*product.Product, error) {
 	return f.detail, f.err
 }

@@ -10,17 +10,11 @@ import (
 	"google.golang.org/genai"
 )
 
-// generateHook はテストが GenerateContent を差し替えるためのフック（本番では nil）。
-var generateHook func(
-	ctx context.Context,
-	client *genai.Client,
-	model string,
-	contents []*genai.Content,
-	config *genai.GenerateContentConfig,
-) (*genai.GenerateContentResponse, error)
-
 type genAIAPI struct {
 	client *genai.Client
+	// stubGenerate / stubGroundedSearch はテスト用。非 nil のとき実 API を呼ばない。
+	stubGenerate       func(context.Context, string, []*genai.Content, *genai.GenerateContentConfig) (*genai.GenerateContentResponse, error)
+	stubGroundedSearch func(context.Context, string, string) (summary string, queries []string, err error)
 }
 
 func newGenAIAPI(apiKey string) (*genAIAPI, error) {
@@ -65,8 +59,8 @@ func (a *genAIAPI) generate(ctx context.Context, model string, contents []*genai
 }
 
 func (a *genAIAPI) generateOnce(ctx context.Context, model string, contents []*genai.Content, config *genai.GenerateContentConfig) (*genai.GenerateContentResponse, error) {
-	if generateHook != nil {
-		return generateHook(ctx, a.client, model, contents, config)
+	if a.stubGenerate != nil {
+		return a.stubGenerate(ctx, model, contents, config)
 	}
 	resp, err := a.client.Models.GenerateContent(ctx, model, contents, config)
 	if err != nil {
@@ -116,12 +110,9 @@ func (a *genAIAPI) generateWithTools(ctx context.Context, model string, contents
 	return a.generate(ctx, model, contents, config)
 }
 
-// groundedSearchHook はテストが groundedSearch を差し替えるためのフック（本番では nil）。
-var groundedSearchHook func(ctx context.Context, api *genAIAPI, model, query string) (summary string, queries []string, err error)
-
 func (a *genAIAPI) groundedSearch(ctx context.Context, model, query string) (summary string, queries []string, err error) {
-	if groundedSearchHook != nil {
-		return groundedSearchHook(ctx, a, model, query)
+	if a.stubGroundedSearch != nil {
+		return a.stubGroundedSearch(ctx, model, query)
 	}
 	contents := []*genai.Content{
 		genai.NewContentFromText(

@@ -11,7 +11,6 @@ const (
 
 // Options は多段推論パイプラインの設定。
 type Options struct {
-	APIKey             string
 	FastModel          string
 	VisionModel        string
 	AgentModel         string

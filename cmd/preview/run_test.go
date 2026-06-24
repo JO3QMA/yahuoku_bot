@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	appauction "jo3qma.com/yahoo_auctions_bot/internal/application/auction"
 	"jo3qma.com/yahoo_auctions_bot/internal/config"
 	"jo3qma.com/yahoo_auctions_bot/internal/domain/product"
 	infraauction "jo3qma.com/yahoo_auctions_bot/internal/infrastructure/auction"
+	"jo3qma.com/yahoo_auctions_bot/internal/infrastructure/gemini"
 )
 
 func TestRunPreview_usage(t *testing.T) {
@@ -47,7 +47,7 @@ func TestRunPreview_geminiClientErr(t *testing.T) {
 		LoadConfig: func() (*config.Config, error) {
 			return &config.Config{GeminiAPIKey: "k"}, nil
 		},
-		NewGeminiClient: func(cfg *config.Config) (appauction.Extractor, error) {
+		NewGeminiClient: func(cfg *config.Config) (gemini.Client, error) {
 			return nil, errors.New("gc")
 		},
 	})
@@ -58,7 +58,7 @@ func TestRunPreview_geminiClientErr(t *testing.T) {
 
 type fakePreviewGem struct{}
 
-func (fakePreviewGem) Extract(context.Context, appauction.ExtractInput) (*product.Product, error) {
+func (fakePreviewGem) Extract(context.Context, product.ExtractInput) (*product.Product, error) {
 	return &product.Product{
 		Category: product.CategoryGPU,
 		Fields:   []product.Field{{Key: "model", Value: "x"}},
@@ -70,7 +70,7 @@ func TestRunPreview_executeErr(t *testing.T) {
 		LoadConfig: func() (*config.Config, error) {
 			return &config.Config{GeminiAPIKey: "k", APIEndpoint: "http://localhost:8080"}, nil
 		},
-		NewGeminiClient: func(cfg *config.Config) (appauction.Extractor, error) {
+		NewGeminiClient: func(cfg *config.Config) (gemini.Client, error) {
 			return &fakePreviewGem{}, nil
 		},
 		NewAuctionClient: func(string) infraauction.Client {
@@ -93,7 +93,7 @@ func TestRunPreview_encodeErr(t *testing.T) {
 		LoadConfig: func() (*config.Config, error) {
 			return &config.Config{GeminiAPIKey: "k", APIEndpoint: "http://localhost:8080"}, nil
 		},
-		NewGeminiClient: func(cfg *config.Config) (appauction.Extractor, error) {
+		NewGeminiClient: func(cfg *config.Config) (gemini.Client, error) {
 			return &fakePreviewGem{}, nil
 		},
 		NewAuctionClient: func(string) infraauction.Client {
@@ -124,7 +124,7 @@ func TestRunPreview_emptyProductExit(t *testing.T) {
 		LoadConfig: func() (*config.Config, error) {
 			return &config.Config{GeminiAPIKey: "k", APIEndpoint: "http://localhost:8080"}, nil
 		},
-		NewGeminiClient: func(cfg *config.Config) (appauction.Extractor, error) {
+		NewGeminiClient: func(cfg *config.Config) (gemini.Client, error) {
 			return &emptyProductGem{}, nil
 		},
 		NewAuctionClient: func(string) infraauction.Client {
@@ -138,7 +138,7 @@ func TestRunPreview_emptyProductExit(t *testing.T) {
 
 type emptyProductGem struct{}
 
-func (emptyProductGem) Extract(context.Context, appauction.ExtractInput) (*product.Product, error) {
+func (emptyProductGem) Extract(context.Context, product.ExtractInput) (*product.Product, error) {
 	return &product.Product{}, nil
 }
 
@@ -148,7 +148,7 @@ func TestRunPreview_success(t *testing.T) {
 		LoadConfig: func() (*config.Config, error) {
 			return &config.Config{GeminiAPIKey: "k", APIEndpoint: "http://localhost:8080"}, nil
 		},
-		NewGeminiClient: func(cfg *config.Config) (appauction.Extractor, error) {
+		NewGeminiClient: func(cfg *config.Config) (gemini.Client, error) {
 			return &fakePreviewGem{}, nil
 		},
 		NewAuctionClient: func(string) infraauction.Client {

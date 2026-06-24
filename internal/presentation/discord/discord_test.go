@@ -29,32 +29,46 @@ func (m *mockGW) AddHandler(interface{}) func() { return func() {} }
 
 func (m *mockGW) Connect(ctx context.Context) error { return m.connectErr }
 
-type stubSender struct {
-	msg  *discord.Message
-	err  error
-	last api.SendMessageData
+type stubSessionAPI struct {
+	sendMsg  *discord.Message
+	sendErr  error
+	lastSend api.SendMessageData
+	msg      *discord.Message
+	msgErr   error
+	user     *discord.User
+	meErr    error
+	thread   *discord.Channel
+	startErr error
 }
 
-func (s *stubSender) SendMessageComplex(channelID discord.ChannelID, data api.SendMessageData) (*discord.Message, error) {
-	s.last = data
-	return s.msg, s.err
+func (s *stubSessionAPI) SendMessageComplex(channelID discord.ChannelID, data api.SendMessageData) (*discord.Message, error) {
+	s.lastSend = data
+	if s.sendErr != nil {
+		return nil, s.sendErr
+	}
+	if s.sendMsg != nil {
+		return s.sendMsg, nil
+	}
+	return &discord.Message{}, nil
 }
 
-type stubFetcher struct {
-	msg *discord.Message
-	err error
+func (s *stubSessionAPI) Message(channelID discord.ChannelID, messageID discord.MessageID) (*discord.Message, error) {
+	return s.msg, s.msgErr
 }
 
-func (s *stubFetcher) Message(channelID discord.ChannelID, messageID discord.MessageID) (*discord.Message, error) {
-	return s.msg, s.err
+func (s *stubSessionAPI) Me() (*discord.User, error) {
+	return s.user, s.meErr
 }
 
-type stubMe struct {
-	user *discord.User
-	err  error
+func (s *stubSessionAPI) StartThreadWithMessage(channelID discord.ChannelID, messageID discord.MessageID, data api.StartThreadData) (*discord.Channel, error) {
+	if s.startErr != nil {
+		return nil, s.startErr
+	}
+	if s.thread != nil {
+		return s.thread, nil
+	}
+	return &discord.Channel{ID: 99}, nil
 }
-
-func (s *stubMe) Me() (*discord.User, error) { return s.user, s.err }
 
 type stubAuction struct {
 	data *infraauction.AuctionData
@@ -108,7 +122,7 @@ type stubProductExt struct {
 	err error
 }
 
-func (s *stubProductExt) Extract(ctx context.Context, in appauction.ExtractInput) (*product.Product, error) {
+func (s *stubProductExt) Extract(ctx context.Context, in product.ExtractInput) (*product.Product, error) {
 	return s.pd, s.err
 }
 
@@ -118,10 +132,10 @@ func TestBot_Run_connectError(t *testing.T) {
 		AuctionID: "a", Title: "T", CurrentPrice: 1, Status: "S", Description: "d",
 		EndTime: &end,
 	}}, &stubProductExt{pd: &product.Product{}})
-	h := NewHandler(pu, NewEmbedBuilder(&stubSender{}), NewAllowedFilter(nil, nil))
+	h := NewHandler(pu, NewEmbedBuilder(&stubSessionAPI{}), NewAllowedFilter(nil, nil))
 	repo := &memWatchRepo{}
 	wu := appwatch.NewWatchUsecase(repo)
-	rh := NewReactionHandler(wu, &stubAuction{data: &infraauction.AuctionData{CurrentPrice: 1}}, &stubFetcher{}, &stubMe{user: &discord.User{ID: discord.UserID(7)}})
+	rh := NewReactionHandler(wu, &stubAuction{data: &infraauction.AuctionData{CurrentPrice: 1}}, &stubSessionAPI{user: &discord.User{ID: discord.UserID(7)}})
 	pw := appwatch.NewPollingWorker(repo, &stubAuction{}, &noopNotifier{}, 60, 1)
 	b := NewBotWithDeps(&mockGW{connectErr: errors.New("nope")}, h, rh, pw)
 	err := b.Run(context.Background())
@@ -144,10 +158,10 @@ func TestBot_Run_cancel(t *testing.T) {
 	pu := appauction.NewPreviewUsecase(&stubPreviewFetch{data: &infraauction.AuctionData{
 		AuctionID: "a", Title: "T", CurrentPrice: 1, Status: "S", Description: "d", EndTime: &end,
 	}}, &stubProductExt{pd: &product.Product{}})
-	h := NewHandler(pu, NewEmbedBuilder(&stubSender{}), NewAllowedFilter(nil, nil))
+	h := NewHandler(pu, NewEmbedBuilder(&stubSessionAPI{}), NewAllowedFilter(nil, nil))
 	repo := &memWatchRepo{}
 	wu := appwatch.NewWatchUsecase(repo)
-	rh := NewReactionHandler(wu, &stubAuction{data: &infraauction.AuctionData{CurrentPrice: 1}}, &stubFetcher{}, &stubMe{user: &discord.User{ID: discord.UserID(7)}})
+	rh := NewReactionHandler(wu, &stubAuction{data: &infraauction.AuctionData{CurrentPrice: 1}}, &stubSessionAPI{user: &discord.User{ID: discord.UserID(7)}})
 	pw := appwatch.NewPollingWorker(repo, &stubAuction{}, &noopNotifier{}, 60, 10_000)
 	b := NewBotWithDeps(&mockGW{}, h, rh, pw)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -182,7 +196,7 @@ func TestHandler_HandleMessageCreate(t *testing.T) {
 		AuctionID: "abc12345678", Title: "T", CurrentPrice: 1, Status: "S", Description: "d", EndTime: &end,
 	}
 	pu := appauction.NewPreviewUsecase(&stubPreviewFetch{data: data}, &stubProductExt{pd: &product.Product{}})
-	sender := &stubSender{msg: &discord.Message{ID: 1}}
+	sender := &stubSessionAPI{sendMsg: &discord.Message{ID: 1}}
 	h := NewHandler(pu, NewEmbedBuilder(sender), NewAllowedFilter(nil, nil))
 
 	t.Run("ignore bot", func(t *testing.T) {
@@ -218,7 +232,7 @@ func TestHandler_HandleMessageCreate(t *testing.T) {
 	})
 	t.Run("send error", func(t *testing.T) {
 		pu2 := appauction.NewPreviewUsecase(&stubPreviewFetch{data: data}, &stubProductExt{pd: &product.Product{}})
-		h2 := NewHandler(pu2, NewEmbedBuilder(&stubSender{err: errors.New("s")}), NewAllowedFilter(nil, nil))
+		h2 := NewHandler(pu2, NewEmbedBuilder(&stubSessionAPI{sendErr: errors.New("s")}), NewAllowedFilter(nil, nil))
 		h2.HandleMessageCreate(&gateway.MessageCreateEvent{
 			Message: discord.Message{
 				Author: discord.User{}, Content: "https://page.auctions.yahoo.co.jp/jp/auction/abc12345678",
@@ -261,7 +275,7 @@ func TestEmbedBuilder_Build_and_Send(t *testing.T) {
 			},
 		},
 	}
-	sender := &stubSender{}
+	sender := &stubSessionAPI{}
 	b := NewEmbedBuilder(sender)
 	emb := b.Build(p)
 	if len(emb.Fields) == 0 {
@@ -274,13 +288,13 @@ func TestEmbedBuilder_Build_and_Send(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if sender.last.Reference != nil {
+	if sender.lastSend.Reference != nil {
 		t.Fatal("embed must not be sent as a reply")
 	}
 }
 
 func TestEmbedBuilder_priceAndTime(t *testing.T) {
-	b := NewEmbedBuilder(&stubSender{})
+	b := NewEmbedBuilder(&stubSessionAPI{})
 	past := time.Now().Add(-time.Hour)
 	future := time.Now().Add(30 * time.Minute)
 	future2 := time.Now().Add(3 * time.Hour)
@@ -298,37 +312,12 @@ func TestEmbedBuilder_priceAndTime(t *testing.T) {
 	_ = b.Build(&appauction.Preview{CurrentPrice: 12_345_678, EndTime: &future})
 }
 
-type stubThreadAPI struct {
-	startErr error
-	sendErr  error
-	ch       *discord.Channel
-	lastSend api.SendMessageData
-}
-
-func (s *stubThreadAPI) StartThreadWithMessage(channelID discord.ChannelID, messageID discord.MessageID, data api.StartThreadData) (*discord.Channel, error) {
-	if s.startErr != nil {
-		return nil, s.startErr
-	}
-	if s.ch != nil {
-		return s.ch, nil
-	}
-	return &discord.Channel{ID: 99}, nil
-}
-
-func (s *stubThreadAPI) SendMessageComplex(channelID discord.ChannelID, data api.SendMessageData) (*discord.Message, error) {
-	s.lastSend = data
-	if s.sendErr != nil {
-		return nil, s.sendErr
-	}
-	return &discord.Message{}, nil
-}
-
 func TestThreadNotifier(t *testing.T) {
 	ctx := context.Background()
 	bid := discord.Snowflake(100)
 	uid := discord.Snowflake(200)
 	repo := &memWatchRepo{}
-	api := &stubThreadAPI{}
+	api := &stubSessionAPI{}
 	n := NewThreadNotifier(api, repo)
 	item := &domainwatch.Watch{
 		UserID:    uid.String(),
@@ -352,7 +341,7 @@ func TestThreadNotifier(t *testing.T) {
 func TestThreadNotifier_ensureThread_sibling(t *testing.T) {
 	ctx := context.Background()
 	repo := &siblingRepo{}
-	api := &stubThreadAPI{}
+	api := &stubSessionAPI{}
 	n := NewThreadNotifier(api, repo)
 	item := &domainwatch.Watch{
 		UserID: "1", ChannelID: "10", MessageID: "20", AuctionID: "a",
@@ -383,7 +372,7 @@ func (s *siblingRepo) RemoveByAuctionID(ctx context.Context, auctionID string) e
 func TestThreadNotifier_startThreadErr(t *testing.T) {
 	ctx := context.Background()
 	repo := &memWatchRepo{}
-	api := &stubThreadAPI{startErr: errors.New("st")}
+	api := &stubSessionAPI{startErr: errors.New("st")}
 	n := NewThreadNotifier(api, repo)
 	item := &domainwatch.Watch{
 		UserID: "1", ChannelID: "10", MessageID: "20", AuctionID: "a",
@@ -396,7 +385,7 @@ func TestThreadNotifier_startThreadErr(t *testing.T) {
 
 func TestThreadNotifier_startThreadErr_endingSoon(t *testing.T) {
 	ctx := context.Background()
-	n := NewThreadNotifier(&stubThreadAPI{startErr: errors.New("st")}, &memWatchRepo{})
+	n := NewThreadNotifier(&stubSessionAPI{startErr: errors.New("st")}, &memWatchRepo{})
 	item := &domainwatch.Watch{
 		UserID: "200", ChannelID: "100", MessageID: "20", AuctionID: "a", ThreadID: "",
 	}
@@ -409,7 +398,7 @@ func TestThreadNotifier_startThreadErr_endingSoon(t *testing.T) {
 func TestThreadNotifier_sendErr(t *testing.T) {
 	ctx := context.Background()
 	repo := &memWatchRepo{}
-	api := &stubThreadAPI{sendErr: errors.New("se")}
+	api := &stubSessionAPI{sendErr: errors.New("se")}
 	n := NewThreadNotifier(api, repo)
 	item := &domainwatch.Watch{UserID: "200", ChannelID: "100", MessageID: "20", ThreadID: "99"}
 	err := n.NotifyEndingReminder(ctx, item, 1, "t", time.Minute)
@@ -435,7 +424,7 @@ func (findErrThreadRepo) RemoveByAuctionID(context.Context, string) error { retu
 
 func TestThreadNotifier_findByMessageErrStillCreates(t *testing.T) {
 	ctx := context.Background()
-	n := NewThreadNotifier(&stubThreadAPI{}, findErrThreadRepo{})
+	n := NewThreadNotifier(&stubSessionAPI{}, findErrThreadRepo{})
 	item := &domainwatch.Watch{
 		UserID: "200", ChannelID: "100", MessageID: "20", AuctionID: "a", ThreadID: "",
 	}
@@ -463,7 +452,7 @@ func (updateThreadErrRepo) RemoveByAuctionID(context.Context, string) error { re
 
 func TestThreadNotifier_updateThreadIDLogNonFatal(t *testing.T) {
 	ctx := context.Background()
-	n := NewThreadNotifier(&stubThreadAPI{}, updateThreadErrRepo{})
+	n := NewThreadNotifier(&stubSessionAPI{}, updateThreadErrRepo{})
 	item := &domainwatch.Watch{
 		UserID: "200", ChannelID: "100", MessageID: "20", AuctionID: "a", ThreadID: "",
 	}
@@ -474,7 +463,7 @@ func TestThreadNotifier_updateThreadIDLogNonFatal(t *testing.T) {
 
 func TestThreadNotifier_negativePriceComma(t *testing.T) {
 	ctx := context.Background()
-	n := NewThreadNotifier(&stubThreadAPI{}, &memWatchRepo{})
+	n := NewThreadNotifier(&stubSessionAPI{}, &memWatchRepo{})
 	item := &domainwatch.Watch{
 		UserID: "200", ChannelID: "100", MessageID: "20", ThreadID: "99",
 	}
@@ -484,7 +473,7 @@ func TestThreadNotifier_negativePriceComma(t *testing.T) {
 }
 
 func TestThreadNotifier_sendPriceAlert_direct(t *testing.T) {
-	n := NewThreadNotifier(&stubThreadAPI{}, &memWatchRepo{})
+	n := NewThreadNotifier(&stubSessionAPI{}, &memWatchRepo{})
 	item := &domainwatch.Watch{UserID: "200", AuctionID: "a"}
 	if err := n.sendPriceAlert(discord.ChannelID(99), item, 1, 2); err != nil {
 		t.Fatal(err)
@@ -492,7 +481,7 @@ func TestThreadNotifier_sendPriceAlert_direct(t *testing.T) {
 }
 
 func TestThreadNotifier_sendEndingReminder_direct(t *testing.T) {
-	api := &stubThreadAPI{}
+	api := &stubSessionAPI{}
 	n := NewThreadNotifier(api, &memWatchRepo{})
 	item := &domainwatch.Watch{UserID: "200", AuctionID: "a"}
 	if err := n.sendEndingReminder(discord.ChannelID(99), item, 500, 8*time.Minute+30*time.Second); err != nil {
@@ -504,7 +493,7 @@ func TestThreadNotifier_sendEndingReminder_direct(t *testing.T) {
 }
 
 func TestThreadNotifier_sendPriceAlert_sendErr(t *testing.T) {
-	n := NewThreadNotifier(&stubThreadAPI{sendErr: errors.New("se")}, &memWatchRepo{})
+	n := NewThreadNotifier(&stubSessionAPI{sendErr: errors.New("se")}, &memWatchRepo{})
 	item := &domainwatch.Watch{UserID: "200", AuctionID: "a"}
 	err := n.sendPriceAlert(discord.ChannelID(99), item, 1, 2)
 	if err == nil {
@@ -513,7 +502,7 @@ func TestThreadNotifier_sendPriceAlert_sendErr(t *testing.T) {
 }
 
 func TestThreadNotifier_sendEndingReminder_sendErr(t *testing.T) {
-	n := NewThreadNotifier(&stubThreadAPI{sendErr: errors.New("se")}, &memWatchRepo{})
+	n := NewThreadNotifier(&stubSessionAPI{sendErr: errors.New("se")}, &memWatchRepo{})
 	item := &domainwatch.Watch{UserID: "200", AuctionID: "a"}
 	err := n.sendEndingReminder(discord.ChannelID(99), item, 1, time.Minute)
 	if err == nil {
@@ -526,7 +515,7 @@ func TestThreadNotifier_successLogLines(t *testing.T) {
 	log.SetOutput(&buf)
 	t.Cleanup(func() { log.SetOutput(os.Stderr) })
 	ctx := context.Background()
-	n := NewThreadNotifier(&stubThreadAPI{}, &memWatchRepo{})
+	n := NewThreadNotifier(&stubSessionAPI{}, &memWatchRepo{})
 	item := &domainwatch.Watch{
 		UserID: "200", ChannelID: "100", MessageID: "20", AuctionID: "a", ThreadID: "99",
 	}
@@ -559,15 +548,14 @@ func TestReactionHandler_flows(t *testing.T) {
 	wu := appwatch.NewWatchUsecase(repo)
 	ac := &stubAuction{data: &infraauction.AuctionData{CurrentPrice: 1, EndTime: nil}}
 	botID := discord.UserID(50)
-	me := &stubMe{user: &discord.User{ID: botID}}
 	ch := discord.ChannelID(10)
 	mid := discord.MessageID(20)
 	msg := &discord.Message{
 		Author: discord.User{ID: botID},
 		Embeds: []discord.Embed{{URL: "https://page.auctions.yahoo.co.jp/jp/auction/abc12345678"}},
 	}
-	fetch := &stubFetcher{msg: msg}
-	rh := NewReactionHandler(wu, ac, fetch, me)
+	sess := &stubSessionAPI{msg: msg, user: &discord.User{ID: botID}}
+	rh := NewReactionHandler(wu, ac, sess)
 
 	t.Run("wrong emoji", func(t *testing.T) {
 		rh.HandleReactionAdd(&gateway.MessageReactionAddEvent{
@@ -576,7 +564,7 @@ func TestReactionHandler_flows(t *testing.T) {
 		})
 	})
 	t.Run("me err", func(t *testing.T) {
-		rh2 := NewReactionHandler(wu, ac, fetch, &stubMe{err: errors.New("m")})
+		rh2 := NewReactionHandler(wu, ac, &stubSessionAPI{msg: msg, meErr: errors.New("m")})
 		rh2.HandleReactionAdd(&gateway.MessageReactionAddEvent{
 			UserID: 1, ChannelID: ch, MessageID: mid,
 			Emoji: discord.Emoji{Name: "\U0001F514"},
@@ -589,32 +577,32 @@ func TestReactionHandler_flows(t *testing.T) {
 		})
 	})
 	t.Run("fetch err", func(t *testing.T) {
-		rh2 := NewReactionHandler(wu, ac, &stubFetcher{err: errors.New("f")}, me)
+		rh2 := NewReactionHandler(wu, ac, &stubSessionAPI{msgErr: errors.New("f"), user: &discord.User{ID: botID}})
 		rh2.HandleReactionAdd(&gateway.MessageReactionAddEvent{
 			UserID: 2, ChannelID: ch, MessageID: mid,
 			Emoji: discord.Emoji{Name: "\U0001F514"},
 		})
 	})
 	t.Run("non bot author", func(t *testing.T) {
-		rh2 := NewReactionHandler(wu, ac, &stubFetcher{msg: &discord.Message{
+		rh2 := NewReactionHandler(wu, ac, &stubSessionAPI{msg: &discord.Message{
 			Author: discord.User{ID: 2}, Embeds: msg.Embeds,
-		}}, me)
+		}, user: &discord.User{ID: botID}})
 		rh2.HandleReactionAdd(&gateway.MessageReactionAddEvent{
 			UserID: 2, ChannelID: ch, MessageID: mid,
 			Emoji: discord.Emoji{Name: "\U0001F514"},
 		})
 	})
 	t.Run("no auction in embed", func(t *testing.T) {
-		rh2 := NewReactionHandler(wu, ac, &stubFetcher{msg: &discord.Message{
+		rh2 := NewReactionHandler(wu, ac, &stubSessionAPI{msg: &discord.Message{
 			Author: discord.User{ID: botID}, Embeds: []discord.Embed{{URL: "https://example.com"}},
-		}}, me)
+		}, user: &discord.User{ID: botID}})
 		rh2.HandleReactionAdd(&gateway.MessageReactionAddEvent{
 			UserID: 2, ChannelID: ch, MessageID: mid,
 			Emoji: discord.Emoji{Name: "\U0001F514"},
 		})
 	})
 	t.Run("get auction err", func(t *testing.T) {
-		rh2 := NewReactionHandler(wu, &stubAuction{err: errors.New("a")}, fetch, me)
+		rh2 := NewReactionHandler(wu, &stubAuction{err: errors.New("a")}, sess)
 		rh2.HandleReactionAdd(&gateway.MessageReactionAddEvent{
 			UserID: 2, ChannelID: ch, MessageID: mid,
 			Emoji: discord.Emoji{Name: "\U0001F514"},
@@ -622,7 +610,7 @@ func TestReactionHandler_flows(t *testing.T) {
 	})
 	t.Run("register err", func(t *testing.T) {
 		rrepo := &memWatchRepo{addErr: errors.New("a")}
-		rh2 := NewReactionHandler(appwatch.NewWatchUsecase(rrepo), ac, fetch, me)
+		rh2 := NewReactionHandler(appwatch.NewWatchUsecase(rrepo), ac, sess)
 		rh2.HandleReactionAdd(&gateway.MessageReactionAddEvent{
 			UserID: 2, ChannelID: ch, MessageID: mid,
 			Emoji: discord.Emoji{Name: "\U0001F514"},
@@ -644,27 +632,27 @@ func TestReactionHandler_flows(t *testing.T) {
 			UserID: botID, ChannelID: ch, MessageID: mid,
 			Emoji: discord.Emoji{Name: "\U0001F514"},
 		})
-		rh2 := NewReactionHandler(wu, ac, &stubFetcher{err: errors.New("f")}, me)
+		rh2 := NewReactionHandler(wu, ac, &stubSessionAPI{msgErr: errors.New("f"), user: &discord.User{ID: botID}})
 		rh2.HandleReactionRemove(&gateway.MessageReactionRemoveEvent{
 			UserID: 2, ChannelID: ch, MessageID: mid,
 			Emoji: discord.Emoji{Name: "\U0001F514"},
 		})
-		rh3 := NewReactionHandler(wu, ac, &stubFetcher{msg: &discord.Message{
+		rh3 := NewReactionHandler(wu, ac, &stubSessionAPI{msg: &discord.Message{
 			Author: discord.User{ID: 2}, Embeds: msg.Embeds,
-		}}, me)
+		}, user: &discord.User{ID: botID}})
 		rh3.HandleReactionRemove(&gateway.MessageReactionRemoveEvent{
 			UserID: 2, ChannelID: ch, MessageID: mid,
 			Emoji: discord.Emoji{Name: "\U0001F514"},
 		})
-		rh4 := NewReactionHandler(wu, ac, &stubFetcher{msg: &discord.Message{
+		rh4 := NewReactionHandler(wu, ac, &stubSessionAPI{msg: &discord.Message{
 			Author: discord.User{ID: botID}, Embeds: []discord.Embed{{URL: "https://example.com"}},
-		}}, me)
+		}, user: &discord.User{ID: botID}})
 		rh4.HandleReactionRemove(&gateway.MessageReactionRemoveEvent{
 			UserID: 2, ChannelID: ch, MessageID: mid,
 			Emoji: discord.Emoji{Name: "\U0001F514"},
 		})
 		rrepo := &memWatchRepo{remErr: errors.New("r")}
-		rh5 := NewReactionHandler(appwatch.NewWatchUsecase(rrepo), ac, fetch, me)
+		rh5 := NewReactionHandler(appwatch.NewWatchUsecase(rrepo), ac, sess)
 		rh5.HandleReactionRemove(&gateway.MessageReactionRemoveEvent{
 			UserID: 2, ChannelID: ch, MessageID: mid,
 			Emoji: discord.Emoji{Name: "\U0001F514"},

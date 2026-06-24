@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	appauction "jo3qma.com/yahoo_auctions_bot/internal/application/auction"
 	"jo3qma.com/yahoo_auctions_bot/internal/domain/product"
 	"golang.org/x/sync/errgroup"
 )
@@ -25,7 +24,7 @@ func newPipeline(api *genAIAPI, opts Options) *pipeline {
 }
 
 // run は Stage1/2 を並列実行し、不足キーがあれば Stage3 で補完して Stage4 で統合する。
-func (p *pipeline) run(ctx context.Context, in appauction.ExtractInput) (*product.Product, error) {
+func (p *pipeline) run(ctx context.Context, in product.ExtractInput) (*product.Product, error) {
 	timeout := p.opts.PipelineTimeoutSec
 	if timeout <= 0 {
 		timeout = pipelineTimeout

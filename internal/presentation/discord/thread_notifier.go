@@ -14,20 +14,14 @@ import (
 
 const maxThreadNameLen = 100
 
-// ThreadAPI はスレッド作成・メッセージ送信に必要なDiscord APIのインターフェース。
-type ThreadAPI interface {
-	StartThreadWithMessage(channelID discord.ChannelID, messageID discord.MessageID, data api.StartThreadData) (*discord.Channel, error)
-	SendMessageComplex(channelID discord.ChannelID, data api.SendMessageData) (*discord.Message, error)
-}
-
 // ThreadNotifier は NotificationThread 経由で PriceAlert / EndingReminder を送信する。
 type ThreadNotifier struct {
-	api  ThreadAPI
+	api  SessionAPI
 	repo domainwatch.Repository
 }
 
 // NewThreadNotifier はThreadNotifierを生成する。
-func NewThreadNotifier(api ThreadAPI, repo domainwatch.Repository) *ThreadNotifier {
+func NewThreadNotifier(api SessionAPI, repo domainwatch.Repository) *ThreadNotifier {
 	return &ThreadNotifier{api: api, repo: repo}
 }
 
