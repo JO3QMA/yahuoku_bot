@@ -9,13 +9,19 @@ import (
 
 	"jo3qma.com/yahoo_auctions_bot/internal/application/auction"
 	appwatch "jo3qma.com/yahoo_auctions_bot/internal/application/watch"
-	infraauction "jo3qma.com/yahoo_auctions_bot/internal/infrastructure/auction"
 	domainwatch "jo3qma.com/yahoo_auctions_bot/internal/domain/watch"
+	infraauction "jo3qma.com/yahoo_auctions_bot/internal/infrastructure/auction"
 )
+
+// gatewaySession は Bot の Gateway 接続（テストで差し替え可能）。
+type gatewaySession interface {
+	AddHandler(fn interface{}) func()
+	Connect(ctx context.Context) error
+}
 
 // Bot はarikawa Stateとハンドラーを保持し、Discord Botを起動する。
 type Bot struct {
-	gateway         GatewaySession
+	gateway         gatewaySession
 	handler         *Handler
 	reactionHandler *ReactionHandler
 	pollingWorker   *appwatch.PollingWorker
@@ -48,13 +54,12 @@ func NewBot(
 	embed := NewEmbedBuilder(s)
 	h := NewHandler(previewUsecase, embed, allowed)
 
-	reactionHandler := NewReactionHandler(watchUsecase, auctionClient, s, s)
-
+	reactionHandler := NewReactionHandler(watchUsecase, auctionClient, s)
 	threadNotifier := NewThreadNotifier(s, watchRepo)
 	pollingWorker := appwatch.NewPollingWorker(watchRepo, auctionClient, threadNotifier, botCfg.CheckIntervalMinutes, botCfg.PollDelayMs)
 
 	return &Bot{
-		gateway:         newStateGateway(s),
+		gateway:         s,
 		handler:         h,
 		reactionHandler: reactionHandler,
 		pollingWorker:   pollingWorker,
@@ -62,7 +67,7 @@ func NewBot(
 }
 
 // NewBotWithDeps はテスト用に Gateway とハンドラーを直接注入する。
-func NewBotWithDeps(gw GatewaySession, h *Handler, rh *ReactionHandler, pw *appwatch.PollingWorker) *Bot {
+func NewBotWithDeps(gw gatewaySession, h *Handler, rh *ReactionHandler, pw *appwatch.PollingWorker) *Bot {
 	return &Bot{
 		gateway:         gw,
 		handler:         h,

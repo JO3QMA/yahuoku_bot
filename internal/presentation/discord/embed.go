@@ -13,19 +13,14 @@ import (
 	"jo3qma.com/yahoo_auctions_bot/internal/domain/product"
 )
 
-// EmbedSender はメッセージ送信に必要なDiscord APIのインターフェース。*state.State が満たす。
-type EmbedSender interface {
-	SendMessageComplex(channelID discord.ChannelID, data api.SendMessageData) (*discord.Message, error)
-}
-
 // EmbedBuilder はPreviewからDiscord Embedを構築・送信する。
 type EmbedBuilder struct {
-	sender EmbedSender
+	api SessionAPI
 }
 
 // NewEmbedBuilder はEmbedBuilderを生成する。
-func NewEmbedBuilder(sender EmbedSender) *EmbedBuilder {
-	return &EmbedBuilder{sender: sender}
+func NewEmbedBuilder(api SessionAPI) *EmbedBuilder {
+	return &EmbedBuilder{api: api}
 }
 
 // Build はPreviewからDiscord Embedを構築する。
@@ -77,7 +72,7 @@ func (b *EmbedBuilder) Build(preview *auction.Preview) discord.Embed {
 
 // Send は構築済みEmbedをチャンネルに通常投稿する（リプライ・スレッドは使わない）。
 func (b *EmbedBuilder) Send(e *gateway.MessageCreateEvent, emb discord.Embed) (*discord.Message, error) {
-	return b.sender.SendMessageComplex(e.ChannelID, api.SendMessageData{
+	return b.api.SendMessageComplex(e.ChannelID, api.SendMessageData{
 		Embeds: []discord.Embed{emb},
 	})
 }

@@ -26,19 +26,13 @@ type discordRunner interface {
 // botDeps は run の依存注入用（テストで差し替え）。
 type botDeps struct {
 	LoadConfig      func() (*config.Config, error)
-	NewGeminiClient func(cfg *config.Config) (appauction.Extractor, error)
+	NewGeminiClient func(cfg *config.Config) (gemini.Client, error)
 	OpenRqlite      func(ctx context.Context, url string, opts ...infrarqlite.NewClientOption) (*infrarqlite.Client, error)
 	NewWatchRepo    func(*infrarqlite.Client) watch.Repository
 	NewDiscordBot   func(token string, pu *appauction.PreviewUsecase, af *discord.AllowedFilter, wu *appwatch.WatchUsecase, ac infraauction.Client, repo watch.Repository, cfg discord.BotConfig) (discordRunner, error)
 }
 
-// runWithSignalHook が nil でないとき runWithSignal を置き換える（本パッケージのテスト専用）。
-var runWithSignalHook func(parent context.Context, deps *botDeps) error
-
 func runWithSignal(parent context.Context, deps *botDeps) error {
-	if runWithSignalHook != nil {
-		return runWithSignalHook(parent, deps)
-	}
 	ctx, cancel := context.WithCancel(parent)
 	defer cancel()
 
@@ -63,7 +57,7 @@ func mergeBotDeps(d *botDeps) {
 		d.LoadConfig = config.Load
 	}
 	if d.NewGeminiClient == nil {
-		d.NewGeminiClient = func(cfg *config.Config) (appauction.Extractor, error) {
+		d.NewGeminiClient = func(cfg *config.Config) (gemini.Client, error) {
 			opts := gemini.NewOptions(
 				cfg.GeminiModel, cfg.GeminiModelVision, cfg.GeminiModelAgent,
 				cfg.GeminiMaxImages, cfg.GeminiMaxSearchCalls, cfg.GeminiPipelineTimeoutSec,

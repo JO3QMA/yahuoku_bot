@@ -28,14 +28,13 @@ func TestGenerate_retries503ThenSuccess(t *testing.T) {
 		t.Fatal(err)
 	}
 	calls := 0
-	generateHook = func(context.Context, *genai.Client, string, []*genai.Content, *genai.GenerateContentConfig) (*genai.GenerateContentResponse, error) {
+	api.stubGenerate = func(context.Context, string, []*genai.Content, *genai.GenerateContentConfig) (*genai.GenerateContentResponse, error) {
 		calls++
 		if calls < 3 {
 			return nil, fmt.Errorf("gemini generate: Error 503, Message: high demand")
 		}
 		return jsonResponse(`{"category":"other"}`), nil
 	}
-	t.Cleanup(func() { generateHook = nil })
 
 	_, err = api.generate(context.Background(), "m", nil, nil)
 	if err != nil {
@@ -52,11 +51,10 @@ func TestGenerate_nonRetryableFailsFast(t *testing.T) {
 		t.Fatal(err)
 	}
 	calls := 0
-	generateHook = func(context.Context, *genai.Client, string, []*genai.Content, *genai.GenerateContentConfig) (*genai.GenerateContentResponse, error) {
+	api.stubGenerate = func(context.Context, string, []*genai.Content, *genai.GenerateContentConfig) (*genai.GenerateContentResponse, error) {
 		calls++
 		return nil, fmt.Errorf("gemini generate: Error 401, invalid key")
 	}
-	t.Cleanup(func() { generateHook = nil })
 
 	_, err = api.generate(context.Background(), "m", nil, nil)
 	if err == nil {
@@ -72,10 +70,9 @@ func TestGenerate_ctxCancelDuringBackoff(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	generateHook = func(context.Context, *genai.Client, string, []*genai.Content, *genai.GenerateContentConfig) (*genai.GenerateContentResponse, error) {
+	api.stubGenerate = func(context.Context, string, []*genai.Content, *genai.GenerateContentConfig) (*genai.GenerateContentResponse, error) {
 		return nil, fmt.Errorf("gemini generate: Error 503")
 	}
-	t.Cleanup(func() { generateHook = nil })
 
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()

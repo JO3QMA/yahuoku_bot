@@ -15,6 +15,7 @@ import (
 	"jo3qma.com/yahoo_auctions_bot/internal/domain/product"
 	"jo3qma.com/yahoo_auctions_bot/internal/domain/watch"
 	infraauction "jo3qma.com/yahoo_auctions_bot/internal/infrastructure/auction"
+	"jo3qma.com/yahoo_auctions_bot/internal/infrastructure/gemini"
 	infrarqlite "jo3qma.com/yahoo_auctions_bot/internal/infrastructure/rqlite"
 	"jo3qma.com/yahoo_auctions_bot/internal/presentation/discord"
 
@@ -34,7 +35,7 @@ func (waitCtxRunner) Run(ctx context.Context) error {
 
 type fakeGemini struct{}
 
-func (fakeGemini) Extract(context.Context, appauction.ExtractInput) (*product.Product, error) {
+func (fakeGemini) Extract(context.Context, product.ExtractInput) (*product.Product, error) {
 	return &product.Product{}, nil
 }
 
@@ -94,7 +95,7 @@ func TestRun_geminiError(t *testing.T) {
 		LoadConfig: func() (*config.Config, error) {
 			return &config.Config{DiscordToken: "t", GeminiAPIKey: "k"}, nil
 		},
-		NewGeminiClient: func(cfg *config.Config) (appauction.Extractor, error) {
+		NewGeminiClient: func(cfg *config.Config) (gemini.Client, error) {
 			return nil, errors.New("g")
 		},
 	})
@@ -108,7 +109,7 @@ func TestRun_rqliteError(t *testing.T) {
 		LoadConfig: func() (*config.Config, error) {
 			return &config.Config{DiscordToken: "t", GeminiAPIKey: "k", RqliteURL: "http://x"}, nil
 		},
-		NewGeminiClient: func(cfg *config.Config) (appauction.Extractor, error) {
+		NewGeminiClient: func(cfg *config.Config) (gemini.Client, error) {
 			return &fakeGemini{}, nil
 		},
 		OpenRqlite: func(ctx context.Context, url string, opts ...infrarqlite.NewClientOption) (*infrarqlite.Client, error) {
@@ -283,7 +284,7 @@ func successDeps() *botDeps {
 				RqliteURL: "http://noop", APIEndpoint: "http://localhost:8080",
 			}, nil
 		},
-		NewGeminiClient: func(cfg *config.Config) (appauction.Extractor, error) { return &fakeGemini{}, nil },
+		NewGeminiClient: func(cfg *config.Config) (gemini.Client, error) { return &fakeGemini{}, nil },
 		OpenRqlite:      fakeOpenRqlite,
 		NewWatchRepo: func(*infrarqlite.Client) watch.Repository {
 			return &memRepoRqlite{}

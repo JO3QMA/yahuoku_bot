@@ -6,7 +6,6 @@ import (
 	"strings"
 	"testing"
 
-	appauction "jo3qma.com/yahoo_auctions_bot/internal/application/auction"
 	"jo3qma.com/yahoo_auctions_bot/internal/domain/product"
 	"google.golang.org/genai"
 )
@@ -77,21 +76,21 @@ func Test_extractTextFromResponse(t *testing.T) {
 	})
 }
 
-type stubRunner struct {
+type stubClient struct {
 	result *product.Product
 	err    error
 }
 
-func (s *stubRunner) run(context.Context, appauction.ExtractInput) (*product.Product, error) {
+func (s stubClient) Extract(context.Context, product.ExtractInput) (*product.Product, error) {
 	return s.result, s.err
 }
 
 func TestClient_Extract_viaStub(t *testing.T) {
-	c := NewClientWithRunner(&stubRunner{result: &product.Product{
+	c := stubClient{result: &product.Product{
 		Category: product.CategoryServer,
 		Fields:   []product.Field{{Key: "cpu_model_line", Value: "X"}},
-	}})
-	pd, err := c.Extract(context.Background(), appauction.ExtractInput{Title: "t", Description: "d"})
+	}}
+	pd, err := c.Extract(context.Background(), product.ExtractInput{Title: "t", Description: "d"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,8 +100,8 @@ func TestClient_Extract_viaStub(t *testing.T) {
 }
 
 func TestClient_Extract_errors(t *testing.T) {
-	c := NewClientWithRunner(&stubRunner{err: errors.New("gen")})
-	_, err := c.Extract(context.Background(), appauction.ExtractInput{Title: "t"})
+	c := stubClient{err: errors.New("gen")}
+	_, err := c.Extract(context.Background(), product.ExtractInput{Title: "t"})
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -115,26 +114,24 @@ func TestProductSchema_smoke(t *testing.T) {
 	}
 }
 
-func Test_genAIAPI_generateHook(t *testing.T) {
+func Test_genAIAPI_stubGenerate(t *testing.T) {
 	api, err := newGenAIAPI("unit-test-dummy-key")
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { generateHook = nil })
 
-	t.Run("hook error", func(t *testing.T) {
-		generateHook = func(context.Context, *genai.Client, string, []*genai.Content, *genai.GenerateContentConfig) (*genai.GenerateContentResponse, error) {
+	t.Run("stub error", func(t *testing.T) {
+		api.stubGenerate = func(context.Context, string, []*genai.Content, *genai.GenerateContentConfig) (*genai.GenerateContentResponse, error) {
 			return nil, errors.New("x")
 		}
-		t.Cleanup(func() { generateHook = nil })
 		_, err := api.generateJSON(context.Background(), defaultFastModel, "p", productSchema())
 		if err == nil || !strings.Contains(err.Error(), "x") {
 			t.Fatalf("%v", err)
 		}
 	})
 
-	t.Run("hook success", func(t *testing.T) {
-		generateHook = func(context.Context, *genai.Client, string, []*genai.Content, *genai.GenerateContentConfig) (*genai.GenerateContentResponse, error) {
+	t.Run("stub success", func(t *testing.T) {
+		api.stubGenerate = func(context.Context, string, []*genai.Content, *genai.GenerateContentConfig) (*genai.GenerateContentResponse, error) {
 			return &genai.GenerateContentResponse{
 				Candidates: []*genai.Candidate{{
 					FinishReason: genai.FinishReasonStop,
@@ -142,7 +139,6 @@ func Test_genAIAPI_generateHook(t *testing.T) {
 				}},
 			}, nil
 		}
-		t.Cleanup(func() { generateHook = nil })
 		text, err := api.generateJSON(context.Background(), defaultFastModel, "p", productSchema())
 		if err != nil || !strings.Contains(text, "Z") {
 			t.Fatalf("%v %q", err, text)
@@ -154,7 +150,11 @@ func Test_pipeline_stage1_only(t *testing.T) {
 	stage1 := `{"category":"other","condition":"","shipping_free":null,"fields":[],"missing_keys":[],"candidate_queries":[]}`
 	stage4 := `{"category":"other","condition":"","fields":[]}`
 	call := 0
-	generateHook = func(_ context.Context, _ *genai.Client, _ string, _ []*genai.Content, cfg *genai.GenerateContentConfig) (*genai.GenerateContentResponse, error) {
+	api, err := newGenAIAPI("k")
+	if err != nil {
+		t.Fatal(err)
+	}
+	api.stubGenerate = func(_ context.Context, _ string, _ []*genai.Content, cfg *genai.GenerateContentConfig) (*genai.GenerateContentResponse, error) {
 		call++
 		text := stage4
 		if cfg != nil && cfg.ResponseSchema != nil {
@@ -164,14 +164,8 @@ func Test_pipeline_stage1_only(t *testing.T) {
 		}
 		return jsonResponse(text), nil
 	}
-	t.Cleanup(func() { generateHook = nil })
 
-	api, err := newGenAIAPI("k")
-	if err != nil {
-		t.Fatal(err)
-	}
-	c := NewClientWithRunner(newPipeline(api, Options{FastModel: "m"}))
-	pd, err := c.Extract(context.Background(), appauction.ExtractInput{Title: "t", Description: "d"})
+	pd, err := NewTestClient(api, Options{FastModel: "m"}).Extract(context.Background(), product.ExtractInput{Title: "t", Description: "d"})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -7,6 +7,7 @@ import (
 
 	"jo3qma.com/yahoo_auctions_bot/internal/domain/product"
 	"jo3qma.com/yahoo_auctions_bot/internal/infrastructure/auction"
+	"jo3qma.com/yahoo_auctions_bot/internal/infrastructure/gemini"
 )
 
 // Preview は Discord 表示用に Auction と Product を統合したデータ。
@@ -21,24 +22,14 @@ type Preview struct {
 	Product      *product.Product
 }
 
-// AuctionFetcher は Auction 情報を取得するインターフェース。
-type AuctionFetcher interface {
-	GetAuction(ctx context.Context, auctionID string) (*auction.AuctionData, error)
-}
-
-// Extractor は Auction のテキスト・画像から Product を導出する（Extraction）インターフェース。
-type Extractor interface {
-	Extract(ctx context.Context, in ExtractInput) (*product.Product, error)
-}
-
 // PreviewUsecase は Auction URL から Preview を取得するユースケース。
 type PreviewUsecase struct {
-	auctionClient AuctionFetcher
-	extractor     Extractor
+	auctionClient auction.Client
+	extractor     gemini.Client
 }
 
 // NewPreviewUsecase は PreviewUsecase を生成する。
-func NewPreviewUsecase(ac AuctionFetcher, ex Extractor) *PreviewUsecase {
+func NewPreviewUsecase(ac auction.Client, ex gemini.Client) *PreviewUsecase {
 	return &PreviewUsecase{auctionClient: ac, extractor: ex}
 }
 
@@ -49,7 +40,7 @@ func (u *PreviewUsecase) Execute(ctx context.Context, auctionID string) (*Previe
 		return nil, err
 	}
 
-	productData, err := u.extractor.Extract(ctx, ExtractInput{
+	productData, err := u.extractor.Extract(ctx, product.ExtractInput{
 		Title:       data.Title,
 		Description: data.Description,
 		ImageURLs:   data.Images,
