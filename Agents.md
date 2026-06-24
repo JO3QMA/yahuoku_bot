@@ -36,8 +36,8 @@ AIエージェントがこのリポジトリで作業する際のコンテキス
 ## 技術スタック・バージョン
 
 - **Go**: 1.25.4（`go.mod` に準拠）
-- **主要ライブラリ**: connectrpc.com/connect, arikawa/v3, google.golang.org/genai, gopkg.in/yaml.v3
-- **設定**: 環境変数（direnv で `.env` を読み込む想定） + YAML（`config.yaml`）。`config.Load(configPath)` で統合。
+- **主要ライブラリ**: connectrpc.com/connect, arikawa/v3, google.golang.org/genai, rqlite-go-http
+- **設定**: 環境変数（direnv で `.env` を読み込む想定）。`config.Load()` で読み込む。
 
 ---
 
@@ -54,11 +54,11 @@ AIエージェントがこのリポジトリで作業する際のコンテキス
 | 環境変数 | `GEMINI_MAX_SEARCH_CALLS` | 任意。1 Product あたりの最大検索回数（未設定時 `3`） |
 | 環境変数 | `GEMINI_PIPELINE_TIMEOUT_SEC` | 任意。多段 Extraction パイプラインのタイムアウト秒（未設定時 `45`） |
 | 環境変数 | `API_ENDPOINT` | オークションAPIのベースURL（未設定時 `http://localhost:8080`） |
-| 環境変数 | `CONFIG_PATH` | 任意。YAML設定パス（未設定時 `config.yaml`） |
-| YAML | `allowed.guilds` | 空でなければ、ここに列挙したサーバーのみ反応 |
-| YAML | `allowed.channels` | 空でなければ、ここに列挙したチャンネルのみ反応 |
+| 環境変数 | `RQLITE_URL` | rqlite ベース URL（未設定時 `http://localhost:4001`） |
+| 環境変数 | `ALLOWED_GUILDS` | カンマ区切り。空 = 全サーバー許可 |
+| 環境変数 | `ALLOWED_CHANNELS` | カンマ区切り。空 = 全チャンネル許可 |
 
-サンプルは `.env.example`（direnv 用）と `config.yaml.example` を参照。
+サンプルは `.env.example`（direnv 用）を参照。Compose では `ALLOWED_CHANNELS` 等を `compose.yaml` に直書き。
 
 ---
 
@@ -88,7 +88,7 @@ AIエージェントがこのリポジトリで作業する際のコンテキス
    新規パッケージは `go.mod` を更新。必要に応じて `go mod tidy`。大きな方針変更はユーザーに確認する。
 
 3. **設定の追加**  
-   設定項目は `internal/config` の `Config` および YAML構造と整合させ、`.env.example`（direnv 用）/ `config.yaml.example` を更新する。
+   設定項目は `internal/config` の `Config` と整合させ、`.env.example` を更新する。
 
 4. **API・protobufの変更**  
    オークションAPIの型・RPCを変える場合は `yahoo_auctions` および `protobuf` リポジトリとの整合を考慮する。

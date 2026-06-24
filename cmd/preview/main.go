@@ -16,9 +16,5 @@ func previewArgvDefault() []string {
 var previewArgv = previewArgvDefault
 
 func main() {
-	cfgPath := "config.yaml"
-	if p := os.Getenv("CONFIG_PATH"); p != "" {
-		cfgPath = p
-	}
-	previewExit(RunPreview(os.Stdout, previewArgv(), cfgPath, nil))
+	previewExit(RunPreview(os.Stdout, previewArgv(), nil))
 }
