@@ -8,7 +8,6 @@ import (
 
 	dwatch "jo3qma.com/yahoo_auctions_bot/internal/domain/watch"
 	"jo3qma.com/yahoo_auctions_bot/internal/infrastructure/auction"
-	"jo3qma.com/yahoo_auctions_bot/internal/infrastructure/sqlite"
 )
 
 func TestGroupByAuctionID(t *testing.T) {
@@ -45,24 +44,98 @@ func TestPollingWorker_poll_listError(t *testing.T) {
 	w.poll(ctx)
 }
 
-func TestPollingWorker_poll_empty(t *testing.T) {
-	db, err := sqlite.Open(":memory:")
-	if err != nil {
-		t.Fatal(err)
+type storeRepo struct {
+	items  []*dwatch.Watch
+	nextID int64
+}
+
+func newStoreRepo() *storeRepo {
+	return &storeRepo{}
+}
+
+func (s *storeRepo) Add(_ context.Context, item *dwatch.Watch) error {
+	s.nextID++
+	cp := *item
+	cp.ID = s.nextID
+	s.items = append(s.items, &cp)
+	return nil
+}
+
+func (s *storeRepo) Remove(_ context.Context, auctionID, userID, messageID string) error {
+	out := s.items[:0]
+	for _, it := range s.items {
+		if it.AuctionID == auctionID && it.UserID == userID && it.MessageID == messageID {
+			continue
+		}
+		out = append(out, it)
 	}
-	t.Cleanup(func() { _ = db.Close() })
-	repo := sqlite.NewWatchRepository(db)
+	s.items = out
+	return nil
+}
+
+func (s *storeRepo) ListActive(context.Context) ([]*dwatch.Watch, error) {
+	return s.items, nil
+}
+
+func (s *storeRepo) UpdatePrice(_ context.Context, id int64, newPrice int64) error {
+	for _, it := range s.items {
+		if it.ID == id {
+			it.LastKnownPrice = newPrice
+			return nil
+		}
+	}
+	return nil
+}
+
+func (s *storeRepo) MarkReminded(_ context.Context, id int64) error {
+	for _, it := range s.items {
+		if it.ID == id {
+			it.Reminded = true
+			return nil
+		}
+	}
+	return nil
+}
+
+func (s *storeRepo) UpdateThreadID(_ context.Context, messageID, threadID string) error {
+	for _, it := range s.items {
+		if it.MessageID == messageID {
+			it.ThreadID = threadID
+		}
+	}
+	return nil
+}
+
+func (s *storeRepo) FindByMessage(_ context.Context, messageID string) ([]*dwatch.Watch, error) {
+	var out []*dwatch.Watch
+	for _, it := range s.items {
+		if it.MessageID == messageID {
+			out = append(out, it)
+		}
+	}
+	return out, nil
+}
+
+func (s *storeRepo) RemoveByAuctionID(_ context.Context, auctionID string) error {
+	out := s.items[:0]
+	for _, it := range s.items {
+		if it.AuctionID == auctionID {
+			continue
+		}
+		out = append(out, it)
+	}
+	s.items = out
+	return nil
+}
+
+func TestPollingWorker_poll_empty(t *testing.T) {
+	repo := newStoreRepo()
 	w := NewPollingWorker(repo, &stubFetch{}, &noopN{}, 60, 1)
 	w.poll(context.Background())
 }
 
 func TestPollingWorker_poll_getAuctionErr(t *testing.T) {
-	db, err := sqlite.Open(":memory:")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
-	repo := sqlite.NewWatchRepository(db)
+	repo := newStoreRepo()
 	end := time.Now().Add(time.Hour)
 	_ = repo.Add(context.Background(), &dwatch.Watch{
 		AuctionID: "x", UserID: "u", GuildID: "g", ChannelID: "c", MessageID: "m",
@@ -73,12 +146,7 @@ func TestPollingWorker_poll_getAuctionErr(t *testing.T) {
 }
 
 func TestPollingWorker_processGroup_canceled(t *testing.T) {
-	db, err := sqlite.Open(":memory:")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
-	repo := sqlite.NewWatchRepository(db)
+	repo := newStoreRepo()
 	end := time.Now().Add(time.Hour)
 	_ = repo.Add(context.Background(), &dwatch.Watch{
 		AuctionID: "x", UserID: "u", GuildID: "g", ChannelID: "c", MessageID: "m",
@@ -94,12 +162,7 @@ func TestPollingWorker_processGroup_canceled(t *testing.T) {
 }
 
 func TestPollingWorker_processGroup_canceledStatus(t *testing.T) {
-	db, err := sqlite.Open(":memory:")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
-	repo := sqlite.NewWatchRepository(db)
+	repo := newStoreRepo()
 	end := time.Now().Add(time.Hour)
 	_ = repo.Add(context.Background(), &dwatch.Watch{
 		AuctionID: "x", UserID: "u", GuildID: "g", ChannelID: "c", MessageID: "m",

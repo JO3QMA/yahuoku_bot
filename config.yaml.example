@@ -1,3 +1,0 @@
-allowed:
-  guilds: []          # 空 = 全サーバー許可
-  channels: []        # 空 = 全チャンネル許可

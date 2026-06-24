@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"log"
 	"os"
@@ -12,13 +11,11 @@ import (
 
 	appauction "jo3qma.com/yahoo_auctions_bot/internal/application/auction"
 	appwatch "jo3qma.com/yahoo_auctions_bot/internal/application/watch"
-	"jo3qma.com/yahoo_auctions_bot/internal/bootstrap"
 	"jo3qma.com/yahoo_auctions_bot/internal/config"
 	"jo3qma.com/yahoo_auctions_bot/internal/domain/watch"
 	infraauction "jo3qma.com/yahoo_auctions_bot/internal/infrastructure/auction"
 	"jo3qma.com/yahoo_auctions_bot/internal/infrastructure/gemini"
 	infrarqlite "jo3qma.com/yahoo_auctions_bot/internal/infrastructure/rqlite"
-	infrasqlite "jo3qma.com/yahoo_auctions_bot/internal/infrastructure/sqlite"
 	"jo3qma.com/yahoo_auctions_bot/internal/presentation/discord"
 )
 
@@ -28,13 +25,11 @@ type discordRunner interface {
 
 // botDeps は run の依存注入用（テストで差し替え）。
 type botDeps struct {
-	LoadConfig           func(string) (*config.Config, error)
-	NewGeminiClient      func(cfg *config.Config) (appauction.Extractor, error)
-	OpenRqlite           func(ctx context.Context, url string, opts ...infrarqlite.NewClientOption) (*infrarqlite.Client, error)
-	OpenSQLite           func(path string, opts ...infrasqlite.OpenOption) (*sql.DB, error)
-	NewWatchRepoRqlite   func(*infrarqlite.Client) watch.Repository
-	NewWatchRepoSQLite   func(*sql.DB) watch.Repository
-	NewDiscordBot        func(token string, pu *appauction.PreviewUsecase, af *discord.AllowedFilter, wu *appwatch.WatchUsecase, ac infraauction.Client, repo watch.Repository, cfg discord.BotConfig) (discordRunner, error)
+	LoadConfig      func() (*config.Config, error)
+	NewGeminiClient func(cfg *config.Config) (appauction.Extractor, error)
+	OpenRqlite      func(ctx context.Context, url string, opts ...infrarqlite.NewClientOption) (*infrarqlite.Client, error)
+	NewWatchRepo    func(*infrarqlite.Client) watch.Repository
+	NewDiscordBot   func(token string, pu *appauction.PreviewUsecase, af *discord.AllowedFilter, wu *appwatch.WatchUsecase, ac infraauction.Client, repo watch.Repository, cfg discord.BotConfig) (discordRunner, error)
 }
 
 // runWithSignalHook が nil でないとき runWithSignal を置き換える（本パッケージのテスト専用）。
@@ -69,23 +64,19 @@ func mergeBotDeps(d *botDeps) {
 	}
 	if d.NewGeminiClient == nil {
 		d.NewGeminiClient = func(cfg *config.Config) (appauction.Extractor, error) {
-			return gemini.NewClient(cfg.GeminiAPIKey, bootstrap.GeminiOptions(cfg))
+			opts := gemini.NewOptions(
+				cfg.GeminiModel, cfg.GeminiModelVision, cfg.GeminiModelAgent,
+				cfg.GeminiMaxImages, cfg.GeminiMaxSearchCalls, cfg.GeminiPipelineTimeoutSec,
+			)
+			return gemini.NewClient(cfg.GeminiAPIKey, opts)
 		}
 	}
 	if d.OpenRqlite == nil {
 		d.OpenRqlite = infrarqlite.Open
 	}
-	if d.OpenSQLite == nil {
-		d.OpenSQLite = infrasqlite.Open
-	}
-	if d.NewWatchRepoRqlite == nil {
-		d.NewWatchRepoRqlite = func(c *infrarqlite.Client) watch.Repository {
+	if d.NewWatchRepo == nil {
+		d.NewWatchRepo = func(c *infrarqlite.Client) watch.Repository {
 			return infrarqlite.NewWatchRepository(c)
-		}
-	}
-	if d.NewWatchRepoSQLite == nil {
-		d.NewWatchRepoSQLite = func(db *sql.DB) watch.Repository {
-			return infrasqlite.NewWatchRepository(db)
 		}
 	}
 	if d.NewDiscordBot == nil {
@@ -103,12 +94,7 @@ func run(ctx context.Context, deps *botDeps) error {
 	}
 	mergeBotDeps(deps)
 
-	configPath := "config.yaml"
-	if p := os.Getenv("CONFIG_PATH"); p != "" {
-		configPath = p
-	}
-
-	cfg, err := deps.LoadConfig(configPath)
+	cfg, err := deps.LoadConfig()
 	if err != nil {
 		return fmt.Errorf("config load: %w", err)
 	}
@@ -126,22 +112,12 @@ func run(ctx context.Context, deps *botDeps) error {
 		return fmt.Errorf("gemini client: %w", err)
 	}
 
-	var watchRepo watch.Repository
-	if cfg.RqliteURL != "" {
-		rqliteClient, err := deps.OpenRqlite(ctx, cfg.RqliteURL)
-		if err != nil {
-			return fmt.Errorf("rqlite open: %w", err)
-		}
-		defer func() { _ = rqliteClient.Close() }()
-		watchRepo = deps.NewWatchRepoRqlite(rqliteClient)
-	} else {
-		db, err := deps.OpenSQLite(cfg.DBPath)
-		if err != nil {
-			return fmt.Errorf("sqlite open: %w", err)
-		}
-		defer func() { _ = db.Close() }()
-		watchRepo = deps.NewWatchRepoSQLite(db)
+	rqliteClient, err := deps.OpenRqlite(ctx, cfg.RqliteURL)
+	if err != nil {
+		return fmt.Errorf("rqlite open: %w", err)
 	}
+	defer func() { _ = rqliteClient.Close() }()
+	watchRepo := deps.NewWatchRepo(rqliteClient)
 
 	previewUsecase := appauction.NewPreviewUsecase(auctionClient, geminiClient)
 	watchUsecase := appwatch.NewWatchUsecase(watchRepo)

@@ -9,7 +9,6 @@ import (
 	appwatch "jo3qma.com/yahoo_auctions_bot/internal/application/watch"
 	domainwatch "jo3qma.com/yahoo_auctions_bot/internal/domain/watch"
 	"jo3qma.com/yahoo_auctions_bot/internal/infrastructure/auction"
-	"jo3qma.com/yahoo_auctions_bot/internal/infrastructure/sqlite"
 )
 
 type mockNotifier struct {
@@ -59,12 +58,91 @@ func (m *mockFetcher) GetAuction(_ context.Context, auctionID string) (*auction.
 
 func setupTestRepo(t *testing.T) domainwatch.Repository {
 	t.Helper()
-	db, err := sqlite.Open(t.TempDir() + "/test.db")
-	if err != nil {
-		t.Fatalf("open db: %v", err)
+	return newStoreRepo()
+}
+
+type storeRepo struct {
+	items  []*domainwatch.Watch
+	nextID int64
+}
+
+func newStoreRepo() *storeRepo {
+	return &storeRepo{}
+}
+
+func (s *storeRepo) Add(_ context.Context, item *domainwatch.Watch) error {
+	s.nextID++
+	cp := *item
+	cp.ID = s.nextID
+	s.items = append(s.items, &cp)
+	return nil
+}
+
+func (s *storeRepo) Remove(_ context.Context, auctionID, userID, messageID string) error {
+	out := s.items[:0]
+	for _, it := range s.items {
+		if it.AuctionID == auctionID && it.UserID == userID && it.MessageID == messageID {
+			continue
+		}
+		out = append(out, it)
 	}
-	t.Cleanup(func() { _ = db.Close() })
-	return sqlite.NewWatchRepository(db)
+	s.items = out
+	return nil
+}
+
+func (s *storeRepo) ListActive(context.Context) ([]*domainwatch.Watch, error) {
+	return s.items, nil
+}
+
+func (s *storeRepo) UpdatePrice(_ context.Context, id int64, newPrice int64) error {
+	for _, it := range s.items {
+		if it.ID == id {
+			it.LastKnownPrice = newPrice
+			return nil
+		}
+	}
+	return nil
+}
+
+func (s *storeRepo) MarkReminded(_ context.Context, id int64) error {
+	for _, it := range s.items {
+		if it.ID == id {
+			it.Reminded = true
+			return nil
+		}
+	}
+	return nil
+}
+
+func (s *storeRepo) UpdateThreadID(_ context.Context, messageID, threadID string) error {
+	for _, it := range s.items {
+		if it.MessageID == messageID {
+			it.ThreadID = threadID
+		}
+	}
+	return nil
+}
+
+func (s *storeRepo) FindByMessage(_ context.Context, messageID string) ([]*domainwatch.Watch, error) {
+	var out []*domainwatch.Watch
+	for _, it := range s.items {
+		if it.MessageID == messageID {
+			out = append(out, it)
+		}
+	}
+	return out, nil
+}
+
+func (s *storeRepo) RemoveByAuctionID(_ context.Context, auctionID string) error {
+	out := s.items[:0]
+	for _, it := range s.items {
+		if it.AuctionID == auctionID {
+			continue
+		}
+		out = append(out, it)
+	}
+	s.items = out
+	return nil
 }
 
 func TestPollingWorker_PriceAlert(t *testing.T) {
