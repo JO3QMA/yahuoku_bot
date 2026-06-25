@@ -30,6 +30,7 @@ func mergePreviewDeps(d *previewDeps) {
 				cfg.GeminiModel, cfg.GeminiModelVision, cfg.GeminiModelAgent,
 				cfg.GeminiMaxImages, cfg.GeminiMaxSearchCalls, cfg.GeminiPipelineTimeoutSec,
 			)
+			opts.ExtractionMode = gemini.ParseExtractionMode(cfg.GeminiExtractionMode)
 			return gemini.NewClient(cfg.GeminiAPIKey, opts)
 		}
 	}

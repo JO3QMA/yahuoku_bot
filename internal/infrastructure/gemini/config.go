@@ -1,5 +1,25 @@
 package gemini
 
+import "strings"
+
+// ExtractionMode は Extraction の実行方式。
+type ExtractionMode string
+
+const (
+	ExtractionModePipeline ExtractionMode = "pipeline"
+	ExtractionModeSession  ExtractionMode = "session"
+)
+
+// ParseExtractionMode は環境変数値を ExtractionMode に変換する。未対応値は pipeline。
+func ParseExtractionMode(s string) ExtractionMode {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "session":
+		return ExtractionModeSession
+	default:
+		return ExtractionModePipeline
+	}
+}
+
 const (
 	defaultFastModel   = "gemini-2.5-flash-lite"
 	defaultVisionModel = "gemini-2.5-flash"
@@ -9,7 +29,7 @@ const (
 	pipelineTimeout    = 45 // seconds
 )
 
-// Options は多段推論パイプラインの設定。
+// Options は Extraction（pipeline / session）の設定。
 type Options struct {
 	FastModel          string
 	VisionModel        string
@@ -17,6 +37,7 @@ type Options struct {
 	MaxImages          int
 	MaxSearchCalls     int
 	PipelineTimeoutSec int
+	ExtractionMode     ExtractionMode
 }
 
 // NewOptions はモデル名と数値設定から Options を構築する。
@@ -50,6 +71,9 @@ func (o Options) Normalize() Options {
 	}
 	if o.PipelineTimeoutSec <= 0 {
 		o.PipelineTimeoutSec = pipelineTimeout
+	}
+	if o.ExtractionMode == "" {
+		o.ExtractionMode = ExtractionModePipeline
 	}
 	return o
 }

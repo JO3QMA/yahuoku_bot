@@ -16,7 +16,8 @@ type Config struct {
 	GeminiModelAgent         string // Stage3 用。空の場合は gemini-2.5-flash
 	GeminiMaxImages          int    // 推論に使う最大画像数 (default: 3)
 	GeminiMaxSearchCalls     int    // 1商品あたりの最大検索回数 (default: 3)
-	GeminiPipelineTimeoutSec int    // 多段推論パイプラインのタイムアウト秒 (default: 45)
+	GeminiPipelineTimeoutSec int    // Extraction のタイムアウト秒 (default: 45)
+	GeminiExtractionMode     string // pipeline | session (default: pipeline)
 	APIEndpoint              string
 	AllowedGuilds            []string // 空 = 全サーバー許可
 	AllowedChannels          []string // 空 = 全チャンネル許可
@@ -37,6 +38,7 @@ func Load() (*Config, error) {
 		GeminiMaxImages:          getEnvInt("GEMINI_MAX_IMAGES", 3),
 		GeminiMaxSearchCalls:     getEnvInt("GEMINI_MAX_SEARCH_CALLS", 3),
 		GeminiPipelineTimeoutSec: getEnvInt("GEMINI_PIPELINE_TIMEOUT_SEC", 45),
+		GeminiExtractionMode:     strings.TrimSpace(os.Getenv("GEMINI_EXTRACTION_MODE")),
 		APIEndpoint:              strings.TrimSpace(os.Getenv("API_ENDPOINT")),
 		RqliteURL:                strings.TrimSpace(os.Getenv("RQLITE_URL")),
 		AllowedGuilds:            getEnvCSV("ALLOWED_GUILDS"),

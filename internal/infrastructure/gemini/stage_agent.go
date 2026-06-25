@@ -3,7 +3,6 @@ package gemini
 import (
 	"context"
 	"fmt"
-	"log"
 	"strings"
 
 	"jo3qma.com/yahoo_auctions_bot/internal/domain/product"
@@ -101,29 +100,7 @@ func (p *pipeline) runStage3(ctx context.Context, title, plainDesc string, s1 *s
 }
 
 func (p *pipeline) executeLookupSpec(ctx context.Context, call *genai.FunctionCall, searchCount *int, searchNotes *[]string) map[string]any {
-	if *searchCount >= p.opts.MaxSearchCalls {
-		return map[string]any{"error": "search limit reached"}
-	}
-	query, _ := call.Args["query"].(string)
-	fieldKey, _ := call.Args["field_key"].(string)
-	if strings.TrimSpace(query) == "" {
-		return map[string]any{"error": "empty query"}
-	}
-	summary, queries, err := p.api.groundedSearch(ctx, p.opts.AgentModel, query)
-	if err != nil {
-		log.Printf("[gemini] lookup_spec search failed: %v", err)
-		return map[string]any{"error": err.Error()}
-	}
-	*searchCount++
-	if len(queries) > 0 {
-		log.Printf("[gemini] grounding search queries for %q: %v", fieldKey, queries)
-	}
-	*searchNotes = append(*searchNotes, fmt.Sprintf("[%s] %s", fieldKey, summary))
-	return map[string]any{
-		"summary":   summary,
-		"field_key": fieldKey,
-		"sources":   queries,
-	}
+	return runLookupSpec(ctx, p.api, p.opts, call, searchCount, searchNotes)
 }
 
 func buildStage3FinalPrompt(title, plainDesc string, s1 *stage1Result, s2 *stage2Result, searchNotes []string) string {
