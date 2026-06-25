@@ -48,12 +48,3 @@ func Test_filterTemplateKeys_rejectsUnknown(t *testing.T) {
 		t.Fatalf("got %v", got)
 	}
 }
-
-func Test_ParseExtractionMode(t *testing.T) {
-	if ParseExtractionMode("session") != ExtractionModeSession {
-		t.Fatal()
-	}
-	if ParseExtractionMode("") != ExtractionModePipeline {
-		t.Fatal()
-	}
-}
