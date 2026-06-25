@@ -12,25 +12,40 @@ type Client interface {
 }
 
 type client struct {
-	p *pipeline
+	p    *pipeline
+	sess *session
 }
 
-// NewClient は多段 Extraction パイプライン付き Gemini クライアントを生成する。
+// NewClient は Gemini Extraction クライアントを生成する。ExtractionMode で pipeline / session を切り替える。
 func NewClient(apiKey string, opts Options) (Client, error) {
 	opts = opts.Normalize()
 	api, err := newGenAIAPI(apiKey)
 	if err != nil {
 		return nil, err
 	}
-	return &client{p: newPipeline(api, opts)}, nil
+	return newClientFromAPI(api, opts), nil
 }
 
 // NewTestClient は genAIAPI を注入する（テスト用）。
 func NewTestClient(api *genAIAPI, opts Options) Client {
-	return &client{p: newPipeline(api, opts.Normalize())}
+	return newClientFromAPI(api, opts.Normalize())
+}
+
+func newClientFromAPI(api *genAIAPI, opts Options) Client {
+	c := &client{}
+	switch opts.ExtractionMode {
+	case ExtractionModeSession:
+		c.sess = newSession(api, opts)
+	default:
+		c.p = newPipeline(api, opts)
+	}
+	return c
 }
 
 // Extract はタイトル・説明・画像から Category 判別と Field 抽出（Extraction）を行う。
 func (c *client) Extract(ctx context.Context, in product.ExtractInput) (*product.Product, error) {
+	if c.sess != nil {
+		return c.sess.run(ctx, in)
+	}
 	return c.p.run(ctx, in)
 }
