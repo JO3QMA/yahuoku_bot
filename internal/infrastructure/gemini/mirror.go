@@ -59,12 +59,6 @@ func (m *productMirror) applyFields(fields []product.Field) {
 	}
 }
 
-func (m *productMirror) appendSearchNote(note string) {
-	if strings.TrimSpace(note) != "" {
-		m.searchNotes = append(m.searchNotes, note)
-	}
-}
-
 // unresolvedKeys は pendingMissing のうち、まだ値が入っていないキー一覧を返す。
 func (m *productMirror) unresolvedKeys() []string {
 	if len(m.pendingMissing) == 0 {

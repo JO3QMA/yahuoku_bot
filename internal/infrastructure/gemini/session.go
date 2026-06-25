@@ -26,7 +26,8 @@ func newSession(api *genAIAPI, opts Options) *session {
 	}
 }
 
-func (s *session) run(ctx context.Context, in product.ExtractInput) (*product.Product, error) {
+// Extract はタイトル・説明・画像から Category 判別と Field 抽出（Extraction）を行う。
+func (s *session) Extract(ctx context.Context, in product.ExtractInput) (*product.Product, error) {
 	timeout := s.opts.PipelineTimeoutSec
 	if timeout <= 0 {
 		timeout = extractionTimeout
@@ -123,16 +124,12 @@ func (s *session) runSearchSupplement(ctx context.Context, title, plainDesc stri
 			if cand.Content != nil {
 				contents = append(contents, cand.Content)
 			}
-			var notes []string
 			for _, call := range calls {
 				if call.Name != "lookup_spec" {
 					continue
 				}
-				fr := runLookupSpec(ctx, s.api, s.opts, call, &searchCount, &notes)
+				fr := runLookupSpec(ctx, s.api, s.opts, call, &searchCount, &mirror.searchNotes)
 				contents = append(contents, genai.NewContentFromFunctionResponse(call.Name, fr, genai.RoleUser))
-			}
-			for _, n := range notes {
-				mirror.appendSearchNote(n)
 			}
 			continue
 		}
