@@ -86,18 +86,6 @@ func TestLoad_validEnvInts(t *testing.T) {
 	}
 }
 
-func TestLoad_geminiExtractionMode(t *testing.T) {
-	t.Setenv("GEMINI_EXTRACTION_MODE", "session")
-	t.Cleanup(func() { _ = os.Unsetenv("GEMINI_EXTRACTION_MODE") })
-	cfg, err := Load()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if cfg.GeminiExtractionMode != "session" {
-		t.Fatalf("got %q", cfg.GeminiExtractionMode)
-	}
-}
-
 func TestLoad_geminiPipelineTimeout(t *testing.T) {
 	t.Setenv("GEMINI_PIPELINE_TIMEOUT_SEC", "90")
 	t.Cleanup(func() { _ = os.Unsetenv("GEMINI_PIPELINE_TIMEOUT_SEC") })

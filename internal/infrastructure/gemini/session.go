@@ -29,7 +29,7 @@ func newSession(api *genAIAPI, opts Options) *session {
 func (s *session) run(ctx context.Context, in product.ExtractInput) (*product.Product, error) {
 	timeout := s.opts.PipelineTimeoutSec
 	if timeout <= 0 {
-		timeout = pipelineTimeout
+		timeout = extractionTimeout
 	}
 	ctx, cancel := context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
 	defer cancel()
