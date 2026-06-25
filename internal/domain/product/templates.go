@@ -53,13 +53,6 @@ var fieldKeyAliases = map[Category]map[string]string{
 		"power_supply":   "other_notes",
 		"other_features": "other_notes",
 	},
-	CategoryDesktopNUC: {
-		"server_model":   "model",
-		"cpu_model_line": "cpu",
-		"memory_info":    "memory",
-		"storage_info":   "storage",
-		"other_notes":    "other_notes",
-	},
 }
 
 // CanonicalFieldKey はカテゴリのテンプレートキーに正規化する。未知キーは空文字。

@@ -40,14 +40,12 @@ func (m *productMirror) applyVision(s2 *stage2Result) {
 	}
 	m.vision = s2
 	for _, f := range s2.ImageFields {
-		if strings.TrimSpace(f.Value) == "" {
+		canon := product.CanonicalFieldKey(m.category, f.Key)
+		value := strings.TrimSpace(f.Value)
+		if canon == "" || value == "" || m.fields[canon] != "" {
 			continue
 		}
-		if canon := product.CanonicalFieldKey(m.category, f.Key); canon != "" {
-			if _, ok := m.fields[canon]; !ok {
-				m.setField(f.Key, f.Value)
-			}
-		}
+		m.fields[canon] = value
 	}
 }
 
@@ -58,15 +56,15 @@ func (m *productMirror) applyFields(fields []product.Field) {
 }
 
 func (m *productMirror) setField(key, value string) {
-	if m.category == "" || strings.TrimSpace(value) == "" {
+	if m.category == "" {
+		return
+	}
+	value = strings.TrimSpace(value)
+	if value == "" {
 		return
 	}
 	canon := product.CanonicalFieldKey(m.category, key)
 	if canon == "" {
-		return
-	}
-	if existing, ok := m.fields[canon]; ok && existing != value {
-		m.fields[canon] = existing + " / " + value
 		return
 	}
 	m.fields[canon] = value
