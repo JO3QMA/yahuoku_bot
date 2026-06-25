@@ -30,9 +30,7 @@ func (m *productMirror) applyStage1(s1 *stage1Result) {
 	m.freeShipping = s1.FreeShipping
 	m.pendingMissing = filterTemplateKeys(m.category, s1.MissingKeys)
 	for _, f := range s1.Fields {
-		if strings.TrimSpace(f.Value) != "" {
-			m.fields[f.Key] = f.Value
-		}
+		m.setField(f.Key, f.Value)
 	}
 }
 
@@ -42,21 +40,34 @@ func (m *productMirror) applyVision(s2 *stage2Result) {
 	}
 	m.vision = s2
 	for _, f := range s2.ImageFields {
-		if strings.TrimSpace(f.Value) == "" {
+		canon := product.CanonicalFieldKey(m.category, f.Key)
+		value := strings.TrimSpace(f.Value)
+		if canon == "" || value == "" || m.fields[canon] != "" {
 			continue
 		}
-		if _, ok := m.fields[f.Key]; !ok {
-			m.fields[f.Key] = f.Value
-		}
+		m.fields[canon] = value
 	}
 }
 
 func (m *productMirror) applyFields(fields []product.Field) {
 	for _, f := range fields {
-		if strings.TrimSpace(f.Value) != "" {
-			m.fields[f.Key] = f.Value
-		}
+		m.setField(f.Key, f.Value)
 	}
+}
+
+func (m *productMirror) setField(key, value string) {
+	if m.category == "" {
+		return
+	}
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return
+	}
+	canon := product.CanonicalFieldKey(m.category, key)
+	if canon == "" {
+		return
+	}
+	m.fields[canon] = value
 }
 
 // unresolvedKeys は pendingMissing のうち、まだ値が入っていないキー一覧を返す。
@@ -77,14 +88,14 @@ func filterTemplateKeys(cat product.Category, keys []string) []string {
 	if cat == "" || len(keys) == 0 {
 		return nil
 	}
-	allowed := make(map[string]struct{}, len(product.TemplatesFor(cat)))
-	for _, t := range product.TemplatesFor(cat) {
-		allowed[t.Key] = struct{}{}
-	}
+	seen := make(map[string]struct{})
 	var out []string
 	for _, k := range keys {
-		if _, ok := allowed[k]; ok {
-			out = append(out, k)
+		if canon := product.CanonicalFieldKey(cat, k); canon != "" {
+			if _, ok := seen[canon]; !ok {
+				seen[canon] = struct{}{}
+				out = append(out, canon)
+			}
 		}
 	}
 	return out
