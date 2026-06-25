@@ -48,3 +48,21 @@ func Test_filterTemplateKeys_rejectsUnknown(t *testing.T) {
 		t.Fatalf("got %v", got)
 	}
 }
+
+func Test_productMirror_applyStage1_serverAliases(t *testing.T) {
+	m := newProductMirror()
+	m.applyStage1(&stage1Result{
+		Category: "server",
+		Fields: []product.Field{
+			{Key: "model", Value: "DELL Precision 7920"},
+			{Key: "cpu", Value: "Xeon Gold 6242"},
+		},
+	})
+	fields := m.fieldsSlice()
+	if len(fields) != 2 {
+		t.Fatalf("len=%d, got %+v", len(fields), fields)
+	}
+	if fields[0].Key != "server_model" || fields[1].Key != "cpu_model_line" {
+		t.Fatalf("got %+v", fields)
+	}
+}
