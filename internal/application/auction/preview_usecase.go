@@ -22,7 +22,7 @@ type Preview struct {
 	Images         []string
 	EndTime        *time.Time
 	Product        *product.Product
-	MarketEstimate *domainmarket.MarketEstimate `json:"market_estimate,omitempty"`
+	MarketEstimate *domainmarket.MarketEstimate
 }
 
 // PreviewUsecase は Auction URL から Preview を取得するユースケース。

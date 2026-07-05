@@ -86,6 +86,28 @@ func Test_buildMarketEstimatePrompt_guardAndQuotes(t *testing.T) {
 	}
 }
 
+func Test_buildMarketEstimatePrompt_escapesQuotes(t *testing.T) {
+	p := &product.Product{Category: product.CategoryGPU}
+	got := buildMarketEstimatePrompt(`GPU "Special Edition"`, "", p, false, "")
+	if !strings.Contains(got, `タイトル: "GPU \"Special Edition\""`) {
+		t.Fatalf("quotes not escaped: %q", got)
+	}
+}
+
+func Test_buildMarketSearchQuery_skipsEmptyTitle(t *testing.T) {
+	p := &product.Product{
+		Category: product.CategoryGPU,
+		Fields:   []product.Field{{Key: "model", Value: "GTX 1080"}},
+	}
+	got := buildMarketSearchQuery("   ", "", p)
+	if strings.HasPrefix(got, " ") {
+		t.Fatalf("leading space: %q", got)
+	}
+	if !strings.Contains(got, "GTX 1080") {
+		t.Fatalf("missing identity: %q", got)
+	}
+}
+
 func textResponse(text string) *genai.GenerateContentResponse {
 	return &genai.GenerateContentResponse{
 		Candidates: []*genai.Candidate{{

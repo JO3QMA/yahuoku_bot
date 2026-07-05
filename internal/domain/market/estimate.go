@@ -30,6 +30,8 @@ func FromPrices(prices []int64, note string) (*MarketEstimate, bool) {
 	slices.Sort(sorted)
 	low := percentile(sorted, 0.25)
 	high := percentile(sorted, 0.75)
+	// percentile(sorted, 0.25) <= percentile(sorted, 0.75) はソート済み配列で常に成立。
+	// 将来 percentile 実装変更時の安全弁として残す。
 	if low > high {
 		low, high = high, low
 	}
@@ -38,6 +40,7 @@ func FromPrices(prices []int64, note string) (*MarketEstimate, bool) {
 
 func formatIntWithComma(n int64) string {
 	if n == math.MinInt64 {
+		// MinInt64 は -n がオーバーフローするため再帰処理不可。定数で返す。
 		return "-9,223,372,036,854,775,808"
 	}
 	if n < 0 {

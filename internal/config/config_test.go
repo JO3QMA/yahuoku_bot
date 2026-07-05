@@ -37,6 +37,12 @@ func TestLoad_envDefaults(t *testing.T) {
 	if cfg.GeminiMaxImages != 3 || cfg.GeminiMaxSearchCalls != 3 || cfg.GeminiPipelineTimeoutSec != 45 {
 		t.Fatalf("gemini limits: %d %d timeout %d", cfg.GeminiMaxImages, cfg.GeminiMaxSearchCalls, cfg.GeminiPipelineTimeoutSec)
 	}
+	if cfg.MarketEstimateMinSamples != 5 || cfg.MarketEstimateLookbackDays != 90 {
+		t.Fatalf("market estimate: %d %d", cfg.MarketEstimateMinSamples, cfg.MarketEstimateLookbackDays)
+	}
+	if cfg.MarketEstimateTimeoutSec != 20 || cfg.HandlerMarketTimeoutSec != 25 {
+		t.Fatalf("market timeouts: %d %d", cfg.MarketEstimateTimeoutSec, cfg.HandlerMarketTimeoutSec)
+	}
 }
 
 func TestLoad_allowedCSV(t *testing.T) {

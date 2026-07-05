@@ -39,16 +39,14 @@ func NewSoldComparableSearcher(baseURL string, httpClient *http.Client) SoldComp
 }
 
 // WrapSoldComparableSearcher は既存 Client と同じ接続設定で SoldComparableSearcher を返す。
-// Client が SoldComparableSearcher でも *client でもない場合は nil を返す。
-// 呼び出し元は戻り値の nil チェックを必ず行うこと。
-func WrapSoldComparableSearcher(c Client) SoldComparableSearcher {
+func WrapSoldComparableSearcher(c Client) (SoldComparableSearcher, error) {
 	if sc, ok := c.(SoldComparableSearcher); ok {
-		return sc
+		return sc, nil
 	}
 	if bc, ok := c.(*client); ok {
-		return &soldComparableClient{base: bc}
+		return &soldComparableClient{base: bc}, nil
 	}
-	return nil
+	return nil, fmt.Errorf("unsupported client type: %T", c)
 }
 
 func (c *soldComparableClient) SearchSoldPrices(ctx context.Context, category product.Category, identityKey, identityValue string, lookbackDays int) ([]int64, error) {
@@ -70,6 +68,9 @@ func (c *soldComparableClient) SearchSoldPrices(ctx context.Context, category pr
 	inspected := 0
 	getAuctionErrors := 0
 	for page := int64(0); page < soldSearchMaxPages && inspected < soldSearchMaxInspect; page++ {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		resp, err := svc.SearchAuctions(ctx, connect.NewRequest(&yahoo_auctionv1.SearchAuctionsRequest{
 			Query: query,
 			Page:  page,

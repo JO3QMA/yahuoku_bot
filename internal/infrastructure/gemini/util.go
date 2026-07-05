@@ -25,15 +25,13 @@ func sanitizeUTF8(s string) string {
 	return strings.ToValidUTF8(s, "")
 }
 
+func escapeForQuotedPrompt(s string) string {
+	return strings.ReplaceAll(s, `"`, `\"`)
+}
+
 func truncateString(s string, max int) string {
-	if max < 0 {
-		max = 0
-	}
-	if max == 0 {
-		if len(s) == 0 {
-			return ""
-		}
-		return "..."
+	if max <= 0 {
+		return ""
 	}
 	runes := []rune(s)
 	if len(runes) <= max {

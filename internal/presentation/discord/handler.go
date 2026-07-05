@@ -126,7 +126,6 @@ func (h *Handler) HandleMessageCreate(e *gateway.MessageCreateEvent) {
 			}
 
 			if h.market != nil && msg != nil {
-				previewRef := preview
 				msgID := msg.ID
 				chID := e.ChannelID
 				// ponytail: Discord 想定トラフィックでは goroutine セマフォ不要。高負荷化したら max N 並列を検討。
@@ -136,7 +135,7 @@ func (h *Handler) HandleMessageCreate(e *gateway.MessageCreateEvent) {
 							log.Printf("[yahoo_auctions_bot] panic in attachMarketEstimate: %v", r)
 						}
 					}()
-					h.attachMarketEstimate(previewRef, msgID, chID)
+					h.attachMarketEstimate(preview, msgID, chID)
 				}()
 			}
 		}()

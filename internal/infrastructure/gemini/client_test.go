@@ -46,7 +46,7 @@ func Test_sanitizeUTF8(t *testing.T) {
 }
 
 func Test_truncateString_maxZero(t *testing.T) {
-	if got := truncateString("hello", 0); got != "..." {
+	if got := truncateString("hello", 0); got != "" {
 		t.Fatalf("got %q", got)
 	}
 	if got := truncateString("", 0); got != "" {
