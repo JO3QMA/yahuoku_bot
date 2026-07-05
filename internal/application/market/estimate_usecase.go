@@ -20,8 +20,14 @@ func (c Config) Normalize() Config {
 	if c.MinSamples <= 0 {
 		c.MinSamples = 5
 	}
+	if c.MinSamples > 100 {
+		c.MinSamples = 100
+	}
 	if c.LookbackDays <= 0 {
 		c.LookbackDays = 90
+	}
+	if c.LookbackDays > 365 {
+		c.LookbackDays = 365
 	}
 	return c
 }
@@ -50,8 +56,11 @@ func NewEstimateUsecase(sold SoldComparableSearcher, web WebMarketEstimator, cfg
 
 // Execute は Product から MarketEstimate を算出する。取得不可のときは nil, nil。
 func (u *EstimateUsecase) Execute(ctx context.Context, title, description string, p *product.Product) (*domainmarket.MarketEstimate, error) {
-	if u == nil || p == nil {
-		return nil, nil
+	if u == nil {
+		return nil, fmt.Errorf("EstimateUsecase.Execute: nil receiver")
+	}
+	if p == nil {
+		return nil, fmt.Errorf("EstimateUsecase.Execute: nil product")
 	}
 	cfg := u.cfg
 
@@ -72,6 +81,7 @@ func (u *EstimateUsecase) Execute(ctx context.Context, title, description string
 			if ok {
 				return est, nil
 			}
+			log.Printf("[market] FromPrices returned false despite %d samples", len(prices))
 		}
 	}
 

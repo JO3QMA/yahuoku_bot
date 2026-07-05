@@ -13,7 +13,7 @@ func MarketEstimateUsecase(cfg *config.Config) (*appmarket.EstimateUsecase, erro
 		return nil, nil
 	}
 	sold := infraauction.NewSoldComparableSearcher(cfg.APIEndpoint, nil)
-	web, err := gemini.NewMarketEstimator(cfg.GeminiAPIKey, cfg.GeminiModelAgent)
+	web, err := gemini.NewMarketEstimator(cfg.GeminiAPIKey, cfg.GeminiModelAgent, cfg.MarketEstimateTimeoutSec)
 	if err != nil {
 		return nil, err
 	}

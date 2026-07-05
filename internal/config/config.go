@@ -19,6 +19,8 @@ type Config struct {
 	GeminiPipelineTimeoutSec   int    // Extraction のタイムアウト秒 (default: 45)
 	MarketEstimateMinSamples   int    // MarketEstimate API 最小件数 (default: 5)
 	MarketEstimateLookbackDays int    // Comparable 参照日数 (default: 90)
+	MarketEstimateTimeoutSec   int    // Web 相場推定のタイムアウト秒 (default: 20)
+	HandlerMarketTimeoutSec    int    // Handler の MarketEstimate タイムアウト秒 (default: 25)
 	APIEndpoint                string
 	AllowedGuilds              []string // 空 = 全サーバー許可
 	AllowedChannels            []string // 空 = 全チャンネル許可
@@ -41,6 +43,8 @@ func Load() (*Config, error) {
 		GeminiPipelineTimeoutSec:   getEnvInt("GEMINI_PIPELINE_TIMEOUT_SEC", 45),
 		MarketEstimateMinSamples:   getEnvInt("MARKET_ESTIMATE_MIN_SAMPLES", 5),
 		MarketEstimateLookbackDays: getEnvInt("MARKET_ESTIMATE_LOOKBACK_DAYS", 90),
+		MarketEstimateTimeoutSec:   getEnvInt("MARKET_ESTIMATE_TIMEOUT_SEC", 20),
+		HandlerMarketTimeoutSec:    getEnvInt("HANDLER_MARKET_TIMEOUT_SEC", 25),
 		APIEndpoint:                strings.TrimSpace(os.Getenv("API_ENDPOINT")),
 		RqliteURL:                  strings.TrimSpace(os.Getenv("RQLITE_URL")),
 		AllowedGuilds:              getEnvCSV("ALLOWED_GUILDS"),

@@ -9,6 +9,11 @@ func percentile(sorted []int64, p float64) int64 {
 	if n == 1 {
 		return sorted[0]
 	}
+	if p < 0 {
+		p = 0
+	} else if p > 1 {
+		p = 1
+	}
 	idx := p * float64(n-1)
 	lo := int(idx)
 	hi := lo + 1

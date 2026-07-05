@@ -45,6 +45,15 @@ func Test_sanitizeUTF8(t *testing.T) {
 	}
 }
 
+func Test_truncateString_maxZero(t *testing.T) {
+	if got := truncateString("hello", 0); got != "..." {
+		t.Fatalf("got %q", got)
+	}
+	if got := truncateString("", 0); got != "" {
+		t.Fatalf("got %q", got)
+	}
+}
+
 func Test_truncateString_multibyte(t *testing.T) {
 	s := strings.Repeat("あ", 501)
 	got := truncateString(s, 500)

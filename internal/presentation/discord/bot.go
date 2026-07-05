@@ -3,6 +3,7 @@ package discord
 import (
 	"context"
 	"log"
+	"time"
 
 	"github.com/diamondburned/arikawa/v3/gateway"
 	"github.com/diamondburned/arikawa/v3/state"
@@ -30,8 +31,9 @@ type Bot struct {
 
 // BotConfig は監視機能に関するBot設定。
 type BotConfig struct {
-	CheckIntervalMinutes int
-	PollDelayMs          int
+	CheckIntervalMinutes      int
+	PollDelayMs               int
+	HandlerMarketTimeoutSec   int // 0 = default 25
 }
 
 // NewBot はBotを生成する。DIは呼び出し元で行う。
@@ -54,7 +56,8 @@ func NewBot(
 	)
 
 	embed := NewEmbedBuilder(s)
-	h := NewHandler(previewUsecase, marketUsecase, embed, allowed)
+	marketTimeout := time.Duration(botCfg.HandlerMarketTimeoutSec) * time.Second
+	h := NewHandler(previewUsecase, marketUsecase, embed, allowed, marketTimeout)
 
 	reactionHandler := NewReactionHandler(watchUsecase, auctionClient, s)
 	threadNotifier := NewThreadNotifier(s, watchRepo)

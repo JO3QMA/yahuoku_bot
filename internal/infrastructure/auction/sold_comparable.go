@@ -52,10 +52,15 @@ func WrapSoldComparableSearcher(c Client) SoldComparableSearcher {
 }
 
 func (c *soldComparableClient) SearchSoldPrices(ctx context.Context, category product.Category, identityKey, identityValue string, lookbackDays int) ([]int64, error) {
-	_ = category
+	// TODO: identityKey を SearchAuctions のフィルタに反映する（専用 RPC 追加時に実施）
 	_ = identityKey
 	if strings.TrimSpace(identityValue) == "" {
 		return nil, nil
+	}
+
+	query := strings.TrimSpace(identityValue)
+	if cat := category.DisplayName(); cat != "" {
+		query = query + " " + cat
 	}
 
 	cutoff := time.Now().AddDate(0, 0, -lookbackDays)
@@ -66,7 +71,7 @@ func (c *soldComparableClient) SearchSoldPrices(ctx context.Context, category pr
 	getAuctionErrors := 0
 	for page := int64(0); page < soldSearchMaxPages && inspected < soldSearchMaxInspect; page++ {
 		resp, err := svc.SearchAuctions(ctx, connect.NewRequest(&yahoo_auctionv1.SearchAuctionsRequest{
-			Query: identityValue,
+			Query: query,
 			Page:  page,
 		}))
 		if err != nil {
@@ -97,6 +102,8 @@ func (c *soldComparableClient) SearchSoldPrices(ctx context.Context, category pr
 				prices = append(prices, data.CurrentPrice)
 			}
 		}
+		// NOTE: API のページサイズが soldSearchItemsPerPage と一致する前提。
+		// 将来的に SearchAuctionsResponse の total_pages / next_page_token 対応が望ましい。
 		if int64(len(items)) < soldSearchItemsPerPage {
 			break
 		}

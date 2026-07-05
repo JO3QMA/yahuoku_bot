@@ -41,6 +41,8 @@ Product 情報は **多段 Extraction パイプライン**（テキスト分類 
 | `GEMINI_PIPELINE_TIMEOUT_SEC` | 多段推論パイプラインのタイムアウト（秒） | `45` |
 | `MARKET_ESTIMATE_MIN_SAMPLES` | MarketEstimate の API 最小 Comparable 件数 | `5` |
 | `MARKET_ESTIMATE_LOOKBACK_DAYS` | Comparable の参照日数 | `90` |
+| `MARKET_ESTIMATE_TIMEOUT_SEC` | Web 相場推定のタイムアウト（秒） | `20` |
+| `HANDLER_MARKET_TIMEOUT_SEC` | Handler の MarketEstimate 取得タイムアウト（秒） | `25` |
 | `API_ENDPOINT` | オークション API のベース URL | `http://localhost:8080` |
 | `RQLITE_URL` | rqlite のベース URL | `http://localhost:4001` |
 | `ALLOWED_GUILDS` | 反応するサーバー ID（カンマ区切り、空=全許可） | （空） |

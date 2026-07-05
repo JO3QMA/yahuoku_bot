@@ -26,8 +26,14 @@ func sanitizeUTF8(s string) string {
 }
 
 func truncateString(s string, max int) string {
-	if max <= 0 {
-		return s
+	if max < 0 {
+		max = 0
+	}
+	if max == 0 {
+		if len(s) == 0 {
+			return ""
+		}
+		return "..."
 	}
 	runes := []rune(s)
 	if len(runes) <= max {

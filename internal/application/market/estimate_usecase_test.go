@@ -109,7 +109,7 @@ func TestEstimateUsecase_SoldErrorNoWeb(t *testing.T) {
 func TestExecute_nilReceiver(t *testing.T) {
 	var u *EstimateUsecase
 	est, err := u.Execute(context.Background(), "t", "d", gpuProduct("x"))
-	if err != nil || est != nil {
+	if err == nil || est != nil {
 		t.Fatalf("got est=%v err=%v", est, err)
 	}
 }
@@ -117,7 +117,7 @@ func TestExecute_nilReceiver(t *testing.T) {
 func TestExecute_nilProduct(t *testing.T) {
 	u := NewEstimateUsecase(nil, nil, Config{})
 	est, err := u.Execute(context.Background(), "t", "d", nil)
-	if err != nil || est != nil {
+	if err == nil || est != nil {
 		t.Fatalf("got est=%v err=%v", est, err)
 	}
 }

@@ -43,3 +43,13 @@ func TestFromPrices_twoElements(t *testing.T) {
 		t.Fatalf("got %+v ok=%v", est, ok)
 	}
 }
+
+func TestPercentile_clamp(t *testing.T) {
+	sorted := []int64{10, 20, 30, 40, 50}
+	if got := percentile(sorted, -1); got != 10 {
+		t.Fatalf("p<0: got %d", got)
+	}
+	if got := percentile(sorted, 2); got != 50 {
+		t.Fatalf("p>1: got %d", got)
+	}
+}

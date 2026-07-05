@@ -18,16 +18,17 @@ import (
 var yahooAuctionURLRe = regexp.MustCompile(`auctions?\.yahoo\.co\.jp/[^/]+/auction/([a-zA-Z0-9]{8,11})`)
 
 const (
-	handlerPreviewTimeout = 60 * time.Second
-	handlerMarketTimeout  = 25 * time.Second
+	handlerPreviewTimeout        = 60 * time.Second
+	defaultHandlerMarketTimeout  = 25 * time.Second
 )
 
 // Handler はメッセージを監視し、ヤフオク URL から Preview を生成するハンドラー。
 type Handler struct {
-	usecase *auction.PreviewUsecase
-	market  *appmarket.EstimateUsecase
-	embed   *EmbedBuilder
-	allowed *AllowedFilter
+	usecase       *auction.PreviewUsecase
+	market        *appmarket.EstimateUsecase
+	embed         *EmbedBuilder
+	allowed       *AllowedFilter
+	marketTimeout time.Duration
 }
 
 // AllowedFilter はconfigに基づくサーバー・チャンネルフィルタ。
@@ -70,9 +71,12 @@ func (f *AllowedFilter) Allow(guildID, channelID string) bool {
 	return true
 }
 
-// NewHandler はHandlerを生成する。
-func NewHandler(usecase *auction.PreviewUsecase, market *appmarket.EstimateUsecase, embed *EmbedBuilder, allowed *AllowedFilter) *Handler {
-	return &Handler{usecase: usecase, market: market, embed: embed, allowed: allowed}
+// NewHandler はHandlerを生成する。marketTimeout が 0 のときは 25 秒。
+func NewHandler(usecase *auction.PreviewUsecase, market *appmarket.EstimateUsecase, embed *EmbedBuilder, allowed *AllowedFilter, marketTimeout time.Duration) *Handler {
+	if marketTimeout <= 0 {
+		marketTimeout = defaultHandlerMarketTimeout
+	}
+	return &Handler{usecase: usecase, market: market, embed: embed, allowed: allowed, marketTimeout: marketTimeout}
 }
 
 // HandleMessageCreate はMessageCreateEventを処理する。arikawaのAddHandlerに渡す。
@@ -122,16 +126,17 @@ func (h *Handler) HandleMessageCreate(e *gateway.MessageCreateEvent) {
 			}
 
 			if h.market != nil && msg != nil {
-				previewCopy := preview
+				previewRef := preview
 				msgID := msg.ID
 				chID := e.ChannelID
+				// ponytail: Discord 想定トラフィックでは goroutine セマフォ不要。高負荷化したら max N 並列を検討。
 				go func() {
 					defer func() {
 						if r := recover(); r != nil {
 							log.Printf("[yahoo_auctions_bot] panic in attachMarketEstimate: %v", r)
 						}
 					}()
-					h.attachMarketEstimate(previewCopy, msgID, chID)
+					h.attachMarketEstimate(previewRef, msgID, chID)
 				}()
 			}
 		}()
@@ -139,7 +144,10 @@ func (h *Handler) HandleMessageCreate(e *gateway.MessageCreateEvent) {
 }
 
 func (h *Handler) attachMarketEstimate(preview *auction.Preview, messageID discord.MessageID, channelID discord.ChannelID) {
-	ctx, cancel := context.WithTimeout(context.Background(), handlerMarketTimeout)
+	if h.market == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), h.marketTimeout)
 	defer cancel()
 	est, err := h.market.Execute(ctx, preview.Title, preview.Description, preview.Product)
 	if err != nil {

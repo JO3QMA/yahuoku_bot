@@ -122,7 +122,8 @@ func run(ctx context.Context, deps *botDeps) error {
 	previewUsecase := appauction.NewPreviewUsecase(auctionClient, geminiClient)
 	marketUsecase, err := deps.NewMarketUsecase(cfg)
 	if err != nil {
-		log.Printf("[yahoo_auctions_bot] market estimate init: %v", err)
+		log.Printf("[yahoo_auctions_bot] market estimate init failed, disabled: %v", err)
+		marketUsecase = nil
 	}
 	watchUsecase := appwatch.NewWatchUsecase(watchRepo)
 
@@ -141,8 +142,9 @@ func run(ctx context.Context, deps *botDeps) error {
 		auctionClient,
 		watchRepo,
 		discord.BotConfig{
-			CheckIntervalMinutes: cfg.CheckIntervalMinutes,
-			PollDelayMs:          cfg.PollDelayMs,
+			CheckIntervalMinutes:  cfg.CheckIntervalMinutes,
+			PollDelayMs:           cfg.PollDelayMs,
+			HandlerMarketTimeoutSec: cfg.HandlerMarketTimeoutSec,
 		},
 	)
 	if err != nil {
