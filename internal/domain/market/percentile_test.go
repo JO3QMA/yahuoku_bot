@@ -29,3 +29,17 @@ func TestFromPrices_single(t *testing.T) {
 		t.Fatalf("got %+v ok=%v", est, ok)
 	}
 }
+
+func TestFromPrices_allSame(t *testing.T) {
+	est, ok := FromPrices([]int64{5000, 5000, 5000, 5000, 5000}, "same")
+	if !ok || est.LowPrice != 5000 || est.HighPrice != 5000 {
+		t.Fatalf("got %+v ok=%v", est, ok)
+	}
+}
+
+func TestFromPrices_twoElements(t *testing.T) {
+	est, ok := FromPrices([]int64{8000, 12000}, "two")
+	if !ok || est.LowPrice != 9000 || est.HighPrice != 11000 {
+		t.Fatalf("got %+v ok=%v", est, ok)
+	}
+}

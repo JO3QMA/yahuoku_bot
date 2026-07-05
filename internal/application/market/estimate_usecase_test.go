@@ -129,3 +129,15 @@ func TestExecute_webError(t *testing.T) {
 		t.Fatal("expected error")
 	}
 }
+
+func TestExecute_webOnly(t *testing.T) {
+	webEst := &domainmarket.MarketEstimate{LowPrice: 1, HighPrice: 2, Note: "web only"}
+	u := NewEstimateUsecase(nil, &fakeWeb{est: webEst}, Config{})
+	est, err := u.Execute(context.Background(), "t", "d", gpuProduct("x"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if est != webEst {
+		t.Fatalf("got %+v", est)
+	}
+}
