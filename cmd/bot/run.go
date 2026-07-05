@@ -122,7 +122,7 @@ func run(ctx context.Context, deps *botDeps) error {
 	previewUsecase := appauction.NewPreviewUsecase(auctionClient, geminiClient)
 	marketUsecase, err := deps.NewMarketUsecase(cfg)
 	if err != nil {
-		return fmt.Errorf("market estimate: %w", err)
+		log.Printf("[yahoo_auctions_bot] market estimate init: %v", err)
 	}
 	watchUsecase := appwatch.NewWatchUsecase(watchRepo)
 

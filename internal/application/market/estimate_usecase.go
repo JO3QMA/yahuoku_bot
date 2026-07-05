@@ -52,15 +52,14 @@ func (u *EstimateUsecase) Execute(ctx context.Context, title, description string
 	if u == nil || p == nil {
 		return nil, nil
 	}
-	cfg := u.cfg.Normalize()
+	cfg := u.cfg
 
-	_, identityValue, hasIdentity := domainmarket.IdentityValue(p)
+	key, identityValue, hasIdentity := domainmarket.IdentityValue(p)
 	if !hasIdentity {
 		return u.webEstimate(ctx, title, description, p, true)
 	}
 
 	if u.sold != nil {
-		key := domainmarket.IdentityFieldKey(p.Category)
 		prices, err := u.sold.SearchSoldPrices(ctx, p.Category, key, identityValue, cfg.LookbackDays)
 		if err != nil {
 			return nil, fmt.Errorf("search sold comparables: %w", err)

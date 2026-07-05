@@ -142,6 +142,18 @@ func TestRun_success_rqlite(t *testing.T) {
 	}
 }
 
+func TestRun_marketInitErrorContinues(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	deps := successDeps()
+	deps.NewMarketUsecase = func(cfg *config.Config) (*appmarket.EstimateUsecase, error) {
+		return nil, errors.New("market")
+	}
+	if err := run(ctx, deps); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestRun_tokenPrefix(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()

@@ -36,6 +36,29 @@ func TestMarketEstimator_Estimate(t *testing.T) {
 	}
 }
 
+func TestMarketEstimator_Estimate_invalidPrice(t *testing.T) {
+	api, err := newGenAIAPI("test-key")
+	if err != nil {
+		t.Fatal(err)
+	}
+	api.stubGroundedSearch = func(context.Context, string, string) (string, []string, error) {
+		return "summary", nil, nil
+	}
+	api.stubGenerate = func(context.Context, string, []*genai.Content, *genai.GenerateContentConfig) (*genai.GenerateContentResponse, error) {
+		return textResponse(`{"low_price":0,"high_price":100,"note":"bad"}`), nil
+	}
+
+	estimator := NewMarketEstimatorWithAPI(api, "test-model")
+	p := &product.Product{Category: product.CategoryGPU, Fields: []product.Field{{Key: "model", Value: "GTX 1080"}}}
+	est, err := estimator.Estimate(context.Background(), "GPU", "desc", p, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if est != nil {
+		t.Fatalf("got %+v want nil", est)
+	}
+}
+
 func textResponse(text string) *genai.GenerateContentResponse {
 	return &genai.GenerateContentResponse{
 		Candidates: []*genai.Candidate{{

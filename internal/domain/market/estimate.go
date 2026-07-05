@@ -1,6 +1,9 @@
 package market
 
-import "fmt"
+import (
+	"fmt"
+	"slices"
+)
 
 // MarketEstimate は類似 Product の想定価格帯と根拠の一言。
 type MarketEstimate struct {
@@ -23,7 +26,7 @@ func FromPrices(prices []int64, note string) (*MarketEstimate, bool) {
 		return nil, false
 	}
 	sorted := append([]int64(nil), prices...)
-	sortInt64s(sorted)
+	slices.Sort(sorted)
 	low := percentile(sorted, 0.25)
 	high := percentile(sorted, 0.75)
 	if low > high {

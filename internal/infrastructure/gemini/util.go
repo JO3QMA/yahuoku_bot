@@ -25,6 +25,13 @@ func sanitizeUTF8(s string) string {
 	return strings.ToValidUTF8(s, "")
 }
 
+func truncateString(s string, max int) string {
+	if max <= 0 || len(s) <= max {
+		return s
+	}
+	return s[:max] + "..."
+}
+
 // extractJSONFromResponse はレスポンステキストから JSON を抽出する。
 func extractJSONFromResponse(text string) string {
 	text = strings.TrimSpace(text)

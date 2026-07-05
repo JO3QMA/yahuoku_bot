@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"regexp"
+	"time"
 
 	"github.com/diamondburned/arikawa/v3/discord"
 	"github.com/diamondburned/arikawa/v3/gateway"
@@ -15,6 +16,11 @@ import (
 // yahooAuctionURLRe はヤフオクURLからオークションIDを抽出する正規表現。
 // 例: https://page.auctions.yahoo.co.jp/jp/auction/xxxx1234
 var yahooAuctionURLRe = regexp.MustCompile(`auctions?\.yahoo\.co\.jp/[^/]+/auction/([a-zA-Z0-9]{8,11})`)
+
+const (
+	handlerPreviewTimeout = 60 * time.Second
+	handlerMarketTimeout  = 25 * time.Second
+)
 
 // Handler はメッセージを監視し、ヤフオク URL から Preview を生成するハンドラー。
 type Handler struct {
@@ -99,8 +105,9 @@ func (h *Handler) HandleMessageCreate(e *gateway.MessageCreateEvent) {
 		}
 		seen[auctionID] = true
 
-		ctx := context.Background()
+		ctx, cancel := context.WithTimeout(context.Background(), handlerPreviewTimeout)
 		preview, err := h.usecase.Execute(ctx, auctionID)
+		cancel()
 		if err != nil {
 			log.Printf("[yahoo_auctions_bot] GetAuction %s: %v", auctionID, err)
 			continue
@@ -114,12 +121,14 @@ func (h *Handler) HandleMessageCreate(e *gateway.MessageCreateEvent) {
 		}
 
 		if h.market != nil && msg != nil {
-			go h.attachMarketEstimate(ctx, preview, msg.ID, e.ChannelID)
+			go h.attachMarketEstimate(preview, msg.ID, e.ChannelID)
 		}
 	}
 }
 
-func (h *Handler) attachMarketEstimate(ctx context.Context, preview *auction.Preview, messageID discord.MessageID, channelID discord.ChannelID) {
+func (h *Handler) attachMarketEstimate(preview *auction.Preview, messageID discord.MessageID, channelID discord.ChannelID) {
+	ctx, cancel := context.WithTimeout(context.Background(), handlerMarketTimeout)
+	defer cancel()
 	est, err := h.market.Execute(ctx, preview.Title, preview.Description, preview.Product)
 	if err != nil {
 		log.Printf("[yahoo_auctions_bot] MarketEstimate %s: %v", preview.AuctionID, err)

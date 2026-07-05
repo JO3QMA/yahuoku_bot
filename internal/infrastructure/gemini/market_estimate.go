@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -54,6 +55,9 @@ func (e *MarketEstimator) Estimate(ctx context.Context, title, description strin
 	if err != nil {
 		return nil, fmt.Errorf("market grounded search: %w", err)
 	}
+	if summary == "" {
+		log.Printf("[market_estimate] groundedSearch returned empty summary for query: %s", query)
+	}
 
 	text, err := e.api.generateJSON(ctx, e.model, buildMarketEstimatePrompt(title, description, p, identityMissing, summary), marketEstimateSchema())
 	if err != nil {
@@ -65,6 +69,7 @@ func (e *MarketEstimator) Estimate(ctx context.Context, title, description strin
 		return nil, fmt.Errorf("parse market estimate: %w", err)
 	}
 	if parsed.LowPrice <= 0 || parsed.HighPrice <= 0 {
+		log.Printf("[market_estimate] invalid price range: low=%d, high=%d", parsed.LowPrice, parsed.HighPrice)
 		return nil, nil
 	}
 	low, high := parsed.LowPrice, parsed.HighPrice
@@ -106,7 +111,7 @@ func marketEstimateSchema() *genai.Schema {
 }
 
 func buildMarketSearchQuery(title, description string, p *product.Product) string {
-	parts := []string{strings.TrimSpace(title)}
+	parts := []string{strings.TrimSpace(truncateString(title, 500))}
 	if _, v, ok := domainmarket.IdentityValue(p); ok {
 		parts = append(parts, v)
 	}
@@ -123,7 +128,7 @@ func buildMarketEstimatePrompt(title, description string, p *product.Product, id
 	b.WriteString("ヤフオクの類似商品の落札価格（送料別）の相場帯を推定してください。\n")
 	b.WriteString("落札見込みではなく、市場相場の価格帯（下限・上限）を返してください。\n\n")
 	b.WriteString("## 出品情報\n")
-	b.WriteString("タイトル: " + sanitizeUTF8(title) + "\n")
+	b.WriteString("タイトル: " + truncateString(sanitizeUTF8(title), 500) + "\n")
 	if d := plainDescription(description); d != "" {
 		b.WriteString("説明: " + d + "\n")
 	}

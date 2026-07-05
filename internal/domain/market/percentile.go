@@ -18,11 +18,3 @@ func percentile(sorted []int64, p float64) int64 {
 	frac := idx - float64(lo)
 	return int64(float64(sorted[lo])*(1-frac) + float64(sorted[hi])*frac)
 }
-
-func sortInt64s(a []int64) {
-	for i := 1; i < len(a); i++ {
-		for j := i; j > 0 && a[j-1] > a[j]; j-- {
-			a[j-1], a[j] = a[j], a[j-1]
-		}
-	}
-}

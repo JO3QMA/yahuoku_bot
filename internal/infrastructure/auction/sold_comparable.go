@@ -2,6 +2,7 @@ package auction
 
 import (
 	"context"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -37,6 +38,7 @@ func NewSoldComparableSearcher(baseURL string, httpClient *http.Client) SoldComp
 }
 
 // WrapSoldComparableSearcher は既存 Client と同じ接続設定で SoldComparableSearcher を返す。
+// Client が SoldComparableSearcher でも *client でもない場合は nil を返す。
 func WrapSoldComparableSearcher(c Client) SoldComparableSearcher {
 	if sc, ok := c.(SoldComparableSearcher); ok {
 		return sc
@@ -78,6 +80,7 @@ func (c *soldComparableClient) SearchSoldPrices(ctx context.Context, category pr
 			inspected++
 			data, err := c.base.GetAuction(ctx, item.AuctionId)
 			if err != nil {
+				log.Printf("[sold_comparable] GetAuction %s: %v", item.AuctionId, err)
 				continue
 			}
 			if data.Status != yahoo_auctionv1.AuctionStatus_AUCTION_STATUS_FINISHED.String() {
