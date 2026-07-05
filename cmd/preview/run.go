@@ -17,8 +17,8 @@ import (
 
 // previewDeps は RunPreview の依存注入用。
 type previewDeps struct {
-	LoadConfig       func(path string) (*config.Config, error)
-	NewGeminiClient  func(cfg *config.Config) (appauction.Extractor, error)
+	LoadConfig       func() (*config.Config, error)
+	NewGeminiClient  func(cfg *config.Config) (gemini.Client, error)
 	NewAuctionClient func(baseURL string) infraauction.Client
 	NewMarketUsecase func(cfg *config.Config) (*appmarket.EstimateUsecase, error)
 }
@@ -28,8 +28,12 @@ func mergePreviewDeps(d *previewDeps) {
 		d.LoadConfig = config.Load
 	}
 	if d.NewGeminiClient == nil {
-		d.NewGeminiClient = func(cfg *config.Config) (appauction.Extractor, error) {
-			return gemini.NewClient(cfg.GeminiAPIKey, bootstrap.GeminiOptions(cfg))
+		d.NewGeminiClient = func(cfg *config.Config) (gemini.Client, error) {
+			opts := gemini.NewOptions(
+				cfg.GeminiModel, cfg.GeminiModelVision, cfg.GeminiModelAgent,
+				cfg.GeminiMaxImages, cfg.GeminiMaxSearchCalls, cfg.GeminiPipelineTimeoutSec,
+			)
+			return gemini.NewClient(cfg.GeminiAPIKey, opts)
 		}
 	}
 	if d.NewAuctionClient == nil {
@@ -43,7 +47,7 @@ func mergePreviewDeps(d *previewDeps) {
 }
 
 // RunPreview はプレビューCLIの本体。終了コード: 0=成功、1=空Product、2=引数エラー。
-func RunPreview(stdout io.Writer, argv []string, cfgPath string, deps *previewDeps) int {
+func RunPreview(stdout io.Writer, argv []string, deps *previewDeps) int {
 	if deps == nil {
 		deps = &previewDeps{}
 	}
@@ -55,7 +59,7 @@ func RunPreview(stdout io.Writer, argv []string, cfgPath string, deps *previewDe
 	}
 	auctionID := argv[0]
 
-	cfg, err := deps.LoadConfig(cfgPath)
+	cfg, err := deps.LoadConfig()
 	if err != nil {
 		log.Printf("config load: %v", err)
 		return 2

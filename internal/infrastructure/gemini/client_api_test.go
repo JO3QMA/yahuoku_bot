@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	appauction "jo3qma.com/yahoo_auctions_bot/internal/application/auction"
+	"jo3qma.com/yahoo_auctions_bot/internal/domain/product"
 )
 
 func TestNewClient_emptyAPIKey(t *testing.T) {
@@ -25,7 +25,7 @@ func TestClient_Extract_realAPIRejectsInvalidKey(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
-	_, err = c.Extract(ctx, appauction.ExtractInput{Title: "title", Description: "description body"})
+	_, err = c.Extract(ctx, product.ExtractInput{Title: "title", Description: "description body"})
 	if err == nil {
 		t.Fatal("expected error from Gemini API")
 	}

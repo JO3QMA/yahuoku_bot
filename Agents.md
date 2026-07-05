@@ -23,7 +23,7 @@ AIエージェントがこのリポジトリで作業する際のコンテキス
   - `internal/infrastructure` — 外部サービス（オークションAPI Connect RPC、Gemini）
   - `internal/presentation` — Discord（arikawa 利用、ハンドラー・Embed）
 
-- **依存の向き**: `cmd` → `internal/*`。infrastructure が application のインターフェースを実装し、presentation が application を呼ぶ。ドメインは他レイヤーに依存しない。
+- **依存の向き**: `cmd` → `internal/*`。application は infrastructure の具象型（`auction.Client`, `gemini.Client`）に直接依存し、presentation が application を呼ぶ。ドメインは他レイヤーに依存しない。
 
 - **外部連携**
   - **yahoo_auctions API**: `API_ENDPOINT` の Connect RPC（`GetAuction`）。別リポジトリ `yahoo_auctions` が提供想定。
@@ -36,8 +36,8 @@ AIエージェントがこのリポジトリで作業する際のコンテキス
 ## 技術スタック・バージョン
 
 - **Go**: 1.25.4（`go.mod` に準拠）
-- **主要ライブラリ**: connectrpc.com/connect, arikawa/v3, google.golang.org/genai, gopkg.in/yaml.v3
-- **設定**: 環境変数（direnv で `.env` を読み込む想定） + YAML（`config.yaml`）。`config.Load(configPath)` で統合。
+- **主要ライブラリ**: connectrpc.com/connect, arikawa/v3, google.golang.org/genai, rqlite-go-http
+- **設定**: 環境変数（direnv で `.env` を読み込む想定）。`config.Load()` で読み込む。
 
 ---
 
@@ -54,18 +54,18 @@ AIエージェントがこのリポジトリで作業する際のコンテキス
 | 環境変数 | `GEMINI_MAX_SEARCH_CALLS` | 任意。1 Product あたりの最大検索回数（未設定時 `3`） |
 | 環境変数 | `GEMINI_PIPELINE_TIMEOUT_SEC` | 任意。多段 Extraction パイプラインのタイムアウト秒（未設定時 `45`） |
 | 環境変数 | `API_ENDPOINT` | オークションAPIのベースURL（未設定時 `http://localhost:8080`） |
-| 環境変数 | `CONFIG_PATH` | 任意。YAML設定パス（未設定時 `config.yaml`） |
-| YAML | `allowed.guilds` | 空でなければ、ここに列挙したサーバーのみ反応 |
-| YAML | `allowed.channels` | 空でなければ、ここに列挙したチャンネルのみ反応 |
+| 環境変数 | `RQLITE_URL` | rqlite ベース URL（未設定時 `http://localhost:4001`） |
+| 環境変数 | `ALLOWED_GUILDS` | カンマ区切り。空 = 全サーバー許可 |
+| 環境変数 | `ALLOWED_CHANNELS` | カンマ区切り。空 = 全チャンネル許可 |
 
-サンプルは `.env.example`（direnv 用）と `config.yaml.example` を参照。
+サンプルは `.env.example`（direnv 用）を参照。Compose では `ALLOWED_CHANNELS` 等を `compose.yaml` に直書き。
 
 ---
 
 ## ディレクトリ・ファイル慣習
 
 - **パッケージ名**: ディレクトリ名と一致（`discord`, `auction`, `config`, `product`, `gemini` など）。
-- **インターフェース**: ユースケースが依存する取得・Extraction などは application 内でインターフェース定義し、infrastructure が実装（例: `AuctionFetcher`, `Extractor`）。
+- **インターフェース**: 外部境界・テスト差し替え用に infrastructure / presentation 側で定義（例: `gemini.Client`, `discord.SessionAPI`）。application ユースケースは具象クライアントを受け取る。
 - **コメント**: 公開型・関数は日本語で説明を付ける（「〜を返す」「〜を行う」など）。
 - **エントリ**: 実行バイナリは `cmd/bot/main.go` からビルド。Dockerでは `./cmd/bot` をビルドし、`discord-bot` として実行。
 
@@ -88,7 +88,7 @@ AIエージェントがこのリポジトリで作業する際のコンテキス
    新規パッケージは `go.mod` を更新。必要に応じて `go mod tidy`。大きな方針変更はユーザーに確認する。
 
 3. **設定の追加**  
-   設定項目は `internal/config` の `Config` および YAML構造と整合させ、`.env.example`（direnv 用）/ `config.yaml.example` を更新する。
+   設定項目は `internal/config` の `Config` と整合させ、`.env.example` を更新する。
 
 4. **API・protobufの変更**  
    オークションAPIの型・RPCを変える場合は `yahoo_auctions` および `protobuf` リポジトリとの整合を考慮する。
@@ -112,15 +112,44 @@ AIエージェントがこのリポジトリで作業する際のコンテキス
 
 ### Issue tracker
 
-Issues live in this repo's GitHub Issues (`JO3QMA/yahuoku_bot`). See `docs/agents/issue-tracker.md`.
+Issues and PRDs for this repo live as GitHub issues (`JO3QMA/yahuoku_bot`). Use the `gh` CLI for all operations.
+
+**Conventions**
+
+- **Create an issue**: `gh issue create --title "..." --body "..."`. Use a heredoc for multi-line bodies.
+- **Read an issue**: `gh issue view <number> --comments`, filtering comments by `jq` and also fetching labels.
+- **List issues**: `gh issue list --state open --json number,title,body,labels,comments --jq '[.[] | {number, title, body, labels: [.labels[].name], comments: [.comments[].body]}]'` with appropriate `--label` and `--state` filters.
+- **Comment on an issue**: `gh issue comment <number> --body "..."`
+- **Apply / remove labels**: `gh issue edit <number> --add-label "..."` / `--remove-label "..."`
+- **Close**: `gh issue close <number> --comment "..."`
+
+Infer the repo from `git remote -v` — `gh` does this automatically when run inside a clone.
+
+When a skill says **"publish to the issue tracker"**, create a GitHub issue. When it says **"fetch the relevant ticket"**, run `gh issue view <number> --comments`.
 
 ### Triage labels
 
-Five canonical triage roles map to GitHub labels (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.
+Five canonical triage roles map to GitHub labels:
+
+| Role | Label | Meaning |
+|------|-------|---------|
+| needs-triage | `needs-triage` | Maintainer needs to evaluate this issue |
+| needs-info | `needs-info` | Waiting on reporter for more information |
+| ready-for-agent | `ready-for-agent` | Fully specified, ready for an AFK agent |
+| ready-for-human | `ready-for-human` | Requires human implementation |
+| wontfix | `wontfix` | Will not be actioned |
+
+When a skill mentions a role (e.g. "apply the AFK-ready triage label"), use the corresponding label string from this table.
 
 ### Domain docs
 
-Single-context layout: `CONTEXT.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+Before exploring, read **`CONTEXT.md`** at the repo root if it exists, or **`CONTEXT-MAP.md`** for multi-context repos. Read **`docs/adr/`** for decisions that touch the area you're working in.
+
+This repo uses the **single-context** layout. `CONTEXT.md` and `docs/adr/` may not exist yet; this file captures overview and architecture guidance for agents.
+
+If any of these files don't exist, proceed silently — don't flag their absence or suggest creating them upfront.
+
+When naming domain concepts (issue titles, refactor proposals, test names), use vocabulary from `CONTEXT.md` if present. If your output contradicts an existing ADR, surface it explicitly rather than silently overriding.
 
 ---
 

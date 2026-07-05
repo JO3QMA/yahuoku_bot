@@ -10,7 +10,7 @@ LDFLAGS   := -s -w
 build:
 	CGO_ENABLED=0 go build -trimpath -ldflags="$(LDFLAGS)" -o $(BINARY_NAME) $(PKG_PATH)
 
-# Bot を起動する（direnv で .env を読み込み、config.yaml が必要）
+# Bot を起動する（direnv で .env を読み込み、rqlite が必要）
 run: build
 	./$(BINARY_NAME)
 

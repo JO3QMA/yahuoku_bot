@@ -16,41 +16,28 @@ const watchEmoji = "\U0001F514" // 🔔
 
 var embedURLRe = regexp.MustCompile(`auctions?\.yahoo\.co\.jp/[^/]+/auction/([a-zA-Z0-9]{8,11})`)
 
-// MessageFetcher はメッセージを取得するインターフェース。*state.State が満たす。
-type MessageFetcher interface {
-	Message(channelID discord.ChannelID, messageID discord.MessageID) (*discord.Message, error)
-}
-
-// BotIdentifier はBot自身のユーザーIDを取得するインターフェース。
-type BotIdentifier interface {
-	Me() (*discord.User, error)
-}
-
 // ReactionHandler はリアクションイベントを処理し、Watch の登録/解除を行う。
 type ReactionHandler struct {
 	watchUsecase  *appwatch.WatchUsecase
 	auctionClient infraauction.Client
-	fetcher       MessageFetcher
-	bot           BotIdentifier
+	api           SessionAPI
 }
 
 // NewReactionHandler はReactionHandlerを生成する。
 func NewReactionHandler(
 	watchUsecase *appwatch.WatchUsecase,
 	auctionClient infraauction.Client,
-	fetcher MessageFetcher,
-	bot BotIdentifier,
+	api SessionAPI,
 ) *ReactionHandler {
 	return &ReactionHandler{
 		watchUsecase:  watchUsecase,
 		auctionClient: auctionClient,
-		fetcher:       fetcher,
-		bot:           bot,
+		api:           api,
 	}
 }
 
 func (h *ReactionHandler) botUserID() discord.UserID {
-	me, err := h.bot.Me()
+	me, err := h.api.Me()
 	if err != nil {
 		return 0
 	}
@@ -65,7 +52,7 @@ func (h *ReactionHandler) HandleReactionAdd(e *gateway.MessageReactionAddEvent) 
 
 	ctx := context.Background()
 
-	msg, err := h.fetcher.Message(e.ChannelID, e.MessageID)
+	msg, err := h.api.Message(e.ChannelID, e.MessageID)
 	if err != nil {
 		log.Printf("[ReactionHandler] fetch message: %v", err)
 		return
@@ -118,7 +105,7 @@ func (h *ReactionHandler) HandleReactionRemove(e *gateway.MessageReactionRemoveE
 
 	ctx := context.Background()
 
-	msg, err := h.fetcher.Message(e.ChannelID, e.MessageID)
+	msg, err := h.api.Message(e.ChannelID, e.MessageID)
 	if err != nil {
 		log.Printf("[ReactionHandler] fetch message: %v", err)
 		return

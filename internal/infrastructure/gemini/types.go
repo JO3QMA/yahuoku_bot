@@ -41,49 +41,29 @@ type extractResponse struct {
 }
 
 func parseStage1JSON(text string) (*stage1Result, error) {
-	jsonStr := extractJSONFromResponse(text)
-	if strings.TrimSpace(jsonStr) == "" {
-		return nil, fmt.Errorf("empty json in stage1 response")
-	}
-	var raw stage1Result
-	if err := json.Unmarshal([]byte(jsonStr), &raw); err != nil {
-		return nil, fmt.Errorf("parse stage1 json: %w", err)
-	}
-	return &raw, nil
+	return parseJSON[stage1Result](text, "stage1")
 }
 
 func parseStage2JSON(text string) (*stage2Result, error) {
-	jsonStr := extractJSONFromResponse(text)
-	if strings.TrimSpace(jsonStr) == "" {
-		return nil, fmt.Errorf("empty json in stage2 response")
-	}
-	var raw stage2Result
-	if err := json.Unmarshal([]byte(jsonStr), &raw); err != nil {
-		return nil, fmt.Errorf("parse stage2 json: %w", err)
-	}
-	return &raw, nil
+	return parseJSON[stage2Result](text, "stage2")
 }
 
 func parseProductJSON(text string) (*extractResponse, error) {
-	jsonStr := extractJSONFromResponse(text)
-	if strings.TrimSpace(jsonStr) == "" {
-		return nil, fmt.Errorf("empty json in response")
-	}
-	var raw extractResponse
-	if err := json.Unmarshal([]byte(jsonStr), &raw); err != nil {
-		return nil, fmt.Errorf("parse product json: %w", err)
-	}
-	return &raw, nil
+	return parseJSON[extractResponse](text, "product")
 }
 
 func parseAgentFieldsJSON(text string) (*agentFieldsResult, error) {
+	return parseJSON[agentFieldsResult](text, "agent")
+}
+
+func parseJSON[T any](text, stage string) (*T, error) {
 	jsonStr := extractJSONFromResponse(text)
 	if strings.TrimSpace(jsonStr) == "" {
-		return nil, fmt.Errorf("empty json in agent response")
+		return nil, fmt.Errorf("empty json in %s response", stage)
 	}
-	var raw agentFieldsResult
+	var raw T
 	if err := json.Unmarshal([]byte(jsonStr), &raw); err != nil {
-		return nil, fmt.Errorf("parse agent json: %w", err)
+		return nil, fmt.Errorf("parse %s json: %w", stage, err)
 	}
 	return &raw, nil
 }

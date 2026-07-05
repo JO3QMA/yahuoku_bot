@@ -41,27 +41,56 @@ func TemplatesFor(cat Category) []FieldTemplate {
 	}
 }
 
+// fieldKeyAliases は LLM がテンプレート外のキーを返したときの正規化先。
+var fieldKeyAliases = map[Category]map[string]string{
+	CategoryServer: {
+		"model":          "server_model",
+		"cpu":            "cpu_model_line",
+		"memory":         "memory_info",
+		"storage":        "storage_info",
+		"drive":          "storage_info",
+		"os":             "other_notes",
+		"power_supply":   "other_notes",
+		"other_features": "other_notes",
+	},
+}
+
+// CanonicalFieldKey はカテゴリのテンプレートキーに正規化する。未知キーは空文字。
+func CanonicalFieldKey(cat Category, key string) string {
+	if key == "" {
+		return ""
+	}
+	for _, d := range TemplatesFor(cat) {
+		if d.Key == key {
+			return key
+		}
+	}
+	if aliases, ok := fieldKeyAliases[cat]; ok {
+		if canon, ok := aliases[key]; ok {
+			return canon
+		}
+	}
+	return ""
+}
+
 // ValidateFields はテンプレートに定義されたキーのみをテンプレート順で返す。
 func ValidateFields(cat Category, fields []Field) []Field {
 	defs := TemplatesFor(cat)
-	allowed := make(map[string]struct{}, len(defs))
-	for _, d := range defs {
-		allowed[d.Key] = struct{}{}
-	}
 
 	byKey := make(map[string]string)
 	for _, f := range fields {
 		if f.Key == "" {
 			continue
 		}
-		if _, ok := allowed[f.Key]; !ok {
+		canon := CanonicalFieldKey(cat, f.Key)
+		if canon == "" {
 			log.Printf("[product] unknown field key %q for category %s", f.Key, cat)
 			continue
 		}
-		if _, exists := byKey[f.Key]; exists {
+		if _, ok := byKey[canon]; ok {
 			continue
 		}
-		byKey[f.Key] = f.Value
+		byKey[canon] = f.Value
 	}
 
 	out := make([]Field, 0, len(defs))

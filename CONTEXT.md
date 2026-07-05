@@ -36,6 +36,14 @@ _Avoid_: 送料無料（日本語説明向け）
 Auction のタイトル・説明文・画像から Product を導き出す処理。
 _Avoid_: Inference, Analysis, 推論（実装・モデル寄りの説明向け）
 
+**UnresolvedField**:
+FieldTemplate に定義されたキーのうち、Extraction 完了前の Product にまだ値が入っていないもの。
+_Avoid_: missing_key, 未抽出フィールド（実装・プロンプト寄りの説明向け）
+
+**Supplement**:
+タイトル・説明文以外の情報源（画像、Web 検索など）から Field を補う手段。
+_Avoid_: Sub-agent, Tool, サブエージェント（実装寄りの説明向け）
+
 **Preview**:
 Auction のオークション属性と Product の Extraction 結果を統合した、Discord 表示用データ。MarketEstimate を含む場合がある。MarketEstimate は初回表示後に補完される場合がある。
 _Avoid_: Embed（Discord の表示形式。presentation 層の用語）, AuctionSummary, 概要

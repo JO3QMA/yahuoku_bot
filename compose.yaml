@@ -16,9 +16,7 @@ services:
     restart: unless-stopped
 
   discord-bot:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ghcr.io/jo3qma/yahuoku_bot:latest
     environment:
       - DISCORD_TOKEN=${DISCORD_TOKEN}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
@@ -31,12 +29,11 @@ services:
       - MARKET_ESTIMATE_MIN_SAMPLES=${MARKET_ESTIMATE_MIN_SAMPLES:-5}
       - MARKET_ESTIMATE_LOOKBACK_DAYS=${MARKET_ESTIMATE_LOOKBACK_DAYS:-90}
       - API_ENDPOINT=${API_ENDPOINT:-http://yahoo-auctions-api:8080}
-      - CONFIG_PATH=/app/config.yaml
-      - RQLITE_URL=http://rqlite:4001
+      - RQLITE_URL=${RQLITE_URL:-http://rqlite:4001}
+      - ALLOWED_GUILDS=${ALLOWED_GUILDS:-}
+      - ALLOWED_CHANNELS=${ALLOWED_CHANNELS:-1320456756605882408}
       - CHECK_INTERVAL_MINUTES=${CHECK_INTERVAL_MINUTES:-5}
       - POLL_DELAY_MS=${POLL_DELAY_MS:-2000}
-    volumes:
-      - ./config.yaml:/app/config.yaml:ro
     depends_on:
       - yahoo-auctions-api
       - rqlite

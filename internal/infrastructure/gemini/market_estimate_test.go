@@ -9,25 +9,18 @@ import (
 )
 
 func TestMarketEstimator_Estimate(t *testing.T) {
-	oldGrounded := groundedSearchHook
-	oldGenerate := generateHook
-	t.Cleanup(func() {
-		groundedSearchHook = oldGrounded
-		generateHook = oldGenerate
-	})
-
-	groundedSearchHook = func(ctx context.Context, api *genAIAPI, model, query string) (string, []string, error) {
-		return "GTX 1080 中古 8000-12000円", nil, nil
-	}
-	generateHook = func(ctx context.Context, c *genai.Client, model string, contents []*genai.Content, config *genai.GenerateContentConfig) (*genai.GenerateContentResponse, error) {
-		text := `{"low_price":8000,"high_price":12000,"note":"Web検索・型番一致"}`
-		return textResponse(text), nil
-	}
-
 	api, err := newGenAIAPI("test-key")
 	if err != nil {
 		t.Fatal(err)
 	}
+	api.stubGroundedSearch = func(context.Context, string, string) (string, []string, error) {
+		return "GTX 1080 中古 8000-12000円", nil, nil
+	}
+	api.stubGenerate = func(context.Context, string, []*genai.Content, *genai.GenerateContentConfig) (*genai.GenerateContentResponse, error) {
+		text := `{"low_price":8000,"high_price":12000,"note":"Web検索・型番一致"}`
+		return textResponse(text), nil
+	}
+
 	estimator := NewMarketEstimatorWithAPI(api, "test-model")
 
 	p := &product.Product{
