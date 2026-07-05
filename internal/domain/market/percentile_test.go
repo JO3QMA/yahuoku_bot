@@ -53,3 +53,21 @@ func TestPercentile_clamp(t *testing.T) {
 		t.Fatalf("p>1: got %d", got)
 	}
 }
+
+func TestFromPrices_outliers(t *testing.T) {
+	prices := []int64{5000, 8000, 10000, 12000, 50000}
+	est, ok := FromPrices(prices, "outliers")
+	if !ok || est.LowPrice != 8000 || est.HighPrice != 12000 {
+		t.Fatalf("got %+v ok=%v", est, ok)
+	}
+}
+
+func TestFromPrices_negative(t *testing.T) {
+	est, ok := FromPrices([]int64{-100, 5000, 8000, 12000}, "negative")
+	if !ok {
+		t.Fatal("expected ok")
+	}
+	if est.LowPrice > est.HighPrice {
+		t.Fatalf("low=%d high=%d", est.LowPrice, est.HighPrice)
+	}
+}

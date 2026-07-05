@@ -146,3 +146,21 @@ func TestSearchSoldPrices_allGetAuctionFail(t *testing.T) {
 		t.Fatal("expected error")
 	}
 }
+
+func TestWrapSoldComparableSearcher_nilClient(t *testing.T) {
+	_, err := WrapSoldComparableSearcher(nil)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func Test_buildSoldSearchQuery(t *testing.T) {
+	got := buildSoldSearchQuery(product.CategoryGPU, "model", "GTX1080")
+	if got != "GTX1080 GPU" {
+		t.Fatalf("got %q", got)
+	}
+	got = buildSoldSearchQuery(product.CategoryServer, "server_model", "DL360")
+	if got != "DL360 server_model サーバー" {
+		t.Fatalf("got %q", got)
+	}
+}

@@ -18,7 +18,7 @@ import (
 
 const (
 	soldSearchMaxPages     = 3
-	soldSearchMaxInspect   = 30
+	soldSearchMaxInspect   = 100 // Config.MinSamples の上限と整合
 	soldSearchItemsPerPage = 20
 )
 
@@ -40,6 +40,9 @@ func NewSoldComparableSearcher(baseURL string, httpClient *http.Client) SoldComp
 
 // WrapSoldComparableSearcher は既存 Client と同じ接続設定で SoldComparableSearcher を返す。
 func WrapSoldComparableSearcher(c Client) (SoldComparableSearcher, error) {
+	if c == nil {
+		return nil, fmt.Errorf("client is nil")
+	}
 	if sc, ok := c.(SoldComparableSearcher); ok {
 		return sc, nil
 	}
@@ -50,16 +53,11 @@ func WrapSoldComparableSearcher(c Client) (SoldComparableSearcher, error) {
 }
 
 func (c *soldComparableClient) SearchSoldPrices(ctx context.Context, category product.Category, identityKey, identityValue string, lookbackDays int) ([]int64, error) {
-	// TODO: identityKey を SearchAuctions のフィルタに反映する（専用 RPC 追加時に実施）
-	_ = identityKey
 	if strings.TrimSpace(identityValue) == "" {
 		return nil, nil
 	}
 
-	query := strings.TrimSpace(identityValue)
-	if cat := category.DisplayName(); cat != "" {
-		query = query + " " + cat
-	}
+	query := buildSoldSearchQuery(category, identityKey, identityValue)
 
 	cutoff := time.Now().AddDate(0, 0, -lookbackDays)
 	svc := yahoo_auctionv1connect.NewYahooAuctionServiceClient(&c.base.httpClient, c.base.baseURL)
@@ -113,6 +111,20 @@ func (c *soldComparableClient) SearchSoldPrices(ctx context.Context, category pr
 		return nil, fmt.Errorf("all GetAuction failed (%d items)", getAuctionErrors)
 	}
 	return prices, nil
+}
+
+// buildSoldSearchQuery は落札検索用のキーワードを組み立てる。
+// TODO: identityKey を SearchAuctions のフィルタに反映する（専用 RPC 追加時に実施）。
+// 現状 identityValue をキーワード検索で代用。model 系キーは value 単体で十分だが、他のキー種別では補完する。
+func buildSoldSearchQuery(category product.Category, identityKey, identityValue string) string {
+	query := strings.TrimSpace(identityValue)
+	if ik := strings.TrimSpace(identityKey); ik != "" && ik != "model" && ik != "model_spec" && ik != "summary" {
+		query = strings.TrimSpace(query + " " + ik)
+	}
+	if cat := category.DisplayName(); cat != "" {
+		query = strings.TrimSpace(query + " " + cat)
+	}
+	return query
 }
 
 var _ appmarket.SoldComparableSearcher = (*soldComparableClient)(nil)

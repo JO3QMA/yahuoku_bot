@@ -69,6 +69,8 @@ func (u *EstimateUsecase) Execute(ctx context.Context, title, description string
 		return u.webEstimate(ctx, title, description, p, true)
 	}
 
+	// Sold 検索失敗・サンプル不足時はエラーを返さず Web 推定へフォールバックする（グレースフルデグラデーション）。
+	// 落札データ由来か Web 推定由来かは MarketEstimate.Note で区別する。
 	if u.sold != nil {
 		prices, err := u.sold.SearchSoldPrices(ctx, p.Category, key, identityValue, cfg.LookbackDays)
 		if err != nil {
