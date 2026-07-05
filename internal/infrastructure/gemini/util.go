@@ -26,10 +26,14 @@ func sanitizeUTF8(s string) string {
 }
 
 func truncateString(s string, max int) string {
-	if max <= 0 || len(s) <= max {
+	if max <= 0 {
 		return s
 	}
-	return s[:max] + "..."
+	runes := []rune(s)
+	if len(runes) <= max {
+		return s
+	}
+	return string(runes[:max]) + "..."
 }
 
 // extractJSONFromResponse はレスポンステキストから JSON を抽出する。

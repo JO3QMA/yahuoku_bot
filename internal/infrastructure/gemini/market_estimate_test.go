@@ -51,8 +51,8 @@ func TestMarketEstimator_Estimate_invalidPrice(t *testing.T) {
 	estimator := NewMarketEstimatorWithAPI(api, "test-model")
 	p := &product.Product{Category: product.CategoryGPU, Fields: []product.Field{{Key: "model", Value: "GTX 1080"}}}
 	est, err := estimator.Estimate(context.Background(), "GPU", "desc", p, false)
-	if err != nil {
-		t.Fatal(err)
+	if err == nil {
+		t.Fatal("expected error")
 	}
 	if est != nil {
 		t.Fatalf("got %+v want nil", est)

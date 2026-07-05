@@ -22,6 +22,7 @@ func IdentityFieldKey(cat product.Category) string {
 	case product.CategoryOther:
 		return "summary"
 	default:
+		// 未知カテゴリは summary を試すが、該当フィールドがなければ IdentityValue は ok=false
 		return "summary"
 	}
 }

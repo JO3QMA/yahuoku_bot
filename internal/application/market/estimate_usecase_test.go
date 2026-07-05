@@ -84,7 +84,46 @@ func TestEstimateUsecase_NoIdentityUsesWeb(t *testing.T) {
 }
 
 func TestEstimateUsecase_SoldError(t *testing.T) {
+	webEst := &domainmarket.MarketEstimate{LowPrice: 5, HighPrice: 6, Note: "Web"}
+	u := NewEstimateUsecase(&fakeSold{err: errors.New("api")}, &fakeWeb{est: webEst}, Config{})
+	est, err := u.Execute(context.Background(), "t", "d", gpuProduct("x"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if est != webEst {
+		t.Fatalf("got %+v", est)
+	}
+}
+
+func TestEstimateUsecase_SoldErrorNoWeb(t *testing.T) {
 	u := NewEstimateUsecase(&fakeSold{err: errors.New("api")}, nil, Config{})
+	est, err := u.Execute(context.Background(), "t", "d", gpuProduct("x"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if est != nil {
+		t.Fatalf("got %+v", est)
+	}
+}
+
+func TestExecute_nilReceiver(t *testing.T) {
+	var u *EstimateUsecase
+	est, err := u.Execute(context.Background(), "t", "d", gpuProduct("x"))
+	if err != nil || est != nil {
+		t.Fatalf("got est=%v err=%v", est, err)
+	}
+}
+
+func TestExecute_nilProduct(t *testing.T) {
+	u := NewEstimateUsecase(nil, nil, Config{})
+	est, err := u.Execute(context.Background(), "t", "d", nil)
+	if err != nil || est != nil {
+		t.Fatalf("got est=%v err=%v", est, err)
+	}
+}
+
+func TestExecute_webError(t *testing.T) {
+	u := NewEstimateUsecase(nil, &fakeWeb{err: errors.New("web")}, Config{})
 	_, err := u.Execute(context.Background(), "t", "d", gpuProduct("x"))
 	if err == nil {
 		t.Fatal("expected error")

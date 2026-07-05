@@ -2,6 +2,7 @@ package market
 
 import (
 	"fmt"
+	"math"
 	"slices"
 )
 
@@ -36,6 +37,9 @@ func FromPrices(prices []int64, note string) (*MarketEstimate, bool) {
 }
 
 func formatIntWithComma(n int64) string {
+	if n == math.MinInt64 {
+		return "-9,223,372,036,854,775,808"
+	}
 	if n < 0 {
 		return "-" + formatIntWithComma(-n)
 	}

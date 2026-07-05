@@ -3,6 +3,7 @@ package market
 import (
 	"context"
 	"fmt"
+	"log"
 
 	domainmarket "jo3qma.com/yahoo_auctions_bot/internal/domain/market"
 	"jo3qma.com/yahoo_auctions_bot/internal/domain/product"
@@ -62,7 +63,8 @@ func (u *EstimateUsecase) Execute(ctx context.Context, title, description string
 	if u.sold != nil {
 		prices, err := u.sold.SearchSoldPrices(ctx, p.Category, key, identityValue, cfg.LookbackDays)
 		if err != nil {
-			return nil, fmt.Errorf("search sold comparables: %w", err)
+			log.Printf("[market] search sold comparables: %v", err)
+			return u.webEstimate(ctx, title, description, p, false)
 		}
 		if len(prices) >= cfg.MinSamples {
 			note := fmt.Sprintf("ヤフオク落札 %d 件・直近%d日", len(prices), cfg.LookbackDays)

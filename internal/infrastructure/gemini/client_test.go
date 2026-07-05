@@ -45,6 +45,18 @@ func Test_sanitizeUTF8(t *testing.T) {
 	}
 }
 
+func Test_truncateString_multibyte(t *testing.T) {
+	s := strings.Repeat("あ", 501)
+	got := truncateString(s, 500)
+	runes := []rune(got)
+	if len(runes) != 503 { // 500 + "..."
+		t.Fatalf("len=%d got %q", len(runes), got)
+	}
+	if !strings.HasSuffix(got, "...") {
+		t.Fatalf("suffix missing: %q", got)
+	}
+}
+
 func Test_extractTextFromResponse(t *testing.T) {
 	t.Run("no candidates", func(t *testing.T) {
 		_, err := extractTextFromResponse(&genai.GenerateContentResponse{})

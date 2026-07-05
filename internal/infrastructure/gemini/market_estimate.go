@@ -69,8 +69,7 @@ func (e *MarketEstimator) Estimate(ctx context.Context, title, description strin
 		return nil, fmt.Errorf("parse market estimate: %w", err)
 	}
 	if parsed.LowPrice <= 0 || parsed.HighPrice <= 0 {
-		log.Printf("[market_estimate] invalid price range: low=%d, high=%d", parsed.LowPrice, parsed.HighPrice)
-		return nil, nil
+		return nil, fmt.Errorf("invalid price range: low=%d, high=%d", parsed.LowPrice, parsed.HighPrice)
 	}
 	low, high := parsed.LowPrice, parsed.HighPrice
 	if low > high {

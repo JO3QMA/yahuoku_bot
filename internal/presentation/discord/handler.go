@@ -105,24 +105,36 @@ func (h *Handler) HandleMessageCreate(e *gateway.MessageCreateEvent) {
 		}
 		seen[auctionID] = true
 
-		ctx, cancel := context.WithTimeout(context.Background(), handlerPreviewTimeout)
-		preview, err := h.usecase.Execute(ctx, auctionID)
-		cancel()
-		if err != nil {
-			log.Printf("[yahoo_auctions_bot] GetAuction %s: %v", auctionID, err)
-			continue
-		}
+		func() {
+			ctx, cancel := context.WithTimeout(context.Background(), handlerPreviewTimeout)
+			defer cancel()
+			preview, err := h.usecase.Execute(ctx, auctionID)
+			if err != nil {
+				log.Printf("[yahoo_auctions_bot] GetAuction %s: %v", auctionID, err)
+				return
+			}
 
-		emb := h.embed.Build(preview)
-		msg, err := h.embed.Send(e, emb)
-		if err != nil {
-			log.Printf("[yahoo_auctions_bot] SendMessage: %v", err)
-			continue
-		}
+			emb := h.embed.Build(preview)
+			msg, err := h.embed.Send(e, emb)
+			if err != nil {
+				log.Printf("[yahoo_auctions_bot] SendMessage: %v", err)
+				return
+			}
 
-		if h.market != nil && msg != nil {
-			go h.attachMarketEstimate(preview, msg.ID, e.ChannelID)
-		}
+			if h.market != nil && msg != nil {
+				previewCopy := preview
+				msgID := msg.ID
+				chID := e.ChannelID
+				go func() {
+					defer func() {
+						if r := recover(); r != nil {
+							log.Printf("[yahoo_auctions_bot] panic in attachMarketEstimate: %v", r)
+						}
+					}()
+					h.attachMarketEstimate(previewCopy, msgID, chID)
+				}()
+			}
+		}()
 	}
 }
 

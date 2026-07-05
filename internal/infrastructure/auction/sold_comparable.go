@@ -2,6 +2,7 @@ package auction
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"strings"
@@ -39,6 +40,7 @@ func NewSoldComparableSearcher(baseURL string, httpClient *http.Client) SoldComp
 
 // WrapSoldComparableSearcher は既存 Client と同じ接続設定で SoldComparableSearcher を返す。
 // Client が SoldComparableSearcher でも *client でもない場合は nil を返す。
+// 呼び出し元は戻り値の nil チェックを必ず行うこと。
 func WrapSoldComparableSearcher(c Client) SoldComparableSearcher {
 	if sc, ok := c.(SoldComparableSearcher); ok {
 		return sc
@@ -61,6 +63,7 @@ func (c *soldComparableClient) SearchSoldPrices(ctx context.Context, category pr
 
 	var prices []int64
 	inspected := 0
+	getAuctionErrors := 0
 	for page := int64(0); page < soldSearchMaxPages && inspected < soldSearchMaxInspect; page++ {
 		resp, err := svc.SearchAuctions(ctx, connect.NewRequest(&yahoo_auctionv1.SearchAuctionsRequest{
 			Query: identityValue,
@@ -81,6 +84,7 @@ func (c *soldComparableClient) SearchSoldPrices(ctx context.Context, category pr
 			data, err := c.base.GetAuction(ctx, item.AuctionId)
 			if err != nil {
 				log.Printf("[sold_comparable] GetAuction %s: %v", item.AuctionId, err)
+				getAuctionErrors++
 				continue
 			}
 			if data.Status != yahoo_auctionv1.AuctionStatus_AUCTION_STATUS_FINISHED.String() {
@@ -96,6 +100,9 @@ func (c *soldComparableClient) SearchSoldPrices(ctx context.Context, category pr
 		if int64(len(items)) < soldSearchItemsPerPage {
 			break
 		}
+	}
+	if len(prices) == 0 && getAuctionErrors > 0 && getAuctionErrors == inspected {
+		return nil, fmt.Errorf("all GetAuction failed (%d items)", getAuctionErrors)
 	}
 	return prices, nil
 }
