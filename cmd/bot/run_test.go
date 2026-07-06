@@ -10,6 +10,7 @@ import (
 	"time"
 
 	appauction "jo3qma.com/yahoo_auctions_bot/internal/application/auction"
+	appmarket "jo3qma.com/yahoo_auctions_bot/internal/application/market"
 	appwatch "jo3qma.com/yahoo_auctions_bot/internal/application/watch"
 	"jo3qma.com/yahoo_auctions_bot/internal/config"
 	"jo3qma.com/yahoo_auctions_bot/internal/domain/product"
@@ -123,7 +124,7 @@ func TestRun_rqliteError(t *testing.T) {
 
 func TestRun_discordNewBotError(t *testing.T) {
 	deps := successDeps()
-	deps.NewDiscordBot = func(string, *appauction.PreviewUsecase, *discord.AllowedFilter, *appwatch.WatchUsecase, infraauction.Client, watch.Repository, discord.BotConfig) (discordRunner, error) {
+	deps.NewDiscordBot = func(string, *appauction.PreviewUsecase, *appmarket.EstimateUsecase, *discord.AllowedFilter, *appwatch.WatchUsecase, infraauction.Client, watch.Repository, discord.BotConfig) (discordRunner, error) {
 		return nil, errors.New("bot")
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -141,6 +142,18 @@ func TestRun_success_rqlite(t *testing.T) {
 	}
 }
 
+func TestRun_marketInitErrorContinues(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	deps := successDeps()
+	deps.NewMarketUsecase = func(cfg *config.Config) (*appmarket.EstimateUsecase, error) {
+		return nil, errors.New("market")
+	}
+	if err := run(ctx, deps); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestRun_tokenPrefix(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -151,7 +164,7 @@ func TestRun_tokenPrefix(t *testing.T) {
 			RqliteURL: "http://noop", APIEndpoint: "http://localhost:8080",
 		}, nil
 	}
-	deps.NewDiscordBot = func(token string, _ *appauction.PreviewUsecase, _ *discord.AllowedFilter, _ *appwatch.WatchUsecase, _ infraauction.Client, _ watch.Repository, _ discord.BotConfig) (discordRunner, error) {
+	deps.NewDiscordBot = func(token string, _ *appauction.PreviewUsecase, _ *appmarket.EstimateUsecase, _ *discord.AllowedFilter, _ *appwatch.WatchUsecase, _ infraauction.Client, _ watch.Repository, _ discord.BotConfig) (discordRunner, error) {
 		if token != "Bot rawtoken" {
 			t.Fatalf("token=%q", token)
 		}
@@ -180,7 +193,7 @@ func TestMergeBotDeps_partialOverride(t *testing.T) {
 		},
 	}
 	mergeBotDeps(d)
-	if d.NewGeminiClient == nil || d.NewWatchRepo == nil {
+	if d.NewGeminiClient == nil || d.NewWatchRepo == nil || d.NewMarketUsecase == nil {
 		t.Fatal("defaults not merged")
 	}
 	_, _ = d.OpenRqlite(context.Background(), "x")
@@ -206,7 +219,7 @@ func TestMergeBotDeps_allNil(t *testing.T) {
 	d := &botDeps{}
 	mergeBotDeps(d)
 	if d.LoadConfig == nil || d.NewGeminiClient == nil || d.OpenRqlite == nil ||
-		d.NewWatchRepo == nil || d.NewDiscordBot == nil {
+		d.NewWatchRepo == nil || d.NewMarketUsecase == nil || d.NewDiscordBot == nil {
 		t.Fatal("mergeBotDeps should fill all defaults")
 	}
 }
@@ -228,7 +241,7 @@ func TestMergeBotDeps_defaultWatchRepoBody(t *testing.T) {
 
 func TestRunWithSignal_onSigint(t *testing.T) {
 	deps := successDeps()
-	deps.NewDiscordBot = func(string, *appauction.PreviewUsecase, *discord.AllowedFilter, *appwatch.WatchUsecase, infraauction.Client, watch.Repository, discord.BotConfig) (discordRunner, error) {
+	deps.NewDiscordBot = func(string, *appauction.PreviewUsecase, *appmarket.EstimateUsecase, *discord.AllowedFilter, *appwatch.WatchUsecase, infraauction.Client, watch.Repository, discord.BotConfig) (discordRunner, error) {
 		return waitCtxRunner{}, nil
 	}
 	go func() {
@@ -254,7 +267,7 @@ func TestDefaultNewDiscordBot_invokesNewBot(t *testing.T) {
 	pu := appauction.NewPreviewUsecase(ac, &fakeGemini{})
 	wu := appwatch.NewWatchUsecase(repo)
 	af := discord.NewAllowedFilter(nil, nil)
-	_, errBot := defaultNewDiscordBot("Bot unit-test-token.invalid", pu, af, wu, ac, repo, discord.BotConfig{CheckIntervalMinutes: 60, PollDelayMs: 1})
+	_, errBot := defaultNewDiscordBot("Bot unit-test-token.invalid", pu, nil, af, wu, ac, repo, discord.BotConfig{CheckIntervalMinutes: 60, PollDelayMs: 1})
 	if errBot != nil {
 		t.Logf("NewBot: %v (still covers defaultNewDiscordBot)", errBot)
 	}
@@ -264,7 +277,7 @@ func TestRun_botRunLogsNonCancelError(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	deps := successDeps()
-	deps.NewDiscordBot = func(string, *appauction.PreviewUsecase, *discord.AllowedFilter, *appwatch.WatchUsecase, infraauction.Client, watch.Repository, discord.BotConfig) (discordRunner, error) {
+	deps.NewDiscordBot = func(string, *appauction.PreviewUsecase, *appmarket.EstimateUsecase, *discord.AllowedFilter, *appwatch.WatchUsecase, infraauction.Client, watch.Repository, discord.BotConfig) (discordRunner, error) {
 		return errRunner{}, nil
 	}
 	if err := run(ctx, deps); err != nil {
@@ -285,11 +298,14 @@ func successDeps() *botDeps {
 			}, nil
 		},
 		NewGeminiClient: func(cfg *config.Config) (gemini.Client, error) { return &fakeGemini{}, nil },
-		OpenRqlite:      fakeOpenRqlite,
+		NewMarketUsecase: func(cfg *config.Config) (*appmarket.EstimateUsecase, error) {
+			return nil, nil
+		},
+		OpenRqlite: fakeOpenRqlite,
 		NewWatchRepo: func(*infrarqlite.Client) watch.Repository {
 			return &memRepoRqlite{}
 		},
-		NewDiscordBot: func(string, *appauction.PreviewUsecase, *discord.AllowedFilter, *appwatch.WatchUsecase, infraauction.Client, watch.Repository, discord.BotConfig) (discordRunner, error) {
+		NewDiscordBot: func(string, *appauction.PreviewUsecase, *appmarket.EstimateUsecase, *discord.AllowedFilter, *appwatch.WatchUsecase, infraauction.Client, watch.Repository, discord.BotConfig) (discordRunner, error) {
 			return fakeRunner{}, nil
 		},
 	}

@@ -45,6 +45,42 @@ func Test_sanitizeUTF8(t *testing.T) {
 	}
 }
 
+func Test_truncateString_maxZero(t *testing.T) {
+	if got := truncateString("hello", 0); got != "" {
+		t.Fatalf("got %q", got)
+	}
+	if got := truncateString("", 0); got != "" {
+		t.Fatalf("got %q", got)
+	}
+}
+
+func Test_escapeForQuotedPrompt(t *testing.T) {
+	tests := []struct {
+		in, want string
+	}{
+		{`GPU "Special"`, `GPU \"Special\"`},
+		{"line1\nline2", `line1\nline2`},
+		{`path\to\file`, `path\\to\\file`},
+	}
+	for _, tt := range tests {
+		if got := escapeForQuotedPrompt(tt.in); got != tt.want {
+			t.Fatalf("escapeForQuotedPrompt(%q) = %q, want %q", tt.in, got, tt.want)
+		}
+	}
+}
+
+func Test_truncateString_multibyte(t *testing.T) {
+	s := strings.Repeat("あ", 501)
+	got := truncateString(s, 500)
+	runes := []rune(got)
+	if len(runes) != 503 { // 500 + "..."
+		t.Fatalf("len=%d got %q", len(runes), got)
+	}
+	if !strings.HasSuffix(got, "...") {
+		t.Fatalf("suffix missing: %q", got)
+	}
+}
+
 func Test_extractTextFromResponse(t *testing.T) {
 	t.Run("no candidates", func(t *testing.T) {
 		_, err := extractTextFromResponse(&genai.GenerateContentResponse{})

@@ -4,21 +4,31 @@ import (
 	"context"
 	"log"
 	"regexp"
+	"time"
 
+	"github.com/diamondburned/arikawa/v3/discord"
 	"github.com/diamondburned/arikawa/v3/gateway"
 
 	"jo3qma.com/yahoo_auctions_bot/internal/application/auction"
+	appmarket "jo3qma.com/yahoo_auctions_bot/internal/application/market"
 )
 
 // yahooAuctionURLRe はヤフオクURLからオークションIDを抽出する正規表現。
 // 例: https://page.auctions.yahoo.co.jp/jp/auction/xxxx1234
 var yahooAuctionURLRe = regexp.MustCompile(`auctions?\.yahoo\.co\.jp/[^/]+/auction/([a-zA-Z0-9]{8,11})`)
 
+const (
+	handlerPreviewTimeout        = 60 * time.Second
+	defaultHandlerMarketTimeout  = 25 * time.Second
+)
+
 // Handler はメッセージを監視し、ヤフオク URL から Preview を生成するハンドラー。
 type Handler struct {
-	usecase   *auction.PreviewUsecase
-	embed     *EmbedBuilder
-	allowed   *AllowedFilter
+	usecase       *auction.PreviewUsecase
+	market        *appmarket.EstimateUsecase
+	embed         *EmbedBuilder
+	allowed       *AllowedFilter
+	marketTimeout time.Duration
 }
 
 // AllowedFilter はconfigに基づくサーバー・チャンネルフィルタ。
@@ -61,9 +71,12 @@ func (f *AllowedFilter) Allow(guildID, channelID string) bool {
 	return true
 }
 
-// NewHandler はHandlerを生成する。
-func NewHandler(usecase *auction.PreviewUsecase, embed *EmbedBuilder, allowed *AllowedFilter) *Handler {
-	return &Handler{usecase: usecase, embed: embed, allowed: allowed}
+// NewHandler はHandlerを生成する。marketTimeout が 0 のときは 25 秒。
+func NewHandler(usecase *auction.PreviewUsecase, market *appmarket.EstimateUsecase, embed *EmbedBuilder, allowed *AllowedFilter, marketTimeout time.Duration) *Handler {
+	if marketTimeout <= 0 {
+		marketTimeout = defaultHandlerMarketTimeout
+	}
+	return &Handler{usecase: usecase, market: market, embed: embed, allowed: allowed, marketTimeout: marketTimeout}
 }
 
 // HandleMessageCreate はMessageCreateEventを処理する。arikawaのAddHandlerに渡す。
@@ -96,17 +109,56 @@ func (h *Handler) HandleMessageCreate(e *gateway.MessageCreateEvent) {
 		}
 		seen[auctionID] = true
 
-		ctx := context.Background()
-		preview, err := h.usecase.Execute(ctx, auctionID)
-		if err != nil {
-			log.Printf("[yahoo_auctions_bot] GetAuction %s: %v", auctionID, err)
-			continue
-		}
+		func() {
+			ctx, cancel := context.WithTimeout(context.Background(), handlerPreviewTimeout)
+			defer cancel()
+			preview, err := h.usecase.Execute(ctx, auctionID)
+			if err != nil {
+				log.Printf("[yahoo_auctions_bot] GetAuction %s: %v", auctionID, err)
+				return
+			}
 
-		emb := h.embed.Build(preview)
-		_, err = h.embed.Send(e, emb)
-		if err != nil {
-			log.Printf("[yahoo_auctions_bot] SendMessage: %v", err)
-		}
+			emb := h.embed.Build(preview)
+			msg, err := h.embed.Send(e, emb)
+			if err != nil {
+				log.Printf("[yahoo_auctions_bot] SendMessage: %v", err)
+				return
+			}
+
+			if h.market != nil && msg != nil {
+				msgID := msg.ID
+				chID := e.ChannelID
+				// ponytail: Discord 想定トラフィックでは goroutine セマフォ不要。高負荷化したら max N 並列を検討。
+				go func() {
+					defer func() {
+						if r := recover(); r != nil {
+							log.Printf("[yahoo_auctions_bot] panic in attachMarketEstimate: %v", r)
+						}
+					}()
+					h.attachMarketEstimate(preview, msgID, chID)
+				}()
+			}
+		}()
+	}
+}
+
+func (h *Handler) attachMarketEstimate(preview *auction.Preview, messageID discord.MessageID, channelID discord.ChannelID) {
+	if h.market == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), h.marketTimeout)
+	defer cancel()
+	est, err := h.market.Execute(ctx, preview.Title, preview.Description, preview.Product)
+	if err != nil {
+		log.Printf("[yahoo_auctions_bot] MarketEstimate %s: %v", preview.AuctionID, err)
+		return
+	}
+	if est == nil {
+		return
+	}
+	preview.MarketEstimate = est
+	emb := h.embed.Build(preview)
+	if err := h.embed.Edit(channelID, messageID, emb); err != nil {
+		log.Printf("[yahoo_auctions_bot] EditMessage market %s: %v", preview.AuctionID, err)
 	}
 }

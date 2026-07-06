@@ -12,6 +12,7 @@ import (
 
 	appauction "jo3qma.com/yahoo_auctions_bot/internal/application/auction"
 	appwatch "jo3qma.com/yahoo_auctions_bot/internal/application/watch"
+	domainmarket "jo3qma.com/yahoo_auctions_bot/internal/domain/market"
 	"jo3qma.com/yahoo_auctions_bot/internal/domain/product"
 	domainwatch "jo3qma.com/yahoo_auctions_bot/internal/domain/watch"
 	infraauction "jo3qma.com/yahoo_auctions_bot/internal/infrastructure/auction"
@@ -30,21 +31,34 @@ func (m *mockGW) AddHandler(interface{}) func() { return func() {} }
 func (m *mockGW) Connect(ctx context.Context) error { return m.connectErr }
 
 type stubSessionAPI struct {
-	sendMsg  *discord.Message
-	sendErr  error
-	lastSend api.SendMessageData
-	msg      *discord.Message
-	msgErr   error
-	user     *discord.User
-	meErr    error
-	thread   *discord.Channel
-	startErr error
+	sendMsg   *discord.Message
+	sendErr   error
+	lastSend  api.SendMessageData
+	editErr   error
+	lastEdit  api.EditMessageData
+	msg       *discord.Message
+	msgErr    error
+	user      *discord.User
+	meErr     error
+	thread    *discord.Channel
+	startErr  error
 }
 
 func (s *stubSessionAPI) SendMessageComplex(channelID discord.ChannelID, data api.SendMessageData) (*discord.Message, error) {
 	s.lastSend = data
 	if s.sendErr != nil {
 		return nil, s.sendErr
+	}
+	if s.sendMsg != nil {
+		return s.sendMsg, nil
+	}
+	return &discord.Message{}, nil
+}
+
+func (s *stubSessionAPI) EditMessageComplex(channelID discord.ChannelID, messageID discord.MessageID, data api.EditMessageData) (*discord.Message, error) {
+	s.lastEdit = data
+	if s.editErr != nil {
+		return nil, s.editErr
 	}
 	if s.sendMsg != nil {
 		return s.sendMsg, nil
@@ -132,7 +146,7 @@ func TestBot_Run_connectError(t *testing.T) {
 		AuctionID: "a", Title: "T", CurrentPrice: 1, Status: "S", Description: "d",
 		EndTime: &end,
 	}}, &stubProductExt{pd: &product.Product{}})
-	h := NewHandler(pu, NewEmbedBuilder(&stubSessionAPI{}), NewAllowedFilter(nil, nil))
+	h := NewHandler(pu, nil, NewEmbedBuilder(&stubSessionAPI{}), NewAllowedFilter(nil, nil), 0)
 	repo := &memWatchRepo{}
 	wu := appwatch.NewWatchUsecase(repo)
 	rh := NewReactionHandler(wu, &stubAuction{data: &infraauction.AuctionData{CurrentPrice: 1}}, &stubSessionAPI{user: &discord.User{ID: discord.UserID(7)}})
@@ -158,7 +172,7 @@ func TestBot_Run_cancel(t *testing.T) {
 	pu := appauction.NewPreviewUsecase(&stubPreviewFetch{data: &infraauction.AuctionData{
 		AuctionID: "a", Title: "T", CurrentPrice: 1, Status: "S", Description: "d", EndTime: &end,
 	}}, &stubProductExt{pd: &product.Product{}})
-	h := NewHandler(pu, NewEmbedBuilder(&stubSessionAPI{}), NewAllowedFilter(nil, nil))
+	h := NewHandler(pu, nil, NewEmbedBuilder(&stubSessionAPI{}), NewAllowedFilter(nil, nil), 0)
 	repo := &memWatchRepo{}
 	wu := appwatch.NewWatchUsecase(repo)
 	rh := NewReactionHandler(wu, &stubAuction{data: &infraauction.AuctionData{CurrentPrice: 1}}, &stubSessionAPI{user: &discord.User{ID: discord.UserID(7)}})
@@ -197,7 +211,7 @@ func TestHandler_HandleMessageCreate(t *testing.T) {
 	}
 	pu := appauction.NewPreviewUsecase(&stubPreviewFetch{data: data}, &stubProductExt{pd: &product.Product{}})
 	sender := &stubSessionAPI{sendMsg: &discord.Message{ID: 1}}
-	h := NewHandler(pu, NewEmbedBuilder(sender), NewAllowedFilter(nil, nil))
+	h := NewHandler(pu, nil, NewEmbedBuilder(sender), NewAllowedFilter(nil, nil), 0)
 
 	t.Run("ignore bot", func(t *testing.T) {
 		h.HandleMessageCreate(&gateway.MessageCreateEvent{
@@ -206,7 +220,7 @@ func TestHandler_HandleMessageCreate(t *testing.T) {
 	})
 	t.Run("not allowed", func(t *testing.T) {
 		f := NewAllowedFilter([]string{"g"}, []string{"c"})
-		h2 := NewHandler(pu, NewEmbedBuilder(sender), f)
+		h2 := NewHandler(pu, nil, NewEmbedBuilder(sender), f, 0)
 		h2.HandleMessageCreate(&gateway.MessageCreateEvent{
 			Message: discord.Message{
 				Author:    discord.User{Bot: false},
@@ -223,7 +237,7 @@ func TestHandler_HandleMessageCreate(t *testing.T) {
 	})
 	t.Run("usecase error", func(t *testing.T) {
 		pu2 := appauction.NewPreviewUsecase(&stubPreviewFetch{err: errors.New("e")}, &stubProductExt{})
-		h2 := NewHandler(pu2, NewEmbedBuilder(sender), NewAllowedFilter(nil, nil))
+		h2 := NewHandler(pu2, nil, NewEmbedBuilder(sender), NewAllowedFilter(nil, nil), 0)
 		h2.HandleMessageCreate(&gateway.MessageCreateEvent{
 			Message: discord.Message{
 				Author: discord.User{}, Content: "https://page.auctions.yahoo.co.jp/jp/auction/abc12345678",
@@ -232,7 +246,7 @@ func TestHandler_HandleMessageCreate(t *testing.T) {
 	})
 	t.Run("send error", func(t *testing.T) {
 		pu2 := appauction.NewPreviewUsecase(&stubPreviewFetch{data: data}, &stubProductExt{pd: &product.Product{}})
-		h2 := NewHandler(pu2, NewEmbedBuilder(&stubSessionAPI{sendErr: errors.New("s")}), NewAllowedFilter(nil, nil))
+		h2 := NewHandler(pu2, nil, NewEmbedBuilder(&stubSessionAPI{sendErr: errors.New("s")}), NewAllowedFilter(nil, nil), 0)
 		h2.HandleMessageCreate(&gateway.MessageCreateEvent{
 			Message: discord.Message{
 				Author: discord.User{}, Content: "https://page.auctions.yahoo.co.jp/jp/auction/abc12345678",
@@ -310,6 +324,21 @@ func TestEmbedBuilder_priceAndTime(t *testing.T) {
 		Fields:   []product.Field{{Key: "cpu_model_line", Value: "不明"}},
 	}})
 	_ = b.Build(&appauction.Preview{CurrentPrice: 12_345_678, EndTime: &future})
+}
+
+func TestEmbedBuilder_marketEstimate(t *testing.T) {
+	b := NewEmbedBuilder(&stubSessionAPI{})
+	est := &domainmarket.MarketEstimate{LowPrice: 10000, HighPrice: 15000, Note: "テスト"}
+	emb := b.Build(&appauction.Preview{CurrentPrice: 8000, MarketEstimate: est})
+	found := false
+	for _, f := range emb.Fields {
+		if f.Name == "相場" && strings.Contains(f.Value, "10,000") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("fields %+v", emb.Fields)
+	}
 }
 
 func TestThreadNotifier(t *testing.T) {

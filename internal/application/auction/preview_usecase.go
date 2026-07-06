@@ -5,6 +5,7 @@ import (
 	"log"
 	"time"
 
+	domainmarket "jo3qma.com/yahoo_auctions_bot/internal/domain/market"
 	"jo3qma.com/yahoo_auctions_bot/internal/domain/product"
 	"jo3qma.com/yahoo_auctions_bot/internal/infrastructure/auction"
 	"jo3qma.com/yahoo_auctions_bot/internal/infrastructure/gemini"
@@ -12,14 +13,16 @@ import (
 
 // Preview は Discord 表示用に Auction と Product を統合したデータ。
 type Preview struct {
-	AuctionID    string
-	Title        string
-	URL          string
-	CurrentPrice int64
-	Status       string
-	Images       []string
-	EndTime      *time.Time
-	Product      *product.Product
+	AuctionID      string
+	Title          string
+	URL            string
+	Description    string
+	CurrentPrice   int64
+	Status         string
+	Images         []string
+	EndTime        *time.Time
+	Product        *product.Product
+	MarketEstimate *domainmarket.MarketEstimate
 }
 
 // PreviewUsecase は Auction URL から Preview を取得するユースケース。
@@ -57,6 +60,7 @@ func (u *PreviewUsecase) Execute(ctx context.Context, auctionID string) (*Previe
 		AuctionID:    data.AuctionID,
 		Title:        data.Title,
 		URL:          url,
+		Description:  data.Description,
 		CurrentPrice: data.CurrentPrice,
 		Status:       data.Status,
 		Images:       data.Images,

@@ -3,11 +3,13 @@ package discord
 import (
 	"context"
 	"log"
+	"time"
 
 	"github.com/diamondburned/arikawa/v3/gateway"
 	"github.com/diamondburned/arikawa/v3/state"
 
 	"jo3qma.com/yahoo_auctions_bot/internal/application/auction"
+	appmarket "jo3qma.com/yahoo_auctions_bot/internal/application/market"
 	appwatch "jo3qma.com/yahoo_auctions_bot/internal/application/watch"
 	domainwatch "jo3qma.com/yahoo_auctions_bot/internal/domain/watch"
 	infraauction "jo3qma.com/yahoo_auctions_bot/internal/infrastructure/auction"
@@ -29,14 +31,16 @@ type Bot struct {
 
 // BotConfig は監視機能に関するBot設定。
 type BotConfig struct {
-	CheckIntervalMinutes int
-	PollDelayMs          int
+	CheckIntervalMinutes      int
+	PollDelayMs               int
+	HandlerMarketTimeoutSec   int // 0 = default 25
 }
 
 // NewBot はBotを生成する。DIは呼び出し元で行う。
 func NewBot(
 	token string,
 	previewUsecase *auction.PreviewUsecase,
+	marketUsecase *appmarket.EstimateUsecase,
 	allowed *AllowedFilter,
 	watchUsecase *appwatch.WatchUsecase,
 	auctionClient infraauction.Client,
@@ -52,7 +56,8 @@ func NewBot(
 	)
 
 	embed := NewEmbedBuilder(s)
-	h := NewHandler(previewUsecase, embed, allowed)
+	marketTimeout := time.Duration(botCfg.HandlerMarketTimeoutSec) * time.Second
+	h := NewHandler(previewUsecase, marketUsecase, embed, allowed, marketTimeout)
 
 	reactionHandler := NewReactionHandler(watchUsecase, auctionClient, s)
 	threadNotifier := NewThreadNotifier(s, watchRepo)

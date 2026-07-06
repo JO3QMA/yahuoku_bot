@@ -9,38 +9,46 @@ import (
 
 // Config は環境変数から読み込む実行時設定。
 type Config struct {
-	DiscordToken             string
-	GeminiAPIKey             string
-	GeminiModel              string // Stage1/4 用。空の場合は gemini-2.5-flash-lite
-	GeminiModelVision        string // Stage2 用。空の場合は gemini-2.5-flash
-	GeminiModelAgent         string // Stage3 用。空の場合は gemini-2.5-flash
-	GeminiMaxImages          int    // 推論に使う最大画像数 (default: 3)
-	GeminiMaxSearchCalls     int    // 1商品あたりの最大検索回数 (default: 3)
-	GeminiPipelineTimeoutSec int    // Extraction のタイムアウト秒 (default: 45)
-	APIEndpoint              string
-	AllowedGuilds            []string // 空 = 全サーバー許可
-	AllowedChannels          []string // 空 = 全チャンネル許可
-	RqliteURL                string   // rqlite のベース URL (default: http://localhost:4001)
-	CheckIntervalMinutes     int      // ポーリング間隔（分） (default: 5)
-	PollDelayMs              int      // ポーリング時の1件あたりのディレイ（ms） (default: 2000)
+	DiscordToken               string
+	GeminiAPIKey               string
+	GeminiModel                string // Stage1/4 用。空の場合は gemini-2.5-flash-lite
+	GeminiModelVision          string // Stage2 用。空の場合は gemini-2.5-flash
+	GeminiModelAgent           string // Stage3 用。空の場合は gemini-2.5-flash
+	GeminiMaxImages            int    // 推論に使う最大画像数 (default: 3)
+	GeminiMaxSearchCalls       int    // 1商品あたりの最大検索回数 (default: 3)
+	GeminiPipelineTimeoutSec   int    // Extraction のタイムアウト秒 (default: 45)
+	MarketEstimateMinSamples   int    // MarketEstimate API 最小件数 (default: 5)
+	MarketEstimateLookbackDays int    // Comparable 参照日数 (default: 90)
+	MarketEstimateTimeoutSec   int    // Web 相場推定のタイムアウト秒 (default: 20)
+	HandlerMarketTimeoutSec    int    // Handler の MarketEstimate タイムアウト秒 (default: 25)
+	APIEndpoint                string
+	AllowedGuilds              []string // 空 = 全サーバー許可
+	AllowedChannels            []string // 空 = 全チャンネル許可
+	RqliteURL                  string   // rqlite のベース URL (default: http://localhost:4001)
+	CheckIntervalMinutes       int      // ポーリング間隔（分） (default: 5)
+	PollDelayMs                int      // ポーリング時の1件あたりのディレイ（ms） (default: 2000)
 }
 
 // Load は環境変数から Config を返す。
 // 環境変数は direnv 等で .env を読み込んだ状態で起動すること。
 func Load() (*Config, error) {
 	cfg := &Config{
-		DiscordToken:             strings.TrimSpace(os.Getenv("DISCORD_TOKEN")),
-		GeminiAPIKey:             strings.TrimSpace(os.Getenv("GEMINI_API_KEY")),
-		GeminiModel:              strings.TrimSpace(os.Getenv("GEMINI_MODEL")),
-		GeminiModelVision:        strings.TrimSpace(os.Getenv("GEMINI_MODEL_VISION")),
-		GeminiModelAgent:         strings.TrimSpace(os.Getenv("GEMINI_MODEL_AGENT")),
-		GeminiMaxImages:          getEnvInt("GEMINI_MAX_IMAGES", 3),
-		GeminiMaxSearchCalls:     getEnvInt("GEMINI_MAX_SEARCH_CALLS", 3),
-		GeminiPipelineTimeoutSec: getEnvInt("GEMINI_PIPELINE_TIMEOUT_SEC", 45),
-		APIEndpoint:              strings.TrimSpace(os.Getenv("API_ENDPOINT")),
-		RqliteURL:                strings.TrimSpace(os.Getenv("RQLITE_URL")),
-		AllowedGuilds:            getEnvCSV("ALLOWED_GUILDS"),
-		AllowedChannels:          getEnvCSV("ALLOWED_CHANNELS"),
+		DiscordToken:               strings.TrimSpace(os.Getenv("DISCORD_TOKEN")),
+		GeminiAPIKey:               strings.TrimSpace(os.Getenv("GEMINI_API_KEY")),
+		GeminiModel:                strings.TrimSpace(os.Getenv("GEMINI_MODEL")),
+		GeminiModelVision:          strings.TrimSpace(os.Getenv("GEMINI_MODEL_VISION")),
+		GeminiModelAgent:           strings.TrimSpace(os.Getenv("GEMINI_MODEL_AGENT")),
+		GeminiMaxImages:            getEnvInt("GEMINI_MAX_IMAGES", 3),
+		GeminiMaxSearchCalls:       getEnvInt("GEMINI_MAX_SEARCH_CALLS", 3),
+		GeminiPipelineTimeoutSec:   getEnvInt("GEMINI_PIPELINE_TIMEOUT_SEC", 45),
+		MarketEstimateMinSamples:   getEnvInt("MARKET_ESTIMATE_MIN_SAMPLES", 5),
+		MarketEstimateLookbackDays: getEnvInt("MARKET_ESTIMATE_LOOKBACK_DAYS", 90),
+		MarketEstimateTimeoutSec:   getEnvInt("MARKET_ESTIMATE_TIMEOUT_SEC", 20),
+		HandlerMarketTimeoutSec:    getEnvInt("HANDLER_MARKET_TIMEOUT_SEC", 25),
+		APIEndpoint:                strings.TrimSpace(os.Getenv("API_ENDPOINT")),
+		RqliteURL:                  strings.TrimSpace(os.Getenv("RQLITE_URL")),
+		AllowedGuilds:              getEnvCSV("ALLOWED_GUILDS"),
+		AllowedChannels:            getEnvCSV("ALLOWED_CHANNELS"),
 	}
 
 	if cfg.APIEndpoint == "" {
@@ -51,6 +59,12 @@ func Load() (*Config, error) {
 	}
 	cfg.CheckIntervalMinutes = getEnvInt("CHECK_INTERVAL_MINUTES", 5)
 	cfg.PollDelayMs = getEnvInt("POLL_DELAY_MS", 2000)
+
+	if cfg.HandlerMarketTimeoutSec < cfg.MarketEstimateTimeoutSec {
+		log.Printf("[Config] Warning: HANDLER_MARKET_TIMEOUT_SEC (%d) < MARKET_ESTIMATE_TIMEOUT_SEC (%d), bumping handler timeout",
+			cfg.HandlerMarketTimeoutSec, cfg.MarketEstimateTimeoutSec)
+		cfg.HandlerMarketTimeoutSec = cfg.MarketEstimateTimeoutSec
+	}
 
 	return cfg, nil
 }

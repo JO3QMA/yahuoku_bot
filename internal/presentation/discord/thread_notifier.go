@@ -10,6 +10,7 @@ import (
 	"github.com/diamondburned/arikawa/v3/discord"
 
 	domainwatch "jo3qma.com/yahoo_auctions_bot/internal/domain/watch"
+	"jo3qma.com/yahoo_auctions_bot/internal/format"
 )
 
 const maxThreadNameLen = 100
@@ -38,8 +39,8 @@ func (n *ThreadNotifier) sendPriceAlert(threadID discord.ChannelID, item *domain
 	content := fmt.Sprintf(
 		"<@%s> 価格が上昇しました: ¥%s → ¥%s",
 		item.UserID,
-		formatIntWithComma(oldPrice),
-		formatIntWithComma(newPrice),
+		format.IntWithComma(oldPrice),
+		format.IntWithComma(newPrice),
 	)
 
 	_, err := n.api.SendMessageComplex(threadID, api.SendMessageData{
@@ -76,7 +77,7 @@ func (n *ThreadNotifier) sendEndingReminder(threadID discord.ChannelID, item *do
 		"<@%s> オークション終了まで残り約%d分です。現在価格: ¥%s",
 		item.UserID,
 		minutes,
-		formatIntWithComma(currentPrice),
+		format.IntWithComma(currentPrice),
 	)
 
 	_, err := n.api.SendMessageComplex(threadID, api.SendMessageData{

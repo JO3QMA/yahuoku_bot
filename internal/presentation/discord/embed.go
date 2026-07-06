@@ -11,6 +11,7 @@ import (
 
 	"jo3qma.com/yahoo_auctions_bot/internal/application/auction"
 	"jo3qma.com/yahoo_auctions_bot/internal/domain/product"
+	"jo3qma.com/yahoo_auctions_bot/internal/format"
 )
 
 // EmbedBuilder はPreviewからDiscord Embedを構築・送信する。
@@ -39,6 +40,12 @@ func (b *EmbedBuilder) Build(preview *auction.Preview) discord.Embed {
 	// 現在価格
 	priceStr := formatPrice(preview.CurrentPrice)
 	fields = append(fields, discord.EmbedField{Name: "現在価格", Value: priceStr, Inline: true})
+
+	if preview.MarketEstimate != nil {
+		fields = append(fields, discord.EmbedField{
+			Name: "相場", Value: preview.MarketEstimate.DisplayValue(), Inline: true,
+		})
+	}
 
 	// 残り時間
 	timeStr := formatEndTime(preview.EndTime)
@@ -77,21 +84,19 @@ func (b *EmbedBuilder) Send(e *gateway.MessageCreateEvent, emb discord.Embed) (*
 	})
 }
 
+// Edit は既存メッセージの Embed を更新する。
+func (b *EmbedBuilder) Edit(channelID discord.ChannelID, messageID discord.MessageID, emb discord.Embed) error {
+	_, err := b.api.EditMessageComplex(channelID, messageID, api.EditMessageData{
+		Embeds: &[]discord.Embed{emb},
+	})
+	return err
+}
+
 func formatPrice(price int64) string {
 	if price <= 0 {
 		return "不明"
 	}
-	return fmt.Sprintf("¥%s", formatIntWithComma(price))
-}
-
-func formatIntWithComma(n int64) string {
-	if n < 0 {
-		return "-" + formatIntWithComma(-n)
-	}
-	if n < 1000 {
-		return fmt.Sprintf("%d", n)
-	}
-	return formatIntWithComma(n/1000) + "," + fmt.Sprintf("%03d", n%1000)
+	return fmt.Sprintf("¥%s", format.IntWithComma(price))
 }
 
 func formatEndTime(endTime *time.Time) string {
