@@ -37,12 +37,6 @@ func TestLoad_envDefaults(t *testing.T) {
 	if cfg.GeminiMaxImages != 3 || cfg.GeminiMaxSearchCalls != 3 || cfg.GeminiPipelineTimeoutSec != 45 {
 		t.Fatalf("gemini limits: %d %d timeout %d", cfg.GeminiMaxImages, cfg.GeminiMaxSearchCalls, cfg.GeminiPipelineTimeoutSec)
 	}
-	if cfg.MarketEstimateMinSamples != 5 || cfg.MarketEstimateLookbackDays != 90 {
-		t.Fatalf("market estimate: %d %d", cfg.MarketEstimateMinSamples, cfg.MarketEstimateLookbackDays)
-	}
-	if cfg.MarketEstimateTimeoutSec != 20 || cfg.HandlerMarketTimeoutSec != 25 {
-		t.Fatalf("market timeouts: %d %d", cfg.MarketEstimateTimeoutSec, cfg.HandlerMarketTimeoutSec)
-	}
 }
 
 func TestLoad_allowedCSV(t *testing.T) {
@@ -101,21 +95,5 @@ func TestLoad_geminiPipelineTimeout(t *testing.T) {
 	}
 	if cfg.GeminiPipelineTimeoutSec != 90 {
 		t.Fatalf("got %d", cfg.GeminiPipelineTimeoutSec)
-	}
-}
-
-func TestLoad_handlerTimeoutNotLessThanMarket(t *testing.T) {
-	t.Setenv("MARKET_ESTIMATE_TIMEOUT_SEC", "30")
-	t.Setenv("HANDLER_MARKET_TIMEOUT_SEC", "10")
-	t.Cleanup(func() {
-		_ = os.Unsetenv("MARKET_ESTIMATE_TIMEOUT_SEC")
-		_ = os.Unsetenv("HANDLER_MARKET_TIMEOUT_SEC")
-	})
-	cfg, err := Load()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if cfg.MarketEstimateTimeoutSec != 30 || cfg.HandlerMarketTimeoutSec != 30 {
-		t.Fatalf("got market=%d handler=%d", cfg.MarketEstimateTimeoutSec, cfg.HandlerMarketTimeoutSec)
 	}
 }

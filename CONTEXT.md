@@ -45,7 +45,7 @@ _Avoid_: missing_key, 未抽出フィールド（実装・プロンプト寄り�
 _Avoid_: Sub-agent, Tool, サブエージェント（実装寄りの説明向け）
 
 **Preview**:
-Auction のオークション属性と Product の Extraction 結果を統合した、Discord 表示用データ。MarketEstimate を含む場合がある。MarketEstimate は初回表示後に補完される場合がある。
+Auction のオークション属性と Product の Extraction 結果を統合した、Discord 表示用データ。
 _Avoid_: Embed（Discord の表示形式。presentation 層の用語）, AuctionSummary, 概要
 
 **Watch**:
@@ -63,15 +63,3 @@ _Avoid_: EndingSoonNotification, 終了間近通知（日本語説明向け）, 
 **NotificationThread**:
 Preview メッセージに紐づく通知専用の Discord スレッド。同一メッセージの Watch は1つの NotificationThread を共有する。
 _Avoid_: WatchThread, Thread（単体では曖昧）
-
-**MarketEstimate**:
-類似 Product とみなせる取引における想定価格帯（下限〜上限）と、その根拠を示す短い注記。現在の Auction の落札見込みではない。API 由来の Comparable が十分な件数ない場合は、API 結果を使わず別経路で推定する。価格は落札価格（送料別）を基準とする。
-_Avoid_: 相場予測（日本語説明向け）, PricePrediction, 落札予想, MarketPrice
-
-**Comparable**:
-MarketEstimate の算出に含める、対象 Product と同等とみなした Product または過去の取引。Category が一致し、かつ IdentityField が一致するもの。Condition は必須条件ではない。IdentityField が得られない場合、API 経由の Comparable 検索は行わない。対象は直近の落札取引に限る。
-_Avoid_: 類似商品（日本語説明向け）, SimilarItem, Match
-
-**IdentityField**:
-Category ごとに Comparable の一致判定に使う識別用 Field のキー（例: GPU なら `model`、server なら `server_model`）。
-_Avoid_: 主キー（DB用語）, PrimaryField, 型番フィールド（日本語説明向け）

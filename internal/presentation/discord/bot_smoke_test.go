@@ -18,7 +18,7 @@ func TestNewBot_smoke(t *testing.T) {
 	repo := &memWatchRepo{}
 	wu := appwatch.NewWatchUsecase(repo)
 	ac := &stubAuction{data: &infraauction.AuctionData{CurrentPrice: 1}}
-	_, err := NewBot("Bot unit-test-token.invalid", pu, nil, NewAllowedFilter(nil, nil), wu, ac, repo, BotConfig{
+	_, err := NewBot("Bot unit-test-token.invalid", pu, NewAllowedFilter(nil, nil), wu, ac, repo, BotConfig{
 		CheckIntervalMinutes: 120,
 		PollDelayMs:          9999,
 	})
