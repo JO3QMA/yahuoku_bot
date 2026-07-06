@@ -25,24 +25,6 @@ func sanitizeUTF8(s string) string {
 	return strings.ToValidUTF8(s, "")
 }
 
-func escapeForQuotedPrompt(s string) string {
-	s = strings.ReplaceAll(s, `\`, `\\`)
-	s = strings.ReplaceAll(s, `"`, `\"`)
-	s = strings.ReplaceAll(s, "\n", `\n`)
-	return s
-}
-
-func truncateString(s string, max int) string {
-	if max <= 0 {
-		return ""
-	}
-	runes := []rune(s)
-	if len(runes) <= max {
-		return s
-	}
-	return string(runes[:max]) + "..."
-}
-
 // extractJSONFromResponse はレスポンステキストから JSON を抽出する。
 func extractJSONFromResponse(text string) string {
 	text = strings.TrimSpace(text)
