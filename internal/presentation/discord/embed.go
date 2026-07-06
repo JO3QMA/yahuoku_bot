@@ -11,6 +11,7 @@ import (
 
 	"jo3qma.com/yahoo_auctions_bot/internal/application/auction"
 	"jo3qma.com/yahoo_auctions_bot/internal/domain/product"
+	"jo3qma.com/yahoo_auctions_bot/internal/format"
 )
 
 // EmbedBuilder はPreviewからDiscord Embedを構築・送信する。
@@ -95,17 +96,7 @@ func formatPrice(price int64) string {
 	if price <= 0 {
 		return "不明"
 	}
-	return fmt.Sprintf("¥%s", formatIntWithComma(price))
-}
-
-func formatIntWithComma(n int64) string {
-	if n < 0 {
-		return "-" + formatIntWithComma(-n)
-	}
-	if n < 1000 {
-		return fmt.Sprintf("%d", n)
-	}
-	return formatIntWithComma(n/1000) + "," + fmt.Sprintf("%03d", n%1000)
+	return fmt.Sprintf("¥%s", format.IntWithComma(price))
 }
 
 func formatEndTime(endTime *time.Time) string {

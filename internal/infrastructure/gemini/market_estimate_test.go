@@ -94,6 +94,32 @@ func Test_buildMarketEstimatePrompt_escapesQuotes(t *testing.T) {
 	}
 }
 
+func Test_buildMarketEstimatePrompt_escapesNewline(t *testing.T) {
+	p := &product.Product{Category: product.CategoryGPU}
+	got := buildMarketEstimatePrompt("line1\nline2", "", p, false, "")
+	if !strings.Contains(got, `タイトル: "line1\nline2"`) {
+		t.Fatalf("newline not escaped: %q", got)
+	}
+}
+
+func Test_buildMarketEstimatePrompt_truncatesSummary(t *testing.T) {
+	p := &product.Product{Category: product.CategoryGPU}
+	summary := strings.Repeat("x", 2500)
+	got := buildMarketEstimatePrompt("t", "", p, false, summary)
+	idx := strings.Index(got, "## Web検索サマリ\n")
+	if idx < 0 {
+		t.Fatal("missing summary section")
+	}
+	section := got[idx+len("## Web検索サマリ\n"):]
+	section = strings.Split(section, "\n\n")[0]
+	if len(section) > 2003 {
+		t.Fatalf("summary too long: %d", len(section))
+	}
+	if !strings.HasSuffix(section, "...") {
+		t.Fatalf("expected truncate suffix: len=%d", len(section))
+	}
+}
+
 func Test_buildMarketSearchQuery_skipsEmptyTitle(t *testing.T) {
 	p := &product.Product{
 		Category: product.CategoryGPU,

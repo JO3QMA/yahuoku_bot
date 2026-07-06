@@ -26,7 +26,10 @@ func sanitizeUTF8(s string) string {
 }
 
 func escapeForQuotedPrompt(s string) string {
-	return strings.ReplaceAll(s, `"`, `\"`)
+	s = strings.ReplaceAll(s, `\`, `\\`)
+	s = strings.ReplaceAll(s, `"`, `\"`)
+	s = strings.ReplaceAll(s, "\n", `\n`)
+	return s
 }
 
 func truncateString(s string, max int) string {

@@ -54,6 +54,21 @@ func Test_truncateString_maxZero(t *testing.T) {
 	}
 }
 
+func Test_escapeForQuotedPrompt(t *testing.T) {
+	tests := []struct {
+		in, want string
+	}{
+		{`GPU "Special"`, `GPU \"Special\"`},
+		{"line1\nline2", `line1\nline2`},
+		{`path\to\file`, `path\\to\\file`},
+	}
+	for _, tt := range tests {
+		if got := escapeForQuotedPrompt(tt.in); got != tt.want {
+			t.Fatalf("escapeForQuotedPrompt(%q) = %q, want %q", tt.in, got, tt.want)
+		}
+	}
+}
+
 func Test_truncateString_multibyte(t *testing.T) {
 	s := strings.Repeat("あ", 501)
 	got := truncateString(s, 500)

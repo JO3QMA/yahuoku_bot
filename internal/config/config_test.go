@@ -103,3 +103,19 @@ func TestLoad_geminiPipelineTimeout(t *testing.T) {
 		t.Fatalf("got %d", cfg.GeminiPipelineTimeoutSec)
 	}
 }
+
+func TestLoad_handlerTimeoutNotLessThanMarket(t *testing.T) {
+	t.Setenv("MARKET_ESTIMATE_TIMEOUT_SEC", "30")
+	t.Setenv("HANDLER_MARKET_TIMEOUT_SEC", "10")
+	t.Cleanup(func() {
+		_ = os.Unsetenv("MARKET_ESTIMATE_TIMEOUT_SEC")
+		_ = os.Unsetenv("HANDLER_MARKET_TIMEOUT_SEC")
+	})
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.MarketEstimateTimeoutSec != 30 || cfg.HandlerMarketTimeoutSec != 30 {
+		t.Fatalf("got market=%d handler=%d", cfg.MarketEstimateTimeoutSec, cfg.HandlerMarketTimeoutSec)
+	}
+}

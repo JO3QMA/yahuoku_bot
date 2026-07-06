@@ -160,7 +160,7 @@ func Test_buildSoldSearchQuery(t *testing.T) {
 		t.Fatalf("got %q", got)
 	}
 	got = buildSoldSearchQuery(product.CategoryServer, "server_model", "DL360")
-	if got != "DL360 server_model サーバー" {
+	if got != "DL360 サーバー" {
 		t.Fatalf("got %q", got)
 	}
 }

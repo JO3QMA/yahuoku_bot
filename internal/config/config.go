@@ -60,6 +60,12 @@ func Load() (*Config, error) {
 	cfg.CheckIntervalMinutes = getEnvInt("CHECK_INTERVAL_MINUTES", 5)
 	cfg.PollDelayMs = getEnvInt("POLL_DELAY_MS", 2000)
 
+	if cfg.HandlerMarketTimeoutSec < cfg.MarketEstimateTimeoutSec {
+		log.Printf("[Config] Warning: HANDLER_MARKET_TIMEOUT_SEC (%d) < MARKET_ESTIMATE_TIMEOUT_SEC (%d), bumping handler timeout",
+			cfg.HandlerMarketTimeoutSec, cfg.MarketEstimateTimeoutSec)
+		cfg.HandlerMarketTimeoutSec = cfg.MarketEstimateTimeoutSec
+	}
+
 	return cfg, nil
 }
 

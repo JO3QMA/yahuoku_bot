@@ -84,6 +84,7 @@ func (c *soldComparableClient) SearchSoldPrices(ctx context.Context, category pr
 			if inspected >= soldSearchMaxInspect {
 				break
 			}
+			// ponytail: 直列 GetAuction。レイテンシ短縮は並行化+semaphore が必要だが現トラフィックでは見送り。
 			inspected++
 			data, err := c.base.GetAuction(ctx, item.AuctionId)
 			if err != nil {
@@ -102,6 +103,7 @@ func (c *soldComparableClient) SearchSoldPrices(ctx context.Context, category pr
 			}
 		}
 		// NOTE: API のページサイズが soldSearchItemsPerPage と一致する前提。
+		// 最終ページが20件ちょうどの場合、余分な空振りリクエストが1回発生しうる。
 		// 将来的に SearchAuctionsResponse の total_pages / next_page_token 対応が望ましい。
 		if int64(len(items)) < soldSearchItemsPerPage {
 			break
@@ -110,15 +112,26 @@ func (c *soldComparableClient) SearchSoldPrices(ctx context.Context, category pr
 	if len(prices) == 0 && getAuctionErrors > 0 && getAuctionErrors == inspected {
 		return nil, fmt.Errorf("all GetAuction failed (%d items)", getAuctionErrors)
 	}
+	if getAuctionErrors > 0 {
+		log.Printf("[sold_comparable] inspected=%d prices=%d getAuctionErrors=%d", inspected, len(prices), getAuctionErrors)
+	}
 	return prices, nil
+}
+
+var soldSearchIdentityKeysOmit = map[string]bool{
+	"model":              true,
+	"model_spec":         true,
+	"summary":            true,
+	"server_model":       true,
+	"compatible_models":  true,
 }
 
 // buildSoldSearchQuery は落札検索用のキーワードを組み立てる。
 // TODO: identityKey を SearchAuctions のフィルタに反映する（専用 RPC 追加時に実施）。
-// 現状 identityValue をキーワード検索で代用。model 系キーは value 単体で十分だが、他のキー種別では補完する。
+// 現状 identityValue をキーワード検索で代用。omit リストのキーは value 単体で十分。
 func buildSoldSearchQuery(category product.Category, identityKey, identityValue string) string {
 	query := strings.TrimSpace(identityValue)
-	if ik := strings.TrimSpace(identityKey); ik != "" && ik != "model" && ik != "model_spec" && ik != "summary" {
+	if ik := strings.TrimSpace(identityKey); ik != "" && !soldSearchIdentityKeysOmit[ik] {
 		query = strings.TrimSpace(query + " " + ik)
 	}
 	if cat := category.DisplayName(); cat != "" {
@@ -133,5 +146,6 @@ func pickHTTPClient(h *http.Client) http.Client {
 	if h != nil {
 		return *h
 	}
-	return *http.DefaultClient
+	// ponytail: 専用 config 化は後回し。nil 注入時の無期限ブロックを防ぐ。
+	return http.Client{Timeout: 20 * time.Second}
 }

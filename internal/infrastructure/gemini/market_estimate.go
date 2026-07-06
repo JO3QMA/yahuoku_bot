@@ -86,6 +86,7 @@ func (e *MarketEstimator) Estimate(ctx context.Context, title, description strin
 	}
 	low, high := parsed.LowPrice, parsed.HighPrice
 	if low > high {
+		log.Printf("[market_estimate] swapped low/high: low=%d, high=%d", parsed.LowPrice, parsed.HighPrice)
 		low, high = high, low
 	}
 	note := strings.TrimSpace(parsed.Note)
@@ -124,7 +125,7 @@ func marketEstimateSchema() *genai.Schema {
 
 func buildMarketSearchQuery(title, description string, p *product.Product) string {
 	var parts []string
-	if t := strings.TrimSpace(truncateString(title, 500)); t != "" {
+	if t := strings.TrimSpace(truncateString(sanitizeUTF8(title), 500)); t != "" {
 		parts = append(parts, t)
 	}
 	if _, v, ok := domainmarket.IdentityValue(p); ok {
@@ -155,8 +156,9 @@ func buildMarketEstimatePrompt(title, description string, p *product.Product, id
 			b.WriteString("状態: " + p.Condition + "\n")
 		}
 		for _, f := range p.Fields {
-			if f.Value != "" && f.Value != "不明" {
-				b.WriteString(f.Key + ": " + f.Value + "\n")
+			v := sanitizeUTF8(f.Value)
+			if v != "" && v != "不明" {
+				b.WriteString(f.Key + ": " + truncateString(v, 200) + "\n")
 			}
 		}
 	}
@@ -167,7 +169,7 @@ func buildMarketEstimatePrompt(title, description string, p *product.Product, id
 	}
 	if searchSummary != "" {
 		b.WriteString("\n## Web検索サマリ\n")
-		b.WriteString(searchSummary)
+		b.WriteString(truncateString(searchSummary, 2000))
 		b.WriteString("\n")
 	}
 	b.WriteString("\nnote には必ず「Web検索」を含め、型番未特定なら「型番未特定」、特定済みなら「型番一致」を含めてください。\n")
