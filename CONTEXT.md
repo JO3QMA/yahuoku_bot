@@ -40,12 +40,6 @@ _Avoid_: カタログ構成, 搭載スペック, 最大搭載数
 この Auction の出品物に実際に搭載・装着されている構成（CPU 型番、メモリ容量、入っているディスクなど）。ListingEvidence に裏付けがある場合のみ Field に入る。曖昧な記載（例: 「HDD付き」のみ）は記載された範囲だけ入れ、詳細を Supplement で補完しない。`cpu_model_line`・`memory_info` 等の搭載スペック欄は原則ここに属する。
 _Avoid_: 標準構成, 出荷時構成
 
-**ModelInvariant の Field 配置（server）**:
-- `server_model`: 型番・機種名の同定（Supplement 可）
-- `storage_info`: 搭載ディスクは InstalledConfiguration。出品記載が無い場合はベイサイズ等の ModelInvariant のみ Supplement 可
-- `cpu_model_line`: 搭載 CPU 型番のみ（ListingEvidence のみ）
-- `other_notes`: 他 Field に収まらない ModelInvariant（例: 対応 CPU 世代）
-
 **Condition**:
 Product の物理・使用状態（新品、中古など）。Category や Field とは独立した Product 属性。
 _Avoid_: 商品状態（日本語説明向け）, ProductAttribute

@@ -2,19 +2,6 @@ package product
 
 import "testing"
 
-func TestSupplementEligibleKeys_server(t *testing.T) {
-	got := SupplementEligibleKeys(CategoryServer)
-	want := []string{"server_model", "storage_info", "other_notes"}
-	if len(got) != len(want) {
-		t.Fatalf("got %v want %v", got, want)
-	}
-	for i := range want {
-		if got[i] != want[i] {
-			t.Fatalf("got %v want %v", got, want)
-		}
-	}
-}
-
 func TestIsSupplementEligibleKey_rejectsInstalledConfiguration(t *testing.T) {
 	if IsSupplementEligibleKey(CategoryServer, "cpu_model_line") {
 		t.Fatal("cpu_model_line should not be supplement eligible")

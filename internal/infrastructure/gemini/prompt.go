@@ -36,11 +36,9 @@ func classificationRules() string {
 func fieldEvidenceRules() string {
 	return `
 【Field の根拠ルール】
-- 搭載スペック（CPU型番・メモリ容量・搭載ディスク・VRAM 等）はタイトル・説明文・出品画像に書かれた内容のみ fields に入れる
-- メーカーの BTO 販売オプション・標準構成・最大搭載数は fields に入れない（出品記載と無関係）
-- 曖昧な記載（例: 「HDD付き」のみ）は記載された範囲だけ入れ、容量や型番を推測で補わない
-- Web 検索で補完してよいのは型番・機種名の同定と、型番から導ける固定的仕様（例: 3.5インチベイ対応、対応CPU世代）のみ
-- server の固定的仕様: storage_info にはベイサイズ等、対応CPU世代は other_notes に入れる。cpu_model_line には搭載CPU型番のみ
+- 搭載スペックは出品記載・画像のみ。BTO 販売オプション・標準構成・最大搭載数は入れない
+- 曖昧な記載（例: 「HDD付き」のみ）は記載範囲だけ入れ、詳細を推測しない
+- Web 検索で補完してよいのは型番・機種名の同定と固定的仕様（例: 3.5インチベイ、対応CPU世代）のみ
 `
 }
 
@@ -64,7 +62,6 @@ func buildStage1Prompt(title, plainDesc string) string {
 `)
 	b.WriteString(categoryBlock())
 	b.WriteString(classificationRules())
-	b.WriteString(fieldEvidenceRules())
 	b.WriteString(serverValueExamples())
 	b.WriteString(`
 【出力形式】
@@ -119,19 +116,8 @@ func buildStage3Prompt(title, plainDesc string, s1 *stage1Result, s2 *stage2Resu
 	b.WriteString(fieldEvidenceRules())
 	b.WriteString(`
 【lookup_spec の制限】
-- lookup_spec は型番・機種名の同定と固定的仕様（ModelInvariant）の補完にのみ使う
+- 型番・機種名の同定と固定的仕様（ModelInvariant）の補完にのみ使う
 - BTO 販売オプション・標準構成・搭載CPU/メモリ/ディスクの推測には使わない
-`)
-	if s1 != nil {
-		cat := product.ParseCategory(s1.Category)
-		eligible := product.FilterSupplementEligibleKeys(cat, s1.MissingKeys)
-		if len(eligible) > 0 {
-			b.WriteString("\n【Web検索で補完してよいキー】\n")
-			b.WriteString(strings.Join(eligible, ", "))
-			b.WriteString("\n")
-		}
-	}
-	b.WriteString(`
 【タイトル】
 `)
 	b.WriteString(title)

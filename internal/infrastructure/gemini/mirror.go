@@ -87,11 +87,6 @@ func (m *productMirror) unresolvedKeys() []string {
 	return out
 }
 
-// supplementUnresolvedKeys は unresolvedKeys のうち Web 検索 Supplement で補完してよいキー。
-func (m *productMirror) supplementUnresolvedKeys() []string {
-	return product.FilterSupplementEligibleKeys(m.category, m.unresolvedKeys())
-}
-
 func filterTemplateKeys(cat product.Category, keys []string) []string {
 	if cat == "" || len(keys) == 0 {
 		return nil
