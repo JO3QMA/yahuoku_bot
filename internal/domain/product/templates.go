@@ -1,7 +1,5 @@
 package product
 
-import "log"
-
 // FieldTemplate は Category ごとのスペック欄項目定義。
 type FieldTemplate struct {
 	Key    string
@@ -61,7 +59,6 @@ func CanonicalFieldKey(cat Category, key string) string {
 			return key
 		}
 	}
-	log.Printf("[product] unknown field key %q for category %s", key, cat)
 	return ""
 }
 

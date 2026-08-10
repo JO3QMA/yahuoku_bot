@@ -17,6 +17,7 @@ func categoryLockedSchema(cat product.Category) *genai.Schema {
 	return &genai.Schema{Type: genai.TypeString, Enum: []string{string(cat)}}
 }
 
+// fieldArraySchema は Stage 1/2 用。category 未確定または並列のため key enum を付けない（ADR 0003）。
 func fieldArraySchema() *genai.Schema {
 	return &genai.Schema{
 		Type: genai.TypeArray,
