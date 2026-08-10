@@ -49,9 +49,16 @@ func (m *productMirror) applyVision(s2 *stage2Result) {
 	}
 }
 
-func (m *productMirror) applyFields(fields []product.Field) {
+func (m *productMirror) applySupplementFields(fields []product.Field) {
 	for _, f := range fields {
-		m.setField(f.Key, f.Value)
+		canon := product.CanonicalFieldKey(m.category, f.Key)
+		if canon == "" || !product.IsSupplementEligibleKey(m.category, canon) {
+			continue
+		}
+		if strings.TrimSpace(m.fields[canon]) != "" {
+			continue
+		}
+		m.setField(canon, f.Value)
 	}
 }
 

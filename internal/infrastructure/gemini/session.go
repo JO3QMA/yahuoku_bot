@@ -73,7 +73,7 @@ func (s *session) Extract(ctx context.Context, in product.ExtractInput) (*produc
 	mirror.applyVision(s2)
 
 	var supplementErr error
-	if len(mirror.unresolvedKeys()) > 0 {
+	if len(product.FilterSupplementEligibleKeys(mirror.category, mirror.unresolvedKeys())) > 0 {
 		if err := s.runSearchSupplement(ctx, title, plainDesc, mirror); err != nil {
 			supplementErr = err
 		}
@@ -138,12 +138,12 @@ func (s *session) runSearchSupplement(ctx context.Context, title, plainDesc stri
 		if text != "" {
 			parsed, err := parseAgentFieldsJSON(text)
 			if err == nil {
-				mirror.applyFields(parsed.Fields)
+				mirror.applySupplementFields(parsed.Fields)
 				if parsed.Done {
-					if remaining := mirror.unresolvedKeys(); len(remaining) > 0 {
+					if remaining := product.FilterSupplementEligibleKeys(mirror.category, mirror.unresolvedKeys()); len(remaining) > 0 {
 						contents = append(contents, cand.Content)
 						contents = append(contents, genai.NewContentFromText(
-							"done:true ですが未解決フィールドが残っています: "+strings.Join(remaining, ", ")+
+							"done:true ですが Supplement 対象の未解決フィールドが残っています: "+strings.Join(remaining, ", ")+
 								"。lookup_spec で補完するか、確実な値だけ fields に入れてください。",
 							genai.RoleUser,
 						))
@@ -165,8 +165,8 @@ func (s *session) runSearchSupplement(ctx context.Context, title, plainDesc stri
 	if err != nil {
 		return err
 	}
-	mirror.applyFields(parsed.Fields)
-	if remaining := mirror.unresolvedKeys(); len(remaining) > 0 {
+	mirror.applySupplementFields(parsed.Fields)
+	if remaining := product.FilterSupplementEligibleKeys(mirror.category, mirror.unresolvedKeys()); len(remaining) > 0 {
 		return fmt.Errorf("unresolved after search: %s", strings.Join(remaining, ", "))
 	}
 	return nil

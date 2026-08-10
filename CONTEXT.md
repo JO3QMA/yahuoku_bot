@@ -24,6 +24,22 @@ _Avoid_: ジャンル別スペック（日本語説明向け）, SpecField
 Product に実際に入ったスペック欄の1項目。key と value の組。
 _Avoid_: Spec, Attribute, スペック値
 
+**ListingEvidence**:
+Auction のタイトル・説明文・出品画像から読み取れる事実。Field の根拠となる情報源。
+_Avoid_: 出品情報, オークション記載
+
+**CatalogConfiguration**:
+メーカーが筐体などを販売する際に選択できる標準構成・オプション一覧（例: BTO の CPU・メモリ・搭載ディスクの選択肢）。この Auction に実際に載っている構成とは限らない。Field の値にならない。
+_Avoid_: 販売オプション, カタログスペック, メーカー構成
+
+**ModelInvariant**:
+型番・機種名から導ける、筐体やプラットフォームの固定的な仕様（例: 3.5インチベイ対応、対応 CPU 世代・ソケット世代）。購入時の選択肢ではなく設計上の属性。最大搭載数などカタログ上の選択肢に近い数値は含まない。ListingEvidence に無くても Supplement で Field に入れてよい。
+_Avoid_: カタログ構成, 搭載スペック, 最大搭載数
+
+**InstalledConfiguration**:
+この Auction の出品物に実際に搭載・装着されている構成（CPU 型番、メモリ容量、入っているディスクなど）。ListingEvidence に裏付けがある場合のみ Field に入る。曖昧な記載（例: 「HDD付き」のみ）は記載された範囲だけ入れ、詳細を Supplement で補完しない。`cpu_model_line`・`memory_info` 等の搭載スペック欄は原則ここに属する。
+_Avoid_: 標準構成, 出荷時構成
+
 **Condition**:
 Product の物理・使用状態（新品、中古など）。Category や Field とは独立した Product 属性。
 _Avoid_: 商品状態（日本語説明向け）, ProductAttribute
@@ -41,7 +57,7 @@ FieldTemplate に定義されたキーのうち、Extraction 完了前の Produc
 _Avoid_: missing_key, 未抽出フィールド（実装・プロンプト寄りの説明向け）
 
 **Supplement**:
-タイトル・説明文以外の情報源（画像、Web 検索など）から Field を補う手段。
+ListingEvidence に無い情報を画像解析や Web 検索で補う手段。
 _Avoid_: Sub-agent, Tool, サブエージェント（実装寄りの説明向け）
 
 **Preview**:

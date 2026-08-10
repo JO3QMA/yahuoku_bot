@@ -12,7 +12,7 @@ import (
 func lookupSpecDeclaration() *genai.FunctionDeclaration {
 	return &genai.FunctionDeclaration{
 		Name:        "lookup_spec",
-		Description: "商品の型番やスペックをWeb検索で調べる。不足フィールドの補完にのみ使用する。",
+		Description: "商品の型番や固定的仕様をWeb検索で調べる。型番同定とModelInvariant（例: ベイサイズ・対応CPU世代）の補完にのみ使用。BTO構成・搭載スペックの推測には使わない。",
 		Parameters: &genai.Schema{
 			Type: genai.TypeObject,
 			Properties: map[string]*genai.Schema{
@@ -44,17 +44,20 @@ func agentToolConfig() *genai.GenerateContentConfig {
 }
 
 func buildStage3FinalPrompt(title, plainDesc string, s1 *stage1Result, s2 *stage2Result, searchNotes []string) string {
-	var b strings.Builder
-	b.WriteString(`Web検索結果を踏まえ、補完した fields と done:true を JSON で返してください。
+	return "Web検索結果を踏まえ、補完した fields と done:true を JSON で返してください。\n\n" +
+		buildStage3Prompt(title, plainDesc, s1, s2) +
+		stage3SearchNotesBlock(searchNotes)
+}
 
-`)
-	b.WriteString(buildStage3Prompt(title, plainDesc, s1, s2))
-	if len(searchNotes) > 0 {
-		b.WriteString("\n\n【検索結果】\n")
-		for _, n := range searchNotes {
-			b.WriteString(n)
-			b.WriteString("\n")
-		}
+func stage3SearchNotesBlock(searchNotes []string) string {
+	if len(searchNotes) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("\n\n【検索結果】\n")
+	for _, n := range searchNotes {
+		b.WriteString(n)
+		b.WriteString("\n")
 	}
 	return b.String()
 }

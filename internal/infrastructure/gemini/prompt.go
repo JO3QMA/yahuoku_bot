@@ -33,6 +33,15 @@ func classificationRules() string {
 `
 }
 
+func fieldEvidenceRules() string {
+	return `
+【Field の根拠ルール】
+- 搭載スペックは出品記載・画像のみ。BTO 販売オプション・標準構成・最大搭載数は入れない
+- 曖昧な記載（例: 「HDD付き」のみ）は記載範囲だけ入れ、詳細を推測しない
+- lookup_spec は型番・機種名の同定と固定的仕様（例: 3.5インチベイ、対応CPU世代）の補完にのみ使う
+`
+}
+
 func serverValueExamples() string {
 	return `
 【server ジャンルの value 形式例】
@@ -65,6 +74,7 @@ func buildStage1Prompt(title, plainDesc string) string {
 - 商品説明が空の場合はタイトルのみから抽出してください
 - 確実に分かる項目だけ fields に入れ、推測で埋めないでください
 - fields の key は選択したジャンルのテンプレートキーのみ使用してください
+- missing_keys には値が不明なテンプレートキーをすべて列挙してよい（搭載スペックが出品記載に無くても列挙する）
 
 【タイトル】
 `)
@@ -102,7 +112,9 @@ func buildStage3Prompt(title, plainDesc string, s1 *stage1Result, s2 *stage2Resu
 補完が完了したら done を true にし、fields にテンプレートキーと値を返してください。
 
 【優先度】テキスト > 画像 > 検索結果
-
+`)
+	b.WriteString(fieldEvidenceRules())
+	b.WriteString(`
 【タイトル】
 `)
 	b.WriteString(title)
@@ -115,7 +127,7 @@ func buildStage3Prompt(title, plainDesc string, s1 *stage1Result, s2 *stage2Resu
 		b.WriteString(stage2EvidenceJSON(s2))
 	}
 	if s1 != nil && len(s1.MissingKeys) > 0 {
-		b.WriteString("\n\n【補完対象キー】\n")
+		b.WriteString("\n\n【未解決キー（出品記載に無い搭載スペックは空欄のままでよい）】\n")
 		b.WriteString(strings.Join(s1.MissingKeys, ", "))
 	}
 	return b.String()
@@ -126,7 +138,9 @@ func buildMergePrompt(title, plainDesc string, s1 *stage1Result, s2 *stage2Resul
 	b.WriteString(`以下の証拠を統合し、最終的な商品情報を JSON で返してください。
 
 【優先度】テキスト > 画像 > 検索
-
+`)
+	b.WriteString(fieldEvidenceRules())
+	b.WriteString(`
 【タイトル】
 `)
 	b.WriteString(title)
