@@ -108,9 +108,17 @@ func TestClient_Extract_errors(t *testing.T) {
 }
 
 func TestProductSchema_smoke(t *testing.T) {
-	s := productSchema()
+	s := productSchema(product.CategoryServer)
 	if s == nil || s.Type != genai.TypeObject {
 		t.Fatal(s)
+	}
+	cat := s.Properties["category"]
+	if len(cat.Enum) != 1 || cat.Enum[0] != "server" {
+		t.Fatalf("category enum: %+v", cat.Enum)
+	}
+	keyEnum := s.Properties["fields"].Items.Properties["key"].Enum
+	if len(keyEnum) == 0 || keyEnum[0] != "server_model" {
+		t.Fatalf("field key enum: %+v", keyEnum)
 	}
 }
 
@@ -124,7 +132,7 @@ func Test_genAIAPI_stubGenerate(t *testing.T) {
 		api.stubGenerate = func(context.Context, string, []*genai.Content, *genai.GenerateContentConfig) (*genai.GenerateContentResponse, error) {
 			return nil, errors.New("x")
 		}
-		_, err := api.generateJSON(context.Background(), defaultFastModel, "p", productSchema())
+		_, err := api.generateJSON(context.Background(), defaultFastModel, "p", productSchema(product.CategoryServer))
 		if err == nil || !strings.Contains(err.Error(), "x") {
 			t.Fatalf("%v", err)
 		}
@@ -139,7 +147,7 @@ func Test_genAIAPI_stubGenerate(t *testing.T) {
 				}},
 			}, nil
 		}
-		text, err := api.generateJSON(context.Background(), defaultFastModel, "p", productSchema())
+		text, err := api.generateJSON(context.Background(), defaultFastModel, "p", productSchema(product.CategoryServer))
 		if err != nil || !strings.Contains(text, "Z") {
 			t.Fatalf("%v %q", err, text)
 		}

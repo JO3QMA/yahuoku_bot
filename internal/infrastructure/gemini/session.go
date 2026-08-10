@@ -157,7 +157,7 @@ func (s *session) runSearchSupplement(ctx context.Context, title, plainDesc stri
 	}
 
 	finalPrompt := buildStage3FinalPrompt(title, plainDesc, s1, mirror.vision, mirror.searchNotes)
-	text, err := s.api.generateJSON(ctx, s.opts.AgentModel, finalPrompt, agentFieldsSchema())
+	text, err := s.api.generateJSON(ctx, s.opts.AgentModel, finalPrompt, agentFieldsSchema(mirror.category))
 	if err != nil {
 		return fmt.Errorf("final: %w", err)
 	}
@@ -174,7 +174,7 @@ func (s *session) runSearchSupplement(ctx context.Context, title, plainDesc stri
 
 func (s *session) finalize(ctx context.Context, title, plainDesc string, mirror *productMirror) (*product.Product, error) {
 	s1 := mirror.asStage1()
-	text, err := s.api.generateJSON(ctx, s.opts.FastModel, buildMergePrompt(title, plainDesc, s1, mirror.vision, nil, mirror.searchNotes), productSchema())
+	text, err := s.api.generateJSON(ctx, s.opts.FastModel, buildMergePrompt(title, plainDesc, s1, mirror.vision, nil, mirror.searchNotes), productSchema(mirror.category))
 	if err != nil {
 		return nil, fmt.Errorf("finalize: %w", err)
 	}
