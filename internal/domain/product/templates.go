@@ -1,7 +1,5 @@
 package product
 
-import "log"
-
 // FieldTemplate は Category ごとのスペック欄項目定義。
 type FieldTemplate struct {
 	Key    string
@@ -41,18 +39,14 @@ func TemplatesFor(cat Category) []FieldTemplate {
 	}
 }
 
-// fieldKeyAliases は LLM がテンプレート外のキーを返したときの正規化先。
-var fieldKeyAliases = map[Category]map[string]string{
-	CategoryServer: {
-		"model":          "server_model",
-		"cpu":            "cpu_model_line",
-		"memory":         "memory_info",
-		"storage":        "storage_info",
-		"drive":          "storage_info",
-		"os":             "other_notes",
-		"power_supply":   "other_notes",
-		"other_features": "other_notes",
-	},
+// TemplateKeys は Category の FieldTemplate キー一覧を返す。
+func TemplateKeys(cat Category) []string {
+	defs := TemplatesFor(cat)
+	keys := make([]string, len(defs))
+	for i, d := range defs {
+		keys[i] = d.Key
+	}
+	return keys
 }
 
 // CanonicalFieldKey はカテゴリのテンプレートキーに正規化する。未知キーは空文字。
@@ -63,11 +57,6 @@ func CanonicalFieldKey(cat Category, key string) string {
 	for _, d := range TemplatesFor(cat) {
 		if d.Key == key {
 			return key
-		}
-	}
-	if aliases, ok := fieldKeyAliases[cat]; ok {
-		if canon, ok := aliases[key]; ok {
-			return canon
 		}
 	}
 	return ""
@@ -84,7 +73,6 @@ func ValidateFields(cat Category, fields []Field) []Field {
 		}
 		canon := CanonicalFieldKey(cat, f.Key)
 		if canon == "" {
-			log.Printf("[product] unknown field key %q for category %s", f.Key, cat)
 			continue
 		}
 		if _, ok := byKey[canon]; ok {
@@ -214,12 +202,7 @@ var otherTemplate = []FieldTemplate{
 func CategoryFieldKeysForPrompt() map[Category][]string {
 	out := make(map[Category][]string, len(AllCategories))
 	for _, cat := range AllCategories {
-		defs := TemplatesFor(cat)
-		keys := make([]string, len(defs))
-		for i, d := range defs {
-			keys[i] = d.Key
-		}
-		out[cat] = keys
+		out[cat] = TemplateKeys(cat)
 	}
 	return out
 }

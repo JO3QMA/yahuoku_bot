@@ -62,28 +62,15 @@ func TestValidateFields_orderAndFilter(t *testing.T) {
 	}
 }
 
-func TestValidateFields_serverAliases(t *testing.T) {
+func TestValidateFields_rejectsAliasKeys(t *testing.T) {
 	in := []Field{
 		{Key: "model", Value: "DELL Precision 7920 Tower"},
 		{Key: "cpu", Value: "Xeon Gold 6242 2.8GHz x2"},
 		{Key: "memory", Value: "128GB"},
-		{Key: "storage", Value: "1TB SSD"},
-		{Key: "drive", Value: "DVD+-RW"},
-		{Key: "os", Value: "Win11 Pro"},
-		{Key: "power_supply", Value: "1400W"},
 	}
 	out := ValidateFields(CategoryServer, in)
-	if len(out) != 5 {
+	if len(out) != 0 {
 		t.Fatalf("len=%d, got %+v", len(out), out)
-	}
-	if out[0].Key != "server_model" || out[0].Value != "DELL Precision 7920 Tower" {
-		t.Fatalf("server_model: %+v", out[0])
-	}
-	if out[3].Key != "storage_info" || out[3].Value != "1TB SSD" {
-		t.Fatalf("storage_info: %+v", out[3])
-	}
-	if out[4].Key != "other_notes" || out[4].Value != "Win11 Pro" {
-		t.Fatalf("other_notes: %+v", out[4])
 	}
 }
 

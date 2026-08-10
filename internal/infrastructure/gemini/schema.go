@@ -13,6 +13,11 @@ func categoryEnumSchema() *genai.Schema {
 	return &genai.Schema{Type: genai.TypeString, Enum: categoryEnums}
 }
 
+func categoryLockedSchema(cat product.Category) *genai.Schema {
+	return &genai.Schema{Type: genai.TypeString, Enum: []string{string(cat)}}
+}
+
+// fieldArraySchema は Stage 1/2 用。category 未確定または並列のため key enum を付けない（ADR 0003）。
 func fieldArraySchema() *genai.Schema {
 	return &genai.Schema{
 		Type: genai.TypeArray,
@@ -20,6 +25,20 @@ func fieldArraySchema() *genai.Schema {
 			Type: genai.TypeObject,
 			Properties: map[string]*genai.Schema{
 				"key":   {Type: genai.TypeString},
+				"value": {Type: genai.TypeString},
+			},
+			Required: []string{"key", "value"},
+		},
+	}
+}
+
+func fieldArraySchemaForCategory(cat product.Category) *genai.Schema {
+	return &genai.Schema{
+		Type: genai.TypeArray,
+		Items: &genai.Schema{
+			Type: genai.TypeObject,
+			Properties: map[string]*genai.Schema{
+				"key":   {Type: genai.TypeString, Enum: product.TemplateKeys(cat)},
 				"value": {Type: genai.TypeString},
 			},
 			Required: []string{"key", "value"},
@@ -81,24 +100,24 @@ func stage2Schema() *genai.Schema {
 	}
 }
 
-func productSchema() *genai.Schema {
+func productSchema(cat product.Category) *genai.Schema {
 	return &genai.Schema{
 		Type: genai.TypeObject,
 		Properties: map[string]*genai.Schema{
-			"category":      categoryEnumSchema(),
+			"category":      categoryLockedSchema(cat),
 			"condition":     {Type: genai.TypeString, Description: "商品の状態(新品/中古/不明)"},
 			"shipping_free": {Type: genai.TypeBoolean, Description: "送料無料かどうか"},
-			"fields":        fieldArraySchema(),
+			"fields":        fieldArraySchemaForCategory(cat),
 		},
 		Required: []string{"category", "condition", "fields"},
 	}
 }
 
-func agentFieldsSchema() *genai.Schema {
+func agentFieldsSchema(cat product.Category) *genai.Schema {
 	return &genai.Schema{
 		Type: genai.TypeObject,
 		Properties: map[string]*genai.Schema{
-			"fields": fieldArraySchema(),
+			"fields": fieldArraySchemaForCategory(cat),
 			"done": {
 				Type:        genai.TypeBoolean,
 				Description: "補完が完了したら true",

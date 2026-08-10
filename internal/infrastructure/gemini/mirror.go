@@ -1,10 +1,15 @@
 package gemini
 
 import (
+	"log"
 	"strings"
 
 	"jo3qma.com/yahoo_auctions_bot/internal/domain/product"
 )
+
+func warnUnknownFieldKey(cat product.Category, key string) {
+	log.Printf("[product] unknown field key %q for category %s", key, cat)
+}
 
 // productMirror は Extraction 中の Product ドラフト。構造と UnresolvedField は Go が保証する。
 type productMirror struct {
@@ -42,7 +47,13 @@ func (m *productMirror) applyVision(s2 *stage2Result) {
 	for _, f := range s2.ImageFields {
 		canon := product.CanonicalFieldKey(m.category, f.Key)
 		value := strings.TrimSpace(f.Value)
-		if canon == "" || value == "" || m.fields[canon] != "" {
+		if canon == "" {
+			if value != "" {
+				warnUnknownFieldKey(m.category, f.Key)
+			}
+			continue
+		}
+		if value == "" || m.fields[canon] != "" {
 			continue
 		}
 		m.fields[canon] = value
@@ -52,7 +63,13 @@ func (m *productMirror) applyVision(s2 *stage2Result) {
 func (m *productMirror) applySupplementFields(fields []product.Field) {
 	for _, f := range fields {
 		canon := product.CanonicalFieldKey(m.category, f.Key)
-		if canon == "" || !product.IsSupplementEligibleKey(m.category, canon) {
+		if canon == "" {
+			if strings.TrimSpace(f.Value) != "" {
+				warnUnknownFieldKey(m.category, f.Key)
+			}
+			continue
+		}
+		if !product.IsSupplementEligibleKey(m.category, canon) {
 			continue
 		}
 		if strings.TrimSpace(m.fields[canon]) != "" {
@@ -72,6 +89,7 @@ func (m *productMirror) setField(key, value string) {
 	}
 	canon := product.CanonicalFieldKey(m.category, key)
 	if canon == "" {
+		warnUnknownFieldKey(m.category, key)
 		return
 	}
 	m.fields[canon] = value
@@ -98,11 +116,14 @@ func filterTemplateKeys(cat product.Category, keys []string) []string {
 	seen := make(map[string]struct{})
 	var out []string
 	for _, k := range keys {
-		if canon := product.CanonicalFieldKey(cat, k); canon != "" {
-			if _, ok := seen[canon]; !ok {
-				seen[canon] = struct{}{}
-				out = append(out, canon)
-			}
+		canon := product.CanonicalFieldKey(cat, k)
+		if canon == "" {
+			warnUnknownFieldKey(cat, k)
+			continue
+		}
+		if _, ok := seen[canon]; !ok {
+			seen[canon] = struct{}{}
+			out = append(out, canon)
 		}
 	}
 	return out
