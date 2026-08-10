@@ -156,7 +156,7 @@ func (s *session) runSearchSupplement(ctx context.Context, title, plainDesc stri
 		break
 	}
 
-	finalPrompt := buildStage3FinalPrompt(title, plainDesc, s1, mirror.vision, mirror.searchNotes)
+	finalPrompt := buildStage3FinalPrompt(mirror.searchNotes)
 	text, err := s.api.generateJSON(ctx, s.opts.AgentModel, finalPrompt, agentFieldsSchema())
 	if err != nil {
 		return fmt.Errorf("final: %w", err)

@@ -1,18 +1,19 @@
 package product
 
-// IsSupplementEligibleKey は ListingEvidence に無い場合でも Web 検索 Supplement で
-// 値を入れてよい FieldTemplate キーかどうかを返す（識別・ModelInvariant のみ）。
-func IsSupplementEligibleKey(cat Category, key string) bool {
-	canon := CanonicalFieldKey(cat, key)
-	if canon == "" {
-		return false
-	}
+func isCanonSupplementEligible(cat Category, canon string) bool {
 	for _, k := range SupplementEligibleKeys(cat) {
 		if k == canon {
 			return true
 		}
 	}
 	return false
+}
+
+// IsSupplementEligibleKey は ListingEvidence に無い場合でも Web 検索 Supplement で
+// 値を入れてよい FieldTemplate キーかどうかを返す（識別・ModelInvariant のみ）。
+func IsSupplementEligibleKey(cat Category, key string) bool {
+	canon := CanonicalFieldKey(cat, key)
+	return canon != "" && isCanonSupplementEligible(cat, canon)
 }
 
 // SupplementEligibleKeys は Category ごとに Supplement で補完可能なテンプレートキー一覧を返す。
@@ -40,7 +41,7 @@ func FilterSupplementEligibleKeys(cat Category, keys []string) []string {
 	var out []string
 	for _, k := range keys {
 		canon := CanonicalFieldKey(cat, k)
-		if canon == "" || !IsSupplementEligibleKey(cat, canon) {
+		if canon == "" || !isCanonSupplementEligible(cat, canon) {
 			continue
 		}
 		if _, ok := seen[canon]; ok {

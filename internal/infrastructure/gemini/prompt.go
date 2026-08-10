@@ -38,7 +38,7 @@ func fieldEvidenceRules() string {
 【Field の根拠ルール】
 - 搭載スペックは出品記載・画像のみ。BTO 販売オプション・標準構成・最大搭載数は入れない
 - 曖昧な記載（例: 「HDD付き」のみ）は記載範囲だけ入れ、詳細を推測しない
-- Web 検索で補完してよいのは型番・機種名の同定と固定的仕様（例: 3.5インチベイ、対応CPU世代）のみ
+- lookup_spec は型番・機種名の同定と固定的仕様（例: 3.5インチベイ、対応CPU世代）の補完にのみ使う
 `
 }
 
@@ -115,9 +115,6 @@ func buildStage3Prompt(title, plainDesc string, s1 *stage1Result, s2 *stage2Resu
 `)
 	b.WriteString(fieldEvidenceRules())
 	b.WriteString(`
-【lookup_spec の制限】
-- 型番・機種名の同定と固定的仕様（ModelInvariant）の補完にのみ使う
-- BTO 販売オプション・標準構成・搭載CPU/メモリ/ディスクの推測には使わない
 【タイトル】
 `)
 	b.WriteString(title)
@@ -141,9 +138,7 @@ func buildMergePrompt(title, plainDesc string, s1 *stage1Result, s2 *stage2Resul
 	b.WriteString(`以下の証拠を統合し、最終的な商品情報を JSON で返してください。
 
 【優先度】テキスト > 画像 > 検索
-`)
-	b.WriteString(fieldEvidenceRules())
-	b.WriteString(`
+
 【タイトル】
 `)
 	b.WriteString(title)

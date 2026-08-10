@@ -9,7 +9,7 @@ Discord 上のヤフオク URL に反応し、オークション情報のプレ�
 _Avoid_: Listing, Item, 出品
 
 **Product**:
-Auction に載っている売り物そのもの。Category・Condition・FreeShipping・Field など、Extraction で得られた物品情報を指す。Field の値は ListingEvidence・識別・ModelInvariant に基づくものに限り、CatalogConfiguration は含まない。全 Category に共通する原則。
+Auction に載っている売り物そのもの。Category・Condition・FreeShipping・Field など、Extraction で得られた物品情報を指す。
 _Avoid_: Spec, 商品詳細
 
 **Category**:
@@ -21,7 +21,7 @@ Category ごとに定義されたスペック欄の項目定義。何を抽出�
 _Avoid_: ジャンル別スペック（日本語説明向け）, SpecField
 
 **Field**:
-Product に実際に入ったスペック欄の1項目。key と value の組。値は ListingEvidence に裏付けがあるものに限る。
+Product に実際に入ったスペック欄の1項目。key と value の組。
 _Avoid_: Spec, Attribute, スペック値
 
 **ListingEvidence**:
@@ -49,7 +49,7 @@ Product が送料無料かどうか。
 _Avoid_: 送料無料（日本語説明向け）
 
 **Extraction**:
-Auction のタイトル・説明文・画像から Product を導き出す処理。Supplement は識別・ModelInvariant の補完に限定し、InstalledConfiguration を CatalogConfiguration から埋めない。
+Auction のタイトル・説明文・画像から Product を導き出す処理。
 _Avoid_: Inference, Analysis, 推論（実装・モデル寄りの説明向け）
 
 **UnresolvedField**:
@@ -57,7 +57,7 @@ FieldTemplate に定義されたキーのうち、Extraction 完了前の Produc
 _Avoid_: missing_key, 未抽出フィールド（実装・プロンプト寄りの説明向け）
 
 **Supplement**:
-ListingEvidence に無い情報を画像解析や Web 検索で補う手段。識別フィールド（型番・機種名）と ModelInvariant の補完に使う。CatalogConfiguration や InstalledConfiguration を Field にすることは含まない。
+ListingEvidence に無い情報を画像解析や Web 検索で補う手段。
 _Avoid_: Sub-agent, Tool, サブエージェント（実装寄りの説明向け）
 
 **Preview**:
