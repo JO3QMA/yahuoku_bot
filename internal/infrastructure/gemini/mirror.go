@@ -49,12 +49,6 @@ func (m *productMirror) applyVision(s2 *stage2Result) {
 	}
 }
 
-func (m *productMirror) applyFields(fields []product.Field) {
-	for _, f := range fields {
-		m.setField(f.Key, f.Value)
-	}
-}
-
 func (m *productMirror) applySupplementFields(fields []product.Field) {
 	for _, f := range fields {
 		if !product.IsSupplementEligibleKey(m.category, f.Key) {
