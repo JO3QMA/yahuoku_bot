@@ -43,12 +43,10 @@ func agentToolConfig() *genai.GenerateContentConfig {
 	}
 }
 
-func buildStage3FinalPrompt(searchNotes []string) string {
-	var b strings.Builder
-	b.WriteString("Web検索結果を踏まえ、補完した fields と done:true を JSON で返してください。\n")
-	b.WriteString(fieldEvidenceRules())
-	b.WriteString(stage3SearchNotesBlock(searchNotes))
-	return b.String()
+func buildStage3FinalPrompt(title, plainDesc string, s1 *stage1Result, s2 *stage2Result, searchNotes []string) string {
+	return "Web検索結果を踏まえ、補完した fields と done:true を JSON で返してください。\n\n" +
+		buildStage3Prompt(title, plainDesc, s1, s2) +
+		stage3SearchNotesBlock(searchNotes)
 }
 
 func stage3SearchNotesBlock(searchNotes []string) string {

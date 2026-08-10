@@ -138,7 +138,9 @@ func buildMergePrompt(title, plainDesc string, s1 *stage1Result, s2 *stage2Resul
 	b.WriteString(`以下の証拠を統合し、最終的な商品情報を JSON で返してください。
 
 【優先度】テキスト > 画像 > 検索
-
+`)
+	b.WriteString(fieldEvidenceRules())
+	b.WriteString(`
 【タイトル】
 `)
 	b.WriteString(title)

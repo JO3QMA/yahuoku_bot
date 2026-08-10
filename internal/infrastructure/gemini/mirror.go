@@ -51,10 +51,14 @@ func (m *productMirror) applyVision(s2 *stage2Result) {
 
 func (m *productMirror) applySupplementFields(fields []product.Field) {
 	for _, f := range fields {
-		if !product.IsSupplementEligibleKey(m.category, f.Key) {
+		canon := product.CanonicalFieldKey(m.category, f.Key)
+		if canon == "" || !product.IsSupplementEligibleKey(m.category, canon) {
 			continue
 		}
-		m.setField(f.Key, f.Value)
+		if strings.TrimSpace(m.fields[canon]) != "" {
+			continue
+		}
+		m.setField(canon, f.Value)
 	}
 }
 
