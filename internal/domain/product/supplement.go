@@ -4,15 +4,21 @@ package product
 // 値を入れてよい FieldTemplate キーかどうかを返す（識別・ModelInvariant のみ）。
 func IsSupplementEligibleKey(cat Category, key string) bool {
 	canon := CanonicalFieldKey(cat, key)
-	if canon == "" {
-		return false
+	return canon != "" && isCanonSupplementEligible(cat, canon)
+}
+
+func isCanonSupplementEligible(cat Category, canon string) bool {
+	_, ok := supplementEligibleSet(cat)[canon]
+	return ok
+}
+
+func supplementEligibleSet(cat Category) map[string]struct{} {
+	keys := SupplementEligibleKeys(cat)
+	set := make(map[string]struct{}, len(keys))
+	for _, k := range keys {
+		set[k] = struct{}{}
 	}
-	for _, k := range SupplementEligibleKeys(cat) {
-		if k == canon {
-			return true
-		}
-	}
-	return false
+	return set
 }
 
 // SupplementEligibleKeys は Category ごとに Supplement で補完可能なテンプレートキー一覧を返す。
@@ -36,11 +42,15 @@ func FilterSupplementEligibleKeys(cat Category, keys []string) []string {
 	if len(keys) == 0 {
 		return nil
 	}
+	eligible := supplementEligibleSet(cat)
 	seen := make(map[string]struct{})
 	var out []string
 	for _, k := range keys {
 		canon := CanonicalFieldKey(cat, k)
-		if canon == "" || !IsSupplementEligibleKey(cat, canon) {
+		if canon == "" {
+			continue
+		}
+		if _, ok := eligible[canon]; !ok {
 			continue
 		}
 		if _, ok := seen[canon]; ok {
