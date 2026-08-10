@@ -49,6 +49,25 @@ func Test_extract_skips_search_when_resolved(t *testing.T) {
 	}
 }
 
+func Test_extract_skips_search_when_only_installed_configuration_missing(t *testing.T) {
+	stage1 := `{"category":"server","condition":"中古","shipping_free":false,"fields":[{"key":"server_model","value":"Dell R740"}],"missing_keys":["cpu_model_line","memory_info"],"candidate_queries":["Dell R740 スペック"]}`
+	stage4 := `{"category":"server","condition":"中古","shipping_free":false,"fields":[{"key":"server_model","value":"Dell R740"}]}`
+	api, toolsCalled := stubStageExtractor(t, stage1, stage4)
+
+	pd, err := NewTestClient(api, Options{}).Extract(context.Background(), product.ExtractInput{
+		Title: "Dell R740", Description: "中古サーバー",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pd.Category != "server" {
+		t.Fatalf("%v", pd)
+	}
+	if *toolsCalled > 0 {
+		t.Fatal("search supplement should not run when only InstalledConfiguration keys are missing")
+	}
+}
+
 func Test_extract_text_only(t *testing.T) {
 	stage1 := `{"category":"other","condition":"","shipping_free":null,"fields":[],"missing_keys":[],"candidate_queries":[]}`
 	stage4 := `{"category":"other","condition":"","fields":[]}`

@@ -55,6 +55,15 @@ func (m *productMirror) applyFields(fields []product.Field) {
 	}
 }
 
+func (m *productMirror) applySupplementFields(fields []product.Field) {
+	for _, f := range fields {
+		if !product.IsSupplementEligibleKey(m.category, f.Key) {
+			continue
+		}
+		m.setField(f.Key, f.Value)
+	}
+}
+
 func (m *productMirror) setField(key, value string) {
 	if m.category == "" {
 		return
@@ -82,6 +91,11 @@ func (m *productMirror) unresolvedKeys() []string {
 		}
 	}
 	return out
+}
+
+// supplementUnresolvedKeys は unresolvedKeys のうち Web 検索 Supplement で補完してよいキー。
+func (m *productMirror) supplementUnresolvedKeys() []string {
+	return product.FilterSupplementEligibleKeys(m.category, m.unresolvedKeys())
 }
 
 func filterTemplateKeys(cat product.Category, keys []string) []string {

@@ -9,7 +9,7 @@ Discord 上のヤフオク URL に反応し、オークション情報のプレ�
 _Avoid_: Listing, Item, 出品
 
 **Product**:
-Auction に載っている売り物そのもの。Category・Condition・FreeShipping・Field など、Extraction で得られた物品情報を指す。
+Auction に載っている売り物そのもの。Category・Condition・FreeShipping・Field など、Extraction で得られた物品情報を指す。Field の値は ListingEvidence・識別・ModelInvariant に基づくものに限り、CatalogConfiguration は含まない。全 Category に共通する原則。
 _Avoid_: Spec, 商品詳細
 
 **Category**:
@@ -21,8 +21,30 @@ Category ごとに定義されたスペック欄の項目定義。何を抽出�
 _Avoid_: ジャンル別スペック（日本語説明向け）, SpecField
 
 **Field**:
-Product に実際に入ったスペック欄の1項目。key と value の組。
+Product に実際に入ったスペック欄の1項目。key と value の組。値は ListingEvidence に裏付けがあるものに限る。
 _Avoid_: Spec, Attribute, スペック値
+
+**ListingEvidence**:
+Auction のタイトル・説明文・出品画像から読み取れる事実。Field の根拠となる情報源。
+_Avoid_: 出品情報, オークション記載
+
+**CatalogConfiguration**:
+メーカーが筐体などを販売する際に選択できる標準構成・オプション一覧（例: BTO の CPU・メモリ・搭載ディスクの選択肢）。この Auction に実際に載っている構成とは限らない。Field の値にならない。
+_Avoid_: 販売オプション, カタログスペック, メーカー構成
+
+**ModelInvariant**:
+型番・機種名から導ける、筐体やプラットフォームの固定的な仕様（例: 3.5インチベイ対応、対応 CPU 世代・ソケット世代）。購入時の選択肢ではなく設計上の属性。最大搭載数などカタログ上の選択肢に近い数値は含まない。ListingEvidence に無くても Supplement で Field に入れてよい。
+_Avoid_: カタログ構成, 搭載スペック, 最大搭載数
+
+**InstalledConfiguration**:
+この Auction の出品物に実際に搭載・装着されている構成（CPU 型番、メモリ容量、入っているディスクなど）。ListingEvidence に裏付けがある場合のみ Field に入る。曖昧な記載（例: 「HDD付き」のみ）は記載された範囲だけ入れ、詳細を Supplement で補完しない。`cpu_model_line`・`memory_info` 等の搭載スペック欄は原則ここに属する。
+_Avoid_: 標準構成, 出荷時構成
+
+**ModelInvariant の Field 配置（server）**:
+- `server_model`: 型番・機種名の同定（Supplement 可）
+- `storage_info`: 搭載ディスクは InstalledConfiguration。出品記載が無い場合はベイサイズ等の ModelInvariant のみ Supplement 可
+- `cpu_model_line`: 搭載 CPU 型番のみ（ListingEvidence のみ）
+- `other_notes`: 他 Field に収まらない ModelInvariant（例: 対応 CPU 世代）
 
 **Condition**:
 Product の物理・使用状態（新品、中古など）。Category や Field とは独立した Product 属性。
@@ -33,7 +55,7 @@ Product が送料無料かどうか。
 _Avoid_: 送料無料（日本語説明向け）
 
 **Extraction**:
-Auction のタイトル・説明文・画像から Product を導き出す処理。
+Auction のタイトル・説明文・画像から Product を導き出す処理。Supplement は識別・ModelInvariant の補完に限定し、InstalledConfiguration を CatalogConfiguration から埋めない。
 _Avoid_: Inference, Analysis, 推論（実装・モデル寄りの説明向け）
 
 **UnresolvedField**:
@@ -41,7 +63,7 @@ FieldTemplate に定義されたキーのうち、Extraction 完了前の Produc
 _Avoid_: missing_key, 未抽出フィールド（実装・プロンプト寄りの説明向け）
 
 **Supplement**:
-タイトル・説明文以外の情報源（画像、Web 検索など）から Field を補う手段。
+ListingEvidence に無い情報を画像解析や Web 検索で補う手段。識別フィールド（型番・機種名）と ModelInvariant の補完に使う。CatalogConfiguration や InstalledConfiguration を Field にすることは含まない。
 _Avoid_: Sub-agent, Tool, サブエージェント（実装寄りの説明向け）
 
 **Preview**:
