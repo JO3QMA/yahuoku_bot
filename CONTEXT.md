@@ -65,7 +65,7 @@ Auction のオークション属性と Product の Extraction 結果を統合し
 _Avoid_: Embed（Discord の表示形式。presentation 層の用語）, AuctionSummary, 概要
 
 **Watch**:
-ユーザーが特定の Auction を価格・終了時刻まで追跡する登録。🔔 リアクションで登録し、ポーリングにより変動を通知する。機能全体も個別レコードも Watch と呼ぶ。
+ユーザーが特定の Auction を価格・終了時刻まで追跡する登録。🔔 / 👀 リアクションで登録し、ポーリングにより変動を通知する。機能全体も個別レコードも Watch と呼ぶ。
 _Avoid_: Subscription, Alert, 監視アイテム
 
 **PriceAlert**:

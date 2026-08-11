@@ -12,7 +12,10 @@ import (
 	infraauction "jo3qma.com/yahoo_auctions_bot/internal/infrastructure/auction"
 )
 
-const watchEmoji = "\U0001F514" // 🔔
+const (
+	watchEmoji = "\U0001F514" // 🔔
+	eyesEmoji  = "\U0001F440" // 👀
+)
 
 var embedURLRe = regexp.MustCompile(`auctions?\.yahoo\.co\.jp/[^/]+/auction/([a-zA-Z0-9]{8,11})`)
 
@@ -46,7 +49,7 @@ func (h *ReactionHandler) botUserID() discord.UserID {
 
 // HandleReactionAdd はリアクション追加イベントを処理する。
 func (h *ReactionHandler) HandleReactionAdd(e *gateway.MessageReactionAddEvent) {
-	if !isBellEmoji(e.Emoji) || e.UserID == h.botUserID() {
+	if !isWatchEmoji(e.Emoji) || e.UserID == h.botUserID() {
 		return
 	}
 
@@ -99,7 +102,7 @@ func (h *ReactionHandler) HandleReactionAdd(e *gateway.MessageReactionAddEvent) 
 
 // HandleReactionRemove はリアクション削除イベントを処理する。
 func (h *ReactionHandler) HandleReactionRemove(e *gateway.MessageReactionRemoveEvent) {
-	if !isBellEmoji(e.Emoji) || e.UserID == h.botUserID() {
+	if !isWatchEmoji(e.Emoji) || e.UserID == h.botUserID() {
 		return
 	}
 
@@ -130,8 +133,9 @@ func (h *ReactionHandler) HandleReactionRemove(e *gateway.MessageReactionRemoveE
 	log.Printf("[ReactionHandler] user %s stopped watching auction %s", e.UserID, auctionID)
 }
 
-func isBellEmoji(emoji discord.Emoji) bool {
-	return emoji.Name == watchEmoji
+// isWatchEmoji は Watch を登録する対象のリアクション（🔔 / 👀）かを判定する。
+func isWatchEmoji(emoji discord.Emoji) bool {
+	return emoji.Name == watchEmoji || emoji.Name == eyesEmoji
 }
 
 func extractAuctionIDFromEmbeds(embeds []discord.Embed) string {

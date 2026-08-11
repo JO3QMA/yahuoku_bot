@@ -7,7 +7,7 @@ Product 情報は **多段 Extraction パイプライン**（テキスト分類 
 ## できること
 
 - **メッセージ監視**: メッセージ内のヤフオク URL（`page.auctions.yahoo.co.jp/.../auction/<id>`）を検出し、Category（サーバー・GPU・NIC 等）を判別して FieldTemplate に沿った Preview を Embed で投稿します。
-- **Watch**: Bot が投稿した Preview に 🔔（ベル）リアクションを付けると、その Auction の Watch を登録します（バックグラウンドで定期的にチェック）。
+- **Watch**: Bot が投稿した Preview に 🔔（ベル）または 👀（目）リアクションを付けると、その Auction の Watch を登録します（バックグラウンドで定期的にチェックし、値上がりや終了間近を通知）。
 - **プレビュー CLI**（開発用）: オークション ID を渡すと JSON で Preview 結果を標準出力します（`cmd/preview`）。
 
 ## 必要なもの
