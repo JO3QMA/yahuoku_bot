@@ -128,7 +128,7 @@ func (a *apiClient) chat(ctx context.Context, model string, messages []chatMessa
 			return nil, err
 		}
 		if attempt < maxRetries-1 {
-			log.Printf("[openai] retry %d/%d: %v", attempt+2, maxRetries, err)
+			log.Printf("[openai] retry %d/%d: %v", attempt+1, maxRetries, err)
 		}
 	}
 	return nil, lastErr
