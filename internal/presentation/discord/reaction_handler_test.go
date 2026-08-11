@@ -6,21 +6,22 @@ import (
 	"github.com/diamondburned/arikawa/v3/discord"
 )
 
-func TestIsBellEmoji(t *testing.T) {
+func TestIsWatchEmoji(t *testing.T) {
 	tests := []struct {
 		name  string
 		emoji discord.Emoji
 		want  bool
 	}{
 		{"bell", discord.Emoji{Name: "\U0001F514"}, true},
+		{"eyes", discord.Emoji{Name: "\U0001F440"}, true},
 		{"other", discord.Emoji{Name: "\U0001F44D"}, false},
 		{"empty", discord.Emoji{}, false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := isBellEmoji(tt.emoji); got != tt.want {
-				t.Errorf("isBellEmoji() = %v, want %v", got, tt.want)
+			if got := isWatchEmoji(tt.emoji); got != tt.want {
+				t.Errorf("isWatchEmoji() = %v, want %v", got, tt.want)
 			}
 		})
 	}
