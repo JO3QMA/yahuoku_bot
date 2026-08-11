@@ -14,7 +14,7 @@ import (
 	"jo3qma.com/yahoo_auctions_bot/internal/config"
 	"jo3qma.com/yahoo_auctions_bot/internal/domain/watch"
 	infraauction "jo3qma.com/yahoo_auctions_bot/internal/infrastructure/auction"
-	"jo3qma.com/yahoo_auctions_bot/internal/infrastructure/gemini"
+	"jo3qma.com/yahoo_auctions_bot/internal/infrastructure/openai"
 	infrarqlite "jo3qma.com/yahoo_auctions_bot/internal/infrastructure/rqlite"
 	"jo3qma.com/yahoo_auctions_bot/internal/presentation/discord"
 )
@@ -25,11 +25,11 @@ type discordRunner interface {
 
 // botDeps は run の依存注入用（テストで差し替え）。
 type botDeps struct {
-	LoadConfig      func() (*config.Config, error)
-	NewGeminiClient func(cfg *config.Config) (gemini.Client, error)
-	OpenRqlite      func(ctx context.Context, url string, opts ...infrarqlite.NewClientOption) (*infrarqlite.Client, error)
-	NewWatchRepo    func(*infrarqlite.Client) watch.Repository
-	NewDiscordBot   func(token string, pu *appauction.PreviewUsecase, af *discord.AllowedFilter, wu *appwatch.WatchUsecase, ac infraauction.Client, repo watch.Repository, cfg discord.BotConfig) (discordRunner, error)
+	LoadConfig       func() (*config.Config, error)
+	NewOpenAIClient  func(cfg *config.Config) (openai.Client, error)
+	OpenRqlite       func(ctx context.Context, url string, opts ...infrarqlite.NewClientOption) (*infrarqlite.Client, error)
+	NewWatchRepo     func(*infrarqlite.Client) watch.Repository
+	NewDiscordBot    func(token string, pu *appauction.PreviewUsecase, af *discord.AllowedFilter, wu *appwatch.WatchUsecase, ac infraauction.Client, repo watch.Repository, cfg discord.BotConfig) (discordRunner, error)
 }
 
 func runWithSignal(parent context.Context, deps *botDeps) error {
@@ -56,13 +56,13 @@ func mergeBotDeps(d *botDeps) {
 	if d.LoadConfig == nil {
 		d.LoadConfig = config.Load
 	}
-	if d.NewGeminiClient == nil {
-		d.NewGeminiClient = func(cfg *config.Config) (gemini.Client, error) {
-			opts := gemini.NewOptions(
-				cfg.GeminiModel, cfg.GeminiModelVision, cfg.GeminiModelAgent,
-				cfg.GeminiMaxImages, cfg.GeminiMaxSearchCalls, cfg.GeminiPipelineTimeoutSec,
+	if d.NewOpenAIClient == nil {
+		d.NewOpenAIClient = func(cfg *config.Config) (openai.Client, error) {
+			opts := openai.NewOptions(
+				cfg.OpenAIBaseURL, cfg.OpenAIModel, cfg.OpenAIModelVision, cfg.OpenAIModelAgent,
+				cfg.OpenAIMaxImages, cfg.OpenAIMaxSearchCalls, cfg.OpenAIPipelineTimeoutSec,
 			)
-			return gemini.NewClient(cfg.GeminiAPIKey, opts)
+			return openai.NewClient(cfg.OpenAIAPIKey, opts)
 		}
 	}
 	if d.OpenRqlite == nil {
@@ -96,14 +96,14 @@ func run(ctx context.Context, deps *botDeps) error {
 	if cfg.DiscordToken == "" {
 		return fmt.Errorf("DISCORD_TOKEN is required")
 	}
-	if cfg.GeminiAPIKey == "" {
-		return fmt.Errorf("GEMINI_API_KEY is required")
+	if cfg.OpenAIAPIKey == "" {
+		return fmt.Errorf("OPENAI_API_KEY is required")
 	}
 
 	auctionClient := infraauction.NewClient(cfg.APIEndpoint, nil)
-	geminiClient, err := deps.NewGeminiClient(cfg)
+	openaiClient, err := deps.NewOpenAIClient(cfg)
 	if err != nil {
-		return fmt.Errorf("gemini client: %w", err)
+		return fmt.Errorf("openai client: %w", err)
 	}
 
 	rqliteClient, err := deps.OpenRqlite(ctx, cfg.RqliteURL)
@@ -113,7 +113,7 @@ func run(ctx context.Context, deps *botDeps) error {
 	defer func() { _ = rqliteClient.Close() }()
 	watchRepo := deps.NewWatchRepo(rqliteClient)
 
-	previewUsecase := appauction.NewPreviewUsecase(auctionClient, geminiClient)
+	previewUsecase := appauction.NewPreviewUsecase(auctionClient, openaiClient)
 	watchUsecase := appwatch.NewWatchUsecase(watchRepo)
 
 	allowedFilter := discord.NewAllowedFilter(cfg.AllowedGuilds, cfg.AllowedChannels)

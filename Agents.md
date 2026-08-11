@@ -20,15 +20,15 @@ AIエージェントがこのリポジトリで作業する際のコンテキス
   - `cmd/bot` — エントリポイント。設定読み込み・DI・Bot起動
   - `internal/domain` — ドメイン仕様（例: `product.Product`, `watch.Watch`）
   - `internal/application` — ユースケース（例: `PreviewUsecase`）
-  - `internal/infrastructure` — 外部サービス（オークションAPI Connect RPC、Gemini）
+  - `internal/infrastructure` — 外部サービス（オークションAPI Connect RPC、OpenAI互換API）
   - `internal/presentation` — Discord（arikawa 利用、ハンドラー・Embed）
 
-- **依存の向き**: `cmd` → `internal/*`。application は infrastructure の具象型（`auction.Client`, `gemini.Client`）に直接依存し、presentation が application を呼ぶ。ドメインは他レイヤーに依存しない。
+- **依存の向き**: `cmd` → `internal/*`。application は infrastructure の具象型（`auction.Client`, `openai.Client`）に直接依存し、presentation が application を呼ぶ。ドメインは他レイヤーに依存しない。
 
 - **外部連携**
   - **yahoo_auctions API**: `API_ENDPOINT` の Connect RPC（`GetAuction`）。別リポジトリ `yahoo_auctions` が提供想定。
   - **protobuf**: `github.com/jo3qma/protobuf/gen/go` の生成コードを使用。APIの型・RPCはここに依存。
-  - **Gemini**（`google.golang.org/genai`）: タイトル・説明・商品画像から `product.Product` を多段 Extraction パイプラインで導出。不足 Field は Function Calling 経由で Google Search をオンデマンド実行。
+  - **OpenAI 互換 API**（`internal/infrastructure/openai`）: タイトル・説明・商品画像から `product.Product` を多段 Extraction パイプラインで導出。不足 Field は Function Calling 経由で `lookup_spec` を実行し、モデルの知識から補完する。
   - **Discord**: arikawa v3（Gateway、メッセージ、Embed送信）。
 
 ---
@@ -36,7 +36,7 @@ AIエージェントがこのリポジトリで作業する際のコンテキス
 ## 技術スタック・バージョン
 
 - **Go**: 1.25.4（`go.mod` に準拠）
-- **主要ライブラリ**: connectrpc.com/connect, arikawa/v3, google.golang.org/genai, rqlite-go-http
+- **主要ライブラリ**: connectrpc.com/connect, arikawa/v3, rqlite-go-http
 - **設定**: 環境変数（direnv で `.env` を読み込む想定）。`config.Load()` で読み込む。
 
 ---
@@ -46,13 +46,14 @@ AIエージェントがこのリポジトリで作業する際のコンテキス
 | 種別 | 項目 | 説明 |
 |------|------|------|
 | 環境変数 | `DISCORD_TOKEN` | 必須。Botトークン |
-| 環境変数 | `GEMINI_API_KEY` | 必須。Gemini APIキー |
-| 環境変数 | `GEMINI_MODEL` | 任意。Stage1/4 用モデル（未設定時 `gemini-2.5-flash-lite`） |
-| 環境変数 | `GEMINI_MODEL_VISION` | 任意。Stage2 画像解析用（未設定時 `gemini-2.5-flash`） |
-| 環境変数 | `GEMINI_MODEL_AGENT` | 任意。Stage3 エージェント補完用（未設定時 `gemini-2.5-flash`） |
-| 環境変数 | `GEMINI_MAX_IMAGES` | 任意。Extraction に使う最大画像数（未設定時 `3`） |
-| 環境変数 | `GEMINI_MAX_SEARCH_CALLS` | 任意。1 Product あたりの最大検索回数（未設定時 `3`） |
-| 環境変数 | `GEMINI_PIPELINE_TIMEOUT_SEC` | 任意。多段 Extraction パイプラインのタイムアウト秒（未設定時 `45`） |
+| 環境変数 | `OPENAI_API_KEY` | 必須。OpenAI互換APIキー |
+| 環境変数 | `OPENAI_BASE_URL` | 任意。OpenAI互換APIのベースURL（未設定時 `https://api.openai.com/v1`） |
+| 環境変数 | `OPENAI_MODEL` | 任意。Stage1/4 用モデル（未設定時 `gpt-4o-mini`） |
+| 環境変数 | `OPENAI_MODEL_VISION` | 任意。Stage2 画像解析用（未設定時 `gpt-4o`） |
+| 環境変数 | `OPENAI_MODEL_AGENT` | 任意。Stage3 エージェント補完用（未設定時 `gpt-4o`） |
+| 環境変数 | `OPENAI_MAX_IMAGES` | 任意。Extraction に使う最大画像数（未設定時 `3`） |
+| 環境変数 | `OPENAI_MAX_SEARCH_CALLS` | 任意。1 Product あたりの最大検索回数（未設定時 `3`） |
+| 環境変数 | `OPENAI_PIPELINE_TIMEOUT_SEC` | 任意。多段 Extraction パイプラインのタイムアウト秒（未設定時 `45`） |
 | 環境変数 | `API_ENDPOINT` | オークションAPIのベースURL（未設定時 `http://localhost:8080`） |
 | 環境変数 | `RQLITE_URL` | rqlite ベース URL（未設定時 `http://localhost:4001`） |
 | 環境変数 | `ALLOWED_GUILDS` | カンマ区切り。空 = 全サーバー許可 |
@@ -64,8 +65,8 @@ AIエージェントがこのリポジトリで作業する際のコンテキス
 
 ## ディレクトリ・ファイル慣習
 
-- **パッケージ名**: ディレクトリ名と一致（`discord`, `auction`, `config`, `product`, `gemini` など）。
-- **インターフェース**: 外部境界・テスト差し替え用に infrastructure / presentation 側で定義（例: `gemini.Client`, `discord.SessionAPI`）。application ユースケースは具象クライアントを受け取る。
+- **パッケージ名**: ディレクトリ名と一致（`discord`, `auction`, `config`, `product`, `openai` など）。
+- **インターフェース**: 外部境界・テスト差し替え用に infrastructure / presentation 側で定義（例: `openai.Client`, `discord.SessionAPI`）。application ユースケースは具象クライアントを受け取る。
 - **コメント**: 公開型・関数は日本語で説明を付ける（「〜を返す」「〜を行う」など）。
 - **エントリ**: 実行バイナリは `cmd/bot/main.go` からビルド。Dockerでは `./cmd/bot` をビルドし、`discord-bot` として実行。
 

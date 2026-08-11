@@ -7,7 +7,7 @@ import (
 
 func TestLoad_envDefaults(t *testing.T) {
 	t.Setenv("DISCORD_TOKEN", " tok ")
-	t.Setenv("GEMINI_API_KEY", "k")
+	t.Setenv("OPENAI_API_KEY", "k")
 	t.Setenv("API_ENDPOINT", "")
 	t.Setenv("RQLITE_URL", "")
 	t.Setenv("ALLOWED_GUILDS", "")
@@ -22,8 +22,8 @@ func TestLoad_envDefaults(t *testing.T) {
 	if cfg.DiscordToken != "tok" {
 		t.Fatalf("DiscordToken=%q", cfg.DiscordToken)
 	}
-	if cfg.GeminiAPIKey != "k" {
-		t.Fatalf("GeminiAPIKey")
+	if cfg.OpenAIAPIKey != "k" {
+		t.Fatalf("OpenAIAPIKey")
 	}
 	if cfg.APIEndpoint != "http://localhost:8080" {
 		t.Fatalf("APIEndpoint=%q", cfg.APIEndpoint)
@@ -34,8 +34,8 @@ func TestLoad_envDefaults(t *testing.T) {
 	if cfg.CheckIntervalMinutes != 5 || cfg.PollDelayMs != 2000 {
 		t.Fatalf("intervals: %d %d", cfg.CheckIntervalMinutes, cfg.PollDelayMs)
 	}
-	if cfg.GeminiMaxImages != 3 || cfg.GeminiMaxSearchCalls != 3 || cfg.GeminiPipelineTimeoutSec != 45 {
-		t.Fatalf("gemini limits: %d %d timeout %d", cfg.GeminiMaxImages, cfg.GeminiMaxSearchCalls, cfg.GeminiPipelineTimeoutSec)
+	if cfg.OpenAIMaxImages != 3 || cfg.OpenAIMaxSearchCalls != 3 || cfg.OpenAIPipelineTimeoutSec != 45 {
+		t.Fatalf("openai limits: %d %d timeout %d", cfg.OpenAIMaxImages, cfg.OpenAIMaxSearchCalls, cfg.OpenAIPipelineTimeoutSec)
 	}
 }
 
@@ -86,14 +86,25 @@ func TestLoad_validEnvInts(t *testing.T) {
 	}
 }
 
-func TestLoad_geminiPipelineTimeout(t *testing.T) {
-	t.Setenv("GEMINI_PIPELINE_TIMEOUT_SEC", "90")
-	t.Cleanup(func() { _ = os.Unsetenv("GEMINI_PIPELINE_TIMEOUT_SEC") })
+func TestLoad_openaiPipelineTimeout(t *testing.T) {
+	t.Setenv("OPENAI_PIPELINE_TIMEOUT_SEC", "90")
+	t.Cleanup(func() { _ = os.Unsetenv("OPENAI_PIPELINE_TIMEOUT_SEC") })
 	cfg, err := Load()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.GeminiPipelineTimeoutSec != 90 {
-		t.Fatalf("got %d", cfg.GeminiPipelineTimeoutSec)
+	if cfg.OpenAIPipelineTimeoutSec != 90 {
+		t.Fatalf("got %d", cfg.OpenAIPipelineTimeoutSec)
+	}
+}
+
+func TestLoad_openaiBaseURL(t *testing.T) {
+	t.Setenv("OPENAI_BASE_URL", "https://custom.example.com/v1")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.OpenAIBaseURL != "https://custom.example.com/v1" {
+		t.Fatalf("got %q", cfg.OpenAIBaseURL)
 	}
 }

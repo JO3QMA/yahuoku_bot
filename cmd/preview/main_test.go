@@ -17,7 +17,7 @@ func Test_main_preview_exitCode(t *testing.T) {
 	previewArgv = func() []string { return []string{"anyid"} }
 	main()
 	if code != 2 {
-		t.Fatalf("exit code=%d, want 2 (missing GEMINI_API_KEY etc.)", code)
+		t.Fatalf("exit code=%d, want 2 (missing OPENAI_API_KEY etc.)", code)
 	}
 }
 

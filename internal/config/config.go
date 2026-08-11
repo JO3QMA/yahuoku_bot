@@ -10,13 +10,14 @@ import (
 // Config は環境変数から読み込む実行時設定。
 type Config struct {
 	DiscordToken             string
-	GeminiAPIKey             string
-	GeminiModel              string // Stage1/4 用。空の場合は gemini-2.5-flash-lite
-	GeminiModelVision        string // Stage2 用。空の場合は gemini-2.5-flash
-	GeminiModelAgent         string // Stage3 用。空の場合は gemini-2.5-flash
-	GeminiMaxImages          int    // 推論に使う最大画像数 (default: 3)
-	GeminiMaxSearchCalls     int    // 1商品あたりの最大検索回数 (default: 3)
-	GeminiPipelineTimeoutSec int    // Extraction のタイムアウト秒 (default: 45)
+	OpenAIAPIKey             string
+	OpenAIBaseURL            string // OpenAI 互換 API のベース URL (default: https://api.openai.com/v1)
+	OpenAIModel              string // Stage1/4 用。空の場合は gpt-4o-mini
+	OpenAIModelVision        string // Stage2 用。空の場合は gpt-4o
+	OpenAIModelAgent         string // Stage3 用。空の場合は gpt-4o
+	OpenAIMaxImages          int    // 推論に使う最大画像数 (default: 3)
+	OpenAIMaxSearchCalls     int    // 1商品あたりの最大検索回数 (default: 3)
+	OpenAIPipelineTimeoutSec int    // Extraction のタイムアウト秒 (default: 45)
 	APIEndpoint              string
 	AllowedGuilds            []string // 空 = 全サーバー許可
 	AllowedChannels          []string // 空 = 全チャンネル許可
@@ -30,13 +31,14 @@ type Config struct {
 func Load() (*Config, error) {
 	cfg := &Config{
 		DiscordToken:             strings.TrimSpace(os.Getenv("DISCORD_TOKEN")),
-		GeminiAPIKey:             strings.TrimSpace(os.Getenv("GEMINI_API_KEY")),
-		GeminiModel:              strings.TrimSpace(os.Getenv("GEMINI_MODEL")),
-		GeminiModelVision:        strings.TrimSpace(os.Getenv("GEMINI_MODEL_VISION")),
-		GeminiModelAgent:         strings.TrimSpace(os.Getenv("GEMINI_MODEL_AGENT")),
-		GeminiMaxImages:          getEnvInt("GEMINI_MAX_IMAGES", 3),
-		GeminiMaxSearchCalls:     getEnvInt("GEMINI_MAX_SEARCH_CALLS", 3),
-		GeminiPipelineTimeoutSec: getEnvInt("GEMINI_PIPELINE_TIMEOUT_SEC", 45),
+		OpenAIAPIKey:             strings.TrimSpace(os.Getenv("OPENAI_API_KEY")),
+		OpenAIBaseURL:            strings.TrimSpace(os.Getenv("OPENAI_BASE_URL")),
+		OpenAIModel:              strings.TrimSpace(os.Getenv("OPENAI_MODEL")),
+		OpenAIModelVision:        strings.TrimSpace(os.Getenv("OPENAI_MODEL_VISION")),
+		OpenAIModelAgent:         strings.TrimSpace(os.Getenv("OPENAI_MODEL_AGENT")),
+		OpenAIMaxImages:          getEnvInt("OPENAI_MAX_IMAGES", 3),
+		OpenAIMaxSearchCalls:     getEnvInt("OPENAI_MAX_SEARCH_CALLS", 3),
+		OpenAIPipelineTimeoutSec: getEnvInt("OPENAI_PIPELINE_TIMEOUT_SEC", 45),
 		APIEndpoint:              strings.TrimSpace(os.Getenv("API_ENDPOINT")),
 		RqliteURL:                strings.TrimSpace(os.Getenv("RQLITE_URL")),
 		AllowedGuilds:            getEnvCSV("ALLOWED_GUILDS"),

@@ -1,7 +1,8 @@
-package gemini
+package openai
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"strings"
@@ -9,16 +10,15 @@ import (
 
 	"jo3qma.com/yahoo_auctions_bot/internal/domain/product"
 	"golang.org/x/sync/errgroup"
-	"google.golang.org/genai"
 )
 
 type session struct {
-	api    *genAIAPI
+	api    *apiClient
 	opts   Options
 	images *imageFetcher
 }
 
-func newSession(api *genAIAPI, opts Options) *session {
+func newSession(api *apiClient, opts Options) *session {
 	return &session{
 		api:    api,
 		opts:   opts.Normalize(),
@@ -43,7 +43,7 @@ func (s *session) Extract(ctx context.Context, in product.ExtractInput) (*produc
 	var s2 *stage2Result
 	g, gctx := errgroup.WithContext(ctx)
 	g.Go(func() error {
-		text, err := s.api.generateJSON(gctx, s.opts.FastModel, buildStage1Prompt(title, plainDesc), stage1Schema())
+		text, err := s.api.generateJSON(gctx, s.opts.FastModel, buildStage1Prompt(title, plainDesc))
 		if err != nil {
 			return fmt.Errorf("text extract: %w", err)
 		}
@@ -60,7 +60,7 @@ func (s *session) Extract(ctx context.Context, in product.ExtractInput) (*produc
 		}
 		r, err := s.runVisionSupplement(gctx, title, plainDesc, in.ImageURLs)
 		if err != nil {
-			log.Printf("[gemini] vision supplement failed: %v", err)
+			log.Printf("[openai] vision supplement failed: %v", err)
 			return nil
 		}
 		s2 = r
@@ -94,7 +94,7 @@ func (s *session) runVisionSupplement(ctx context.Context, title, plainDesc stri
 	if len(imgs) == 0 {
 		return nil, nil
 	}
-	text, err := s.api.generateJSONWithImages(ctx, s.opts.VisionModel, buildStage2Prompt(title, plainDesc), imgs, stage2Schema())
+	text, err := s.api.generateJSONWithImages(ctx, s.opts.VisionModel, buildStage2Prompt(title, plainDesc), imgs)
 	if err != nil {
 		return nil, fmt.Errorf("vision supplement: %w", err)
 	}
@@ -103,50 +103,58 @@ func (s *session) runVisionSupplement(ctx context.Context, title, plainDesc stri
 
 func (s *session) runSearchSupplement(ctx context.Context, title, plainDesc string, mirror *productMirror) error {
 	s1 := mirror.asStage1()
-	contents := []*genai.Content{
-		genai.NewContentFromText(buildStage3Prompt(title, plainDesc, s1, mirror.vision), genai.RoleUser),
-	}
+	messages := []chatMessage{{Role: "user", Content: buildStage3Prompt(title, plainDesc, s1, mirror.vision)}}
+	tools := []tool{lookupSpecTool()}
 
 	searchCount := 0
 	maxTurns := s.opts.MaxSearchCalls*2 + 3
 
 	for turn := 0; turn < maxTurns; turn++ {
-		resp, err := s.api.generateWithTools(ctx, s.opts.AgentModel, contents, agentToolConfig())
+		resp, err := s.api.generateWithTools(ctx, s.opts.AgentModel, messages, tools)
 		if err != nil {
 			return fmt.Errorf("turn %d: %w", turn, err)
 		}
-		if len(resp.Candidates) == 0 {
-			return fmt.Errorf("turn %d: no candidates", turn)
+		if len(resp.Choices) == 0 {
+			return fmt.Errorf("turn %d: no choices", turn)
 		}
-		cand := resp.Candidates[0]
+		ch := resp.Choices[0]
 
-		if calls := extractFunctionCalls(resp); len(calls) > 0 {
-			if cand.Content != nil {
-				contents = append(contents, cand.Content)
-			}
+		if calls := ch.Message.ToolCalls; len(calls) > 0 {
+			messages = append(messages, chatMessage{
+				Role:      "assistant",
+				Content:   textContent(ch.Message),
+				ToolCalls: calls,
+			})
 			for _, call := range calls {
-				if call.Name != "lookup_spec" {
+				if call.Function.Name != "lookup_spec" {
 					continue
 				}
 				fr := runLookupSpec(ctx, s.api, s.opts, call, &searchCount, &mirror.searchNotes)
-				contents = append(contents, genai.NewContentFromFunctionResponse(call.Name, fr, genai.RoleUser))
+				frJSON, err := json.Marshal(fr)
+				if err != nil {
+					return fmt.Errorf("encode tool response: %w", err)
+				}
+				messages = append(messages, chatMessage{
+					Role:       "tool",
+					ToolCallID: call.ID,
+					Content:    string(frJSON),
+				})
 			}
 			continue
 		}
 
-		text := strings.TrimSpace(resp.Text())
+		text := strings.TrimSpace(textContent(ch.Message))
 		if text != "" {
 			parsed, err := parseAgentFieldsJSON(text)
 			if err == nil {
 				mirror.applySupplementFields(parsed.Fields)
 				if parsed.Done {
 					if remaining := product.FilterSupplementEligibleKeys(mirror.category, mirror.unresolvedKeys()); len(remaining) > 0 {
-						contents = append(contents, cand.Content)
-						contents = append(contents, genai.NewContentFromText(
-							"done:true ですが Supplement 対象の未解決フィールドが残っています: "+strings.Join(remaining, ", ")+
-								"。lookup_spec で補完するか、確実な値だけ fields に入れてください。",
-							genai.RoleUser,
-						))
+						messages = append(messages, chatMessage{Role: "assistant", Content: text})
+						messages = append(messages, chatMessage{
+							Role:    "user",
+							Content: "done:true ですが Supplement 対象の未解決フィールドが残っています: " + strings.Join(remaining, ", ") + "。lookup_spec で補完するか、確実な値だけ fields に入れてください。",
+						})
 						continue
 					}
 					return nil
@@ -157,7 +165,7 @@ func (s *session) runSearchSupplement(ctx context.Context, title, plainDesc stri
 	}
 
 	finalPrompt := buildStage3FinalPrompt(title, plainDesc, s1, mirror.vision, mirror.searchNotes)
-	text, err := s.api.generateJSON(ctx, s.opts.AgentModel, finalPrompt, agentFieldsSchema(mirror.category))
+	text, err := s.api.generateJSON(ctx, s.opts.AgentModel, finalPrompt)
 	if err != nil {
 		return fmt.Errorf("final: %w", err)
 	}
@@ -174,7 +182,7 @@ func (s *session) runSearchSupplement(ctx context.Context, title, plainDesc stri
 
 func (s *session) finalize(ctx context.Context, title, plainDesc string, mirror *productMirror) (*product.Product, error) {
 	s1 := mirror.asStage1()
-	text, err := s.api.generateJSON(ctx, s.opts.FastModel, buildMergePrompt(title, plainDesc, s1, mirror.vision, nil, mirror.searchNotes), productSchema(mirror.category))
+	text, err := s.api.generateJSON(ctx, s.opts.FastModel, buildMergePrompt(title, plainDesc, s1, mirror.vision, nil, mirror.searchNotes))
 	if err != nil {
 		return nil, fmt.Errorf("finalize: %w", err)
 	}
