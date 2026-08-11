@@ -1,4 +1,4 @@
-package gemini
+package openai
 
 import (
 	"context"
@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"jo3qma.com/yahoo_auctions_bot/internal/domain/product"
-	"google.golang.org/genai"
 )
 
 func Test_extractJSONFromResponse(t *testing.T) {
@@ -46,17 +45,17 @@ func Test_sanitizeUTF8(t *testing.T) {
 }
 
 func Test_extractTextFromResponse(t *testing.T) {
-	t.Run("no candidates", func(t *testing.T) {
-		_, err := extractTextFromResponse(&genai.GenerateContentResponse{})
+	t.Run("no choices", func(t *testing.T) {
+		_, err := extractTextFromResponse(&chatResponse{})
 		if err == nil {
 			t.Fatal("expected error")
 		}
 	})
 	t.Run("bad finish", func(t *testing.T) {
-		_, err := extractTextFromResponse(&genai.GenerateContentResponse{
-			Candidates: []*genai.Candidate{{
-				FinishReason: genai.FinishReasonMaxTokens,
-				Content:      &genai.Content{Parts: []*genai.Part{{Text: "x"}}},
+		_, err := extractTextFromResponse(&chatResponse{
+			Choices: []chatChoice{{
+				FinishReason: "length",
+				Message:      chatMessage{Content: "x"},
 			}},
 		})
 		if err == nil {
@@ -64,10 +63,10 @@ func Test_extractTextFromResponse(t *testing.T) {
 		}
 	})
 	t.Run("success", func(t *testing.T) {
-		s, err := extractTextFromResponse(&genai.GenerateContentResponse{
-			Candidates: []*genai.Candidate{{
-				FinishReason: genai.FinishReasonStop,
-				Content:      &genai.Content{Parts: []*genai.Part{{Text: `{"category":"other"}`}}},
+		s, err := extractTextFromResponse(&chatResponse{
+			Choices: []chatChoice{{
+				FinishReason: "stop",
+				Message:      chatMessage{Content: `{"category":"other"}`},
 			}},
 		})
 		if err != nil || s == "" {
@@ -107,58 +106,32 @@ func TestClient_Extract_errors(t *testing.T) {
 	}
 }
 
-func TestProductSchema_smoke(t *testing.T) {
-	s := productSchema(product.CategoryServer)
-	if s == nil || s.Type != genai.TypeObject {
-		t.Fatal(s)
-	}
-	cat := s.Properties["category"]
-	if len(cat.Enum) != 1 || cat.Enum[0] != "server" {
-		t.Fatalf("category enum: %+v", cat.Enum)
-	}
-	keyEnum := s.Properties["fields"].Items.Properties["key"].Enum
-	if len(keyEnum) == 0 || keyEnum[0] != "server_model" {
-		t.Fatalf("field key enum: %+v", keyEnum)
-	}
-}
-
-func Test_genAIAPI_stubGenerate(t *testing.T) {
-	api, err := newGenAIAPI("unit-test-dummy-key")
-	if err != nil {
-		t.Fatal(err)
-	}
+func Test_apiClient_generateJSON_viaStub(t *testing.T) {
+	api := &apiClient{httpClient: nil}
 
 	t.Run("stub error", func(t *testing.T) {
-		api.stubGenerate = func(context.Context, string, []*genai.Content, *genai.GenerateContentConfig) (*genai.GenerateContentResponse, error) {
+		api.stubChat = func(context.Context, string, []chatMessage, *chatConfig) (*chatResponse, error) {
 			return nil, errors.New("x")
 		}
-		_, err := api.generateJSON(context.Background(), defaultFastModel, "p", productSchema(product.CategoryServer))
+		_, err := api.generateJSON(context.Background(), defaultFastModel, "p")
 		if err == nil || !strings.Contains(err.Error(), "x") {
 			t.Fatalf("%v", err)
 		}
 	})
 
 	t.Run("stub success", func(t *testing.T) {
-		api.stubGenerate = func(context.Context, string, []*genai.Content, *genai.GenerateContentConfig) (*genai.GenerateContentResponse, error) {
-			return &genai.GenerateContentResponse{
-				Candidates: []*genai.Candidate{{
-					FinishReason: genai.FinishReasonStop,
-					Content:      &genai.Content{Parts: []*genai.Part{{Text: `{"category":"server","condition":"","fields":[{"key":"cpu_model_line","value":"Z"}]}`}}},
-				}},
-			}, nil
+		api.stubChat = func(_ context.Context, _ string, msgs []chatMessage, cfg *chatConfig) (*chatResponse, error) {
+			if cfg == nil || cfg.ResponseFormat == nil || cfg.ResponseFormat.Type != "json_object" {
+				t.Fatalf("expected json_object response format, got %+v", cfg)
+			}
+			if len(msgs) != 1 || msgs[0].Role != "user" {
+				t.Fatalf("messages: %+v", msgs)
+			}
+			return jsonResponse(`{"category":"server","condition":"","fields":[{"key":"cpu_model_line","value":"Z"}]}`), nil
 		}
-		text, err := api.generateJSON(context.Background(), defaultFastModel, "p", productSchema(product.CategoryServer))
+		text, err := api.generateJSON(context.Background(), defaultFastModel, "p")
 		if err != nil || !strings.Contains(text, "Z") {
 			t.Fatalf("%v %q", err, text)
 		}
 	})
-}
-
-func jsonResponse(text string) *genai.GenerateContentResponse {
-	return &genai.GenerateContentResponse{
-		Candidates: []*genai.Candidate{{
-			FinishReason: genai.FinishReasonStop,
-			Content:      &genai.Content{Parts: []*genai.Part{{Text: text}}},
-		}},
-	}
 }

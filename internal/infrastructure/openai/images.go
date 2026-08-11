@@ -1,4 +1,4 @@
-package gemini
+package openai
 
 import (
 	"context"
@@ -39,7 +39,7 @@ func (f *imageFetcher) fetch(ctx context.Context, urls []string, maxImages int) 
 	for _, u := range urls[:limit] {
 		img, err := f.fetchOne(ctx, u)
 		if err != nil {
-			log.Printf("[gemini] image fetch failed %s: %v", u, err)
+			log.Printf("[openai] image fetch failed %s: %v", u, err)
 			continue
 		}
 		out = append(out, img)

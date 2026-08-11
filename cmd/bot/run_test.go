@@ -15,7 +15,7 @@ import (
 	"jo3qma.com/yahoo_auctions_bot/internal/domain/product"
 	"jo3qma.com/yahoo_auctions_bot/internal/domain/watch"
 	infraauction "jo3qma.com/yahoo_auctions_bot/internal/infrastructure/auction"
-	"jo3qma.com/yahoo_auctions_bot/internal/infrastructure/gemini"
+	"jo3qma.com/yahoo_auctions_bot/internal/infrastructure/openai"
 	infrarqlite "jo3qma.com/yahoo_auctions_bot/internal/infrastructure/rqlite"
 	"jo3qma.com/yahoo_auctions_bot/internal/presentation/discord"
 
@@ -33,19 +33,19 @@ func (waitCtxRunner) Run(ctx context.Context) error {
 	return ctx.Err()
 }
 
-type fakeGemini struct{}
+type fakeOpenAI struct{}
 
-func (fakeGemini) Extract(context.Context, product.ExtractInput) (*product.Product, error) {
+func (fakeOpenAI) Extract(context.Context, product.ExtractInput) (*product.Product, error) {
 	return &product.Product{}, nil
 }
 
 func TestRun_nilDeps(t *testing.T) {
 	t.Setenv("DISCORD_TOKEN", "dt")
-	t.Setenv("GEMINI_API_KEY", "gk")
+	t.Setenv("OPENAI_API_KEY", "gk")
 	t.Setenv("RQLITE_URL", "http://localhost:4001")
 	t.Cleanup(func() {
 		_ = os.Unsetenv("DISCORD_TOKEN")
-		_ = os.Unsetenv("GEMINI_API_KEY")
+		_ = os.Unsetenv("OPENAI_API_KEY")
 		_ = os.Unsetenv("RQLITE_URL")
 	})
 	ctx, cancel := context.WithCancel(context.Background())
@@ -71,7 +71,7 @@ func TestRun_configLoadError(t *testing.T) {
 func TestRun_missingDiscordToken(t *testing.T) {
 	err := run(context.Background(), &botDeps{
 		LoadConfig: func() (*config.Config, error) {
-			return &config.Config{GeminiAPIKey: "k"}, nil
+			return &config.Config{OpenAIAPIKey: "k"}, nil
 		},
 	})
 	if err == nil {
@@ -79,7 +79,7 @@ func TestRun_missingDiscordToken(t *testing.T) {
 	}
 }
 
-func TestRun_missingGeminiKey(t *testing.T) {
+func TestRun_missingOpenAIKey(t *testing.T) {
 	err := run(context.Background(), &botDeps{
 		LoadConfig: func() (*config.Config, error) {
 			return &config.Config{DiscordToken: "t"}, nil
@@ -90,12 +90,12 @@ func TestRun_missingGeminiKey(t *testing.T) {
 	}
 }
 
-func TestRun_geminiError(t *testing.T) {
+func TestRun_openaiError(t *testing.T) {
 	err := run(context.Background(), &botDeps{
 		LoadConfig: func() (*config.Config, error) {
-			return &config.Config{DiscordToken: "t", GeminiAPIKey: "k"}, nil
+			return &config.Config{DiscordToken: "t", OpenAIAPIKey: "k"}, nil
 		},
-		NewGeminiClient: func(cfg *config.Config) (gemini.Client, error) {
+		NewOpenAIClient: func(cfg *config.Config) (openai.Client, error) {
 			return nil, errors.New("g")
 		},
 	})
@@ -107,10 +107,10 @@ func TestRun_geminiError(t *testing.T) {
 func TestRun_rqliteError(t *testing.T) {
 	err := run(context.Background(), &botDeps{
 		LoadConfig: func() (*config.Config, error) {
-			return &config.Config{DiscordToken: "t", GeminiAPIKey: "k", RqliteURL: "http://x"}, nil
+			return &config.Config{DiscordToken: "t", OpenAIAPIKey: "k", RqliteURL: "http://x"}, nil
 		},
-		NewGeminiClient: func(cfg *config.Config) (gemini.Client, error) {
-			return &fakeGemini{}, nil
+		NewOpenAIClient: func(cfg *config.Config) (openai.Client, error) {
+			return &fakeOpenAI{}, nil
 		},
 		OpenRqlite: func(ctx context.Context, url string, opts ...infrarqlite.NewClientOption) (*infrarqlite.Client, error) {
 			return nil, errors.New("rq")
@@ -147,7 +147,7 @@ func TestRun_tokenPrefix(t *testing.T) {
 	deps := successDeps()
 	deps.LoadConfig = func() (*config.Config, error) {
 		return &config.Config{
-			DiscordToken: "rawtoken", GeminiAPIKey: "k",
+			DiscordToken: "rawtoken", OpenAIAPIKey: "k",
 			RqliteURL: "http://noop", APIEndpoint: "http://localhost:8080",
 		}, nil
 	}
@@ -172,7 +172,7 @@ func TestMergeBotDeps_partialOverride(t *testing.T) {
 	called := false
 	d := &botDeps{
 		LoadConfig: func() (*config.Config, error) {
-			return &config.Config{DiscordToken: "a", GeminiAPIKey: "b"}, nil
+			return &config.Config{DiscordToken: "a", OpenAIAPIKey: "b"}, nil
 		},
 		OpenRqlite: func(context.Context, string, ...infrarqlite.NewClientOption) (*infrarqlite.Client, error) {
 			called = true
@@ -180,7 +180,7 @@ func TestMergeBotDeps_partialOverride(t *testing.T) {
 		},
 	}
 	mergeBotDeps(d)
-	if d.NewGeminiClient == nil || d.NewWatchRepo == nil {
+	if d.NewOpenAIClient == nil || d.NewWatchRepo == nil {
 		t.Fatal("defaults not merged")
 	}
 	_, _ = d.OpenRqlite(context.Background(), "x")
@@ -191,7 +191,7 @@ func TestMergeBotDeps_partialOverride(t *testing.T) {
 
 func TestRun_loadConfigFromEnv(t *testing.T) {
 	t.Setenv("DISCORD_TOKEN", "dt")
-	t.Setenv("GEMINI_API_KEY", "gk")
+	t.Setenv("OPENAI_API_KEY", "gk")
 	t.Setenv("ALLOWED_CHANNELS", "c1")
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -205,7 +205,7 @@ func TestRun_loadConfigFromEnv(t *testing.T) {
 func TestMergeBotDeps_allNil(t *testing.T) {
 	d := &botDeps{}
 	mergeBotDeps(d)
-	if d.LoadConfig == nil || d.NewGeminiClient == nil || d.OpenRqlite == nil ||
+	if d.LoadConfig == nil || d.NewOpenAIClient == nil || d.OpenRqlite == nil ||
 		d.NewWatchRepo == nil || d.NewDiscordBot == nil {
 		t.Fatal("mergeBotDeps should fill all defaults")
 	}
@@ -251,7 +251,7 @@ func TestRunWithSignal_onSigint(t *testing.T) {
 func TestDefaultNewDiscordBot_invokesNewBot(t *testing.T) {
 	repo := &memRepoRqlite{}
 	ac := infraauction.NewClient("http://127.0.0.1:9", nil)
-	pu := appauction.NewPreviewUsecase(ac, &fakeGemini{})
+	pu := appauction.NewPreviewUsecase(ac, &fakeOpenAI{})
 	wu := appwatch.NewWatchUsecase(repo)
 	af := discord.NewAllowedFilter(nil, nil)
 	_, errBot := defaultNewDiscordBot("Bot unit-test-token.invalid", pu, af, wu, ac, repo, discord.BotConfig{CheckIntervalMinutes: 60, PollDelayMs: 1})
@@ -280,11 +280,11 @@ func successDeps() *botDeps {
 	return &botDeps{
 		LoadConfig: func() (*config.Config, error) {
 			return &config.Config{
-				DiscordToken: "Bot x.y.z", GeminiAPIKey: "k",
+				DiscordToken: "Bot x.y.z", OpenAIAPIKey: "k",
 				RqliteURL: "http://noop", APIEndpoint: "http://localhost:8080",
 			}, nil
 		},
-		NewGeminiClient: func(cfg *config.Config) (gemini.Client, error) { return &fakeGemini{}, nil },
+		NewOpenAIClient: func(cfg *config.Config) (openai.Client, error) { return &fakeOpenAI{}, nil },
 		OpenRqlite:      fakeOpenRqlite,
 		NewWatchRepo: func(*infrarqlite.Client) watch.Repository {
 			return &memRepoRqlite{}

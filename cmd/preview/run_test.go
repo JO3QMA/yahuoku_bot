@@ -11,7 +11,7 @@ import (
 	"jo3qma.com/yahoo_auctions_bot/internal/config"
 	"jo3qma.com/yahoo_auctions_bot/internal/domain/product"
 	infraauction "jo3qma.com/yahoo_auctions_bot/internal/infrastructure/auction"
-	"jo3qma.com/yahoo_auctions_bot/internal/infrastructure/gemini"
+	"jo3qma.com/yahoo_auctions_bot/internal/infrastructure/openai"
 )
 
 func TestRunPreview_usage(t *testing.T) {
@@ -31,7 +31,7 @@ func TestRunPreview_configErr(t *testing.T) {
 	}
 }
 
-func TestRunPreview_noGemini(t *testing.T) {
+func TestRunPreview_noOpenAI(t *testing.T) {
 	c := RunPreview(&bytes.Buffer{}, []string{"id"}, &previewDeps{
 		LoadConfig: func() (*config.Config, error) {
 			return &config.Config{}, nil
@@ -42,12 +42,12 @@ func TestRunPreview_noGemini(t *testing.T) {
 	}
 }
 
-func TestRunPreview_geminiClientErr(t *testing.T) {
+func TestRunPreview_openaiClientErr(t *testing.T) {
 	c := RunPreview(&bytes.Buffer{}, []string{"id"}, &previewDeps{
 		LoadConfig: func() (*config.Config, error) {
-			return &config.Config{GeminiAPIKey: "k"}, nil
+			return &config.Config{OpenAIAPIKey: "k"}, nil
 		},
-		NewGeminiClient: func(cfg *config.Config) (gemini.Client, error) {
+		NewOpenAIClient: func(cfg *config.Config) (openai.Client, error) {
 			return nil, errors.New("gc")
 		},
 	})
@@ -68,9 +68,9 @@ func (fakePreviewGem) Extract(context.Context, product.ExtractInput) (*product.P
 func TestRunPreview_executeErr(t *testing.T) {
 	c := RunPreview(&bytes.Buffer{}, []string{"id"}, &previewDeps{
 		LoadConfig: func() (*config.Config, error) {
-			return &config.Config{GeminiAPIKey: "k", APIEndpoint: "http://localhost:8080"}, nil
+			return &config.Config{OpenAIAPIKey: "k", APIEndpoint: "http://localhost:8080"}, nil
 		},
-		NewGeminiClient: func(cfg *config.Config) (gemini.Client, error) {
+		NewOpenAIClient: func(cfg *config.Config) (openai.Client, error) {
 			return &fakePreviewGem{}, nil
 		},
 		NewAuctionClient: func(string) infraauction.Client {
@@ -91,9 +91,9 @@ func (failAuction) GetAuction(context.Context, string) (*infraauction.AuctionDat
 func TestRunPreview_encodeErr(t *testing.T) {
 	c := RunPreview(errWriter{}, []string{"id"}, &previewDeps{
 		LoadConfig: func() (*config.Config, error) {
-			return &config.Config{GeminiAPIKey: "k", APIEndpoint: "http://localhost:8080"}, nil
+			return &config.Config{OpenAIAPIKey: "k", APIEndpoint: "http://localhost:8080"}, nil
 		},
-		NewGeminiClient: func(cfg *config.Config) (gemini.Client, error) {
+		NewOpenAIClient: func(cfg *config.Config) (openai.Client, error) {
 			return &fakePreviewGem{}, nil
 		},
 		NewAuctionClient: func(string) infraauction.Client {
@@ -122,9 +122,9 @@ func TestRunPreview_emptyProductExit(t *testing.T) {
 	var buf bytes.Buffer
 	c := RunPreview(&buf, []string{"id"}, &previewDeps{
 		LoadConfig: func() (*config.Config, error) {
-			return &config.Config{GeminiAPIKey: "k", APIEndpoint: "http://localhost:8080"}, nil
+			return &config.Config{OpenAIAPIKey: "k", APIEndpoint: "http://localhost:8080"}, nil
 		},
-		NewGeminiClient: func(cfg *config.Config) (gemini.Client, error) {
+		NewOpenAIClient: func(cfg *config.Config) (openai.Client, error) {
 			return &emptyProductGem{}, nil
 		},
 		NewAuctionClient: func(string) infraauction.Client {
@@ -146,9 +146,9 @@ func TestRunPreview_success(t *testing.T) {
 	var buf bytes.Buffer
 	c := RunPreview(&buf, []string{"id"}, &previewDeps{
 		LoadConfig: func() (*config.Config, error) {
-			return &config.Config{GeminiAPIKey: "k", APIEndpoint: "http://localhost:8080"}, nil
+			return &config.Config{OpenAIAPIKey: "k", APIEndpoint: "http://localhost:8080"}, nil
 		},
-		NewGeminiClient: func(cfg *config.Config) (gemini.Client, error) {
+		NewOpenAIClient: func(cfg *config.Config) (openai.Client, error) {
 			return &fakePreviewGem{}, nil
 		},
 		NewAuctionClient: func(string) infraauction.Client {

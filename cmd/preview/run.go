@@ -10,13 +10,13 @@ import (
 	appauction "jo3qma.com/yahoo_auctions_bot/internal/application/auction"
 	"jo3qma.com/yahoo_auctions_bot/internal/config"
 	infraauction "jo3qma.com/yahoo_auctions_bot/internal/infrastructure/auction"
-	"jo3qma.com/yahoo_auctions_bot/internal/infrastructure/gemini"
+	"jo3qma.com/yahoo_auctions_bot/internal/infrastructure/openai"
 )
 
 // previewDeps は RunPreview の依存注入用。
 type previewDeps struct {
 	LoadConfig       func() (*config.Config, error)
-	NewGeminiClient  func(cfg *config.Config) (gemini.Client, error)
+	NewOpenAIClient  func(cfg *config.Config) (openai.Client, error)
 	NewAuctionClient func(baseURL string) infraauction.Client
 }
 
@@ -24,13 +24,13 @@ func mergePreviewDeps(d *previewDeps) {
 	if d.LoadConfig == nil {
 		d.LoadConfig = config.Load
 	}
-	if d.NewGeminiClient == nil {
-		d.NewGeminiClient = func(cfg *config.Config) (gemini.Client, error) {
-			opts := gemini.NewOptions(
-				cfg.GeminiModel, cfg.GeminiModelVision, cfg.GeminiModelAgent,
-				cfg.GeminiMaxImages, cfg.GeminiMaxSearchCalls, cfg.GeminiPipelineTimeoutSec,
+	if d.NewOpenAIClient == nil {
+		d.NewOpenAIClient = func(cfg *config.Config) (openai.Client, error) {
+			opts := openai.NewOptions(
+				cfg.OpenAIBaseURL, cfg.OpenAIModel, cfg.OpenAIModelVision, cfg.OpenAIModelAgent,
+				cfg.OpenAIMaxImages, cfg.OpenAIMaxSearchCalls, cfg.OpenAIPipelineTimeoutSec,
 			)
-			return gemini.NewClient(cfg.GeminiAPIKey, opts)
+			return openai.NewClient(cfg.OpenAIAPIKey, opts)
 		}
 	}
 	if d.NewAuctionClient == nil {
@@ -58,18 +58,18 @@ func RunPreview(stdout io.Writer, argv []string, deps *previewDeps) int {
 		log.Printf("config load: %v", err)
 		return 2
 	}
-	if cfg.GeminiAPIKey == "" {
-		log.Print("GEMINI_API_KEY is required")
+	if cfg.OpenAIAPIKey == "" {
+		log.Print("OPENAI_API_KEY is required")
 		return 2
 	}
 
 	auctionClient := deps.NewAuctionClient(cfg.APIEndpoint)
-	geminiClient, err := deps.NewGeminiClient(cfg)
+	openaiClient, err := deps.NewOpenAIClient(cfg)
 	if err != nil {
-		log.Printf("gemini client: %v", err)
+		log.Printf("openai client: %v", err)
 		return 2
 	}
-	previewUsecase := appauction.NewPreviewUsecase(auctionClient, geminiClient)
+	previewUsecase := appauction.NewPreviewUsecase(auctionClient, openaiClient)
 
 	ctx := context.Background()
 	preview, err := previewUsecase.Execute(ctx, auctionID)

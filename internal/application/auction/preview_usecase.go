@@ -7,7 +7,7 @@ import (
 
 	"jo3qma.com/yahoo_auctions_bot/internal/domain/product"
 	"jo3qma.com/yahoo_auctions_bot/internal/infrastructure/auction"
-	"jo3qma.com/yahoo_auctions_bot/internal/infrastructure/gemini"
+	"jo3qma.com/yahoo_auctions_bot/internal/infrastructure/openai"
 )
 
 // Preview は Discord 表示用に Auction と Product を統合したデータ。
@@ -25,11 +25,11 @@ type Preview struct {
 // PreviewUsecase は Auction URL から Preview を取得するユースケース。
 type PreviewUsecase struct {
 	auctionClient auction.Client
-	extractor     gemini.Client
+	extractor     openai.Client
 }
 
 // NewPreviewUsecase は PreviewUsecase を生成する。
-func NewPreviewUsecase(ac auction.Client, ex gemini.Client) *PreviewUsecase {
+func NewPreviewUsecase(ac auction.Client, ex openai.Client) *PreviewUsecase {
 	return &PreviewUsecase{auctionClient: ac, extractor: ex}
 }
 
