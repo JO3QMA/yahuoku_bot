@@ -22,6 +22,12 @@ func TestIsRetryableOpenAIError(t *testing.T) {
 	if isRetryableOpenAIError(errors.New("openai API status 401: invalid key")) {
 		t.Fatal("401 not retryable")
 	}
+	if isRetryableOpenAIError(fmt.Errorf("openai request: %w", context.Canceled)) {
+		t.Fatal("context canceled not retryable")
+	}
+	if isRetryableOpenAIError(fmt.Errorf("openai request: %w", context.DeadlineExceeded)) {
+		t.Fatal("deadline exceeded not retryable")
+	}
 }
 
 func TestChat_retries429ThenSuccess(t *testing.T) {
@@ -55,6 +61,23 @@ func TestChat_nonRetryableFailsFast(t *testing.T) {
 	_, err := api.chat(context.Background(), "m", nil, nil)
 	if err == nil {
 		t.Fatal("expected error")
+	}
+	if calls != 1 {
+		t.Fatalf("calls=%d want 1", calls)
+	}
+}
+
+func TestChat_doesNotRetryContextCanceled(t *testing.T) {
+	api := &apiClient{httpClient: &http.Client{}}
+	calls := 0
+	api.stubChat = func(context.Context, string, []chatMessage, *chatConfig) (*chatResponse, error) {
+		calls++
+		return nil, fmt.Errorf("openai request: %w", context.Canceled)
+	}
+
+	_, err := api.chat(context.Background(), "m", nil, nil)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("got %v want canceled", err)
 	}
 	if calls != 1 {
 		t.Fatalf("calls=%d want 1", calls)

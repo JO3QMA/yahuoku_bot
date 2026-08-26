@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"jo3qma.com/yahoo_auctions_bot/internal/domain/product"
 	"golang.org/x/sync/errgroup"
+	"jo3qma.com/yahoo_auctions_bot/internal/domain/product"
 )
 
 type session struct {
@@ -147,7 +147,7 @@ func (s *session) runSearchSupplement(ctx context.Context, title, plainDesc stri
 		if text != "" {
 			parsed, err := parseAgentFieldsJSON(text)
 			if err == nil {
-				mirror.applySupplementFields(parsed.Fields)
+				mirror.applySupplementFields([]product.Field(parsed.Fields))
 				if parsed.Done {
 					if remaining := product.FilterSupplementEligibleKeys(mirror.category, mirror.unresolvedKeys()); len(remaining) > 0 {
 						messages = append(messages, chatMessage{Role: "assistant", Content: text})
@@ -173,7 +173,7 @@ func (s *session) runSearchSupplement(ctx context.Context, title, plainDesc stri
 	if err != nil {
 		return err
 	}
-	mirror.applySupplementFields(parsed.Fields)
+	mirror.applySupplementFields([]product.Field(parsed.Fields))
 	if remaining := product.FilterSupplementEligibleKeys(mirror.category, mirror.unresolvedKeys()); len(remaining) > 0 {
 		return fmt.Errorf("unresolved after search: %s", strings.Join(remaining, ", "))
 	}
