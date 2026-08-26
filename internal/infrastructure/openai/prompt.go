@@ -65,7 +65,7 @@ func buildStage1Prompt(title, plainDesc string) string {
 	b.WriteString(serverValueExamples())
 	b.WriteString(`
 【出力形式】
-- category, condition, shipping_free, fields（判別ジャンルのテンプレートキーのみ）
+- category, condition, shipping_free, fields: [{"key":"<テンプレートキー>","value":"..."}] の配列
 - missing_keys: 値が不明または空のテンプレートキー
 - candidate_queries: 型番・スペック補完用の日本語検索クエリ（最大3件）
 
@@ -109,7 +109,7 @@ func buildStage2Prompt(title, plainDesc string) string {
 func buildStage3Prompt(title, plainDesc string, s1 *stage1Result, s2 *stage2Result) string {
 	var b strings.Builder
 	b.WriteString(`不足している商品スペックを補完してください。必要なら lookup_spec 関数でWeb検索してください。
-補完が完了したら done を true にし、fields にテンプレートキーと値を返してください。
+補完が完了したら done を true にし、fields に [{"key":"<テンプレートキー>","value":"..."}] を返してください。
 
 【優先度】テキスト > 画像 > 検索結果
 `)
@@ -166,7 +166,7 @@ func buildMergePrompt(title, plainDesc string, s1 *stage1Result, s2 *stage2Resul
 		}
 	}
 	b.WriteString(`
-【出力】category, condition, shipping_free, fields（判別ジャンルのテンプレートキーのみ）
+【出力】category, condition, shipping_free, fields: [{"key":"<テンプレートキー>","value":"..."}] の配列
 `)
 	return b.String()
 }

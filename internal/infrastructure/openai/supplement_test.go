@@ -96,7 +96,7 @@ func Test_toProduct(t *testing.T) {
 	pd := toProduct(&extractResponse{
 		Category:  "server",
 		Condition: "中古",
-		Fields:    []product.Field{{Key: "server_model", Value: "R740"}},
+		Fields:    fieldList{{Key: "server_model", Value: "R740"}},
 	})
 	if pd.Category != product.CategoryServer {
 		t.Fatalf("%v", pd.Category)

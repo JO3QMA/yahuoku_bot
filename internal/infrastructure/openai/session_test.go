@@ -92,6 +92,28 @@ func Test_extract_skips_search_when_only_installed_configuration_missing(t *test
 	}
 }
 
+func Test_extract_accepts_object_shaped_fields(t *testing.T) {
+	stage1 := `{"category":"gpu","condition":"中古","shipping_free":false,"fields":{"model":"RTX 3080"},"missing_keys":[],"candidate_queries":[]}`
+	stage4 := `{"category":"gpu","condition":"中古","shipping_free":false,"fields":{"model":"RTX 3080"}}`
+	api, toolsCalled := stubStageExtractor(t, stage1, stage4)
+
+	pd, err := NewTestClient(api, Options{}).Extract(context.Background(), product.ExtractInput{
+		Title: "GPU", Description: "NVIDIA GeForce RTX 3080 10GB",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pd.Category != "gpu" {
+		t.Fatalf("%v", pd)
+	}
+	if len(pd.Fields) != 1 || pd.Fields[0].Key != "model" || pd.Fields[0].Value != "RTX 3080" {
+		t.Fatalf("fields=%+v", pd.Fields)
+	}
+	if *toolsCalled > 0 {
+		t.Fatal("search supplement should not run when unresolved is empty")
+	}
+}
+
 func Test_extract_text_only(t *testing.T) {
 	stage1 := `{"category":"other","condition":"","shipping_free":null,"fields":[],"missing_keys":[],"candidate_queries":[]}`
 	stage4 := `{"category":"other","condition":"","fields":[]}`

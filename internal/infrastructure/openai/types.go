@@ -1,20 +1,60 @@
 package openai
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 
 	"jo3qma.com/yahoo_auctions_bot/internal/domain/product"
 )
 
+// fieldList は LLM が fields を配列でも {key:value} オブジェクトでも返せるようにする。
+type fieldList []product.Field
+
+func (fl *fieldList) UnmarshalJSON(data []byte) error {
+	data = bytes.TrimSpace(data)
+	if len(data) == 0 || string(data) == "null" {
+		*fl = nil
+		return nil
+	}
+	switch data[0] {
+	case '[':
+		var arr []product.Field
+		if err := json.Unmarshal(data, &arr); err != nil {
+			return err
+		}
+		*fl = arr
+		return nil
+	case '{':
+		var obj map[string]string
+		if err := json.Unmarshal(data, &obj); err != nil {
+			return fmt.Errorf("fields object: %w", err)
+		}
+		keys := make([]string, 0, len(obj))
+		for k := range obj {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		out := make([]product.Field, 0, len(keys))
+		for _, k := range keys {
+			out = append(out, product.Field{Key: k, Value: obj[k]})
+		}
+		*fl = out
+		return nil
+	default:
+		return fmt.Errorf("fields: expected array or object")
+	}
+}
+
 type stage1Result struct {
-	Category         string          `json:"category"`
-	Condition        string          `json:"condition"`
-	FreeShipping     *bool           `json:"shipping_free"`
-	Fields           []product.Field `json:"fields"`
-	MissingKeys      []string        `json:"missing_keys"`
-	CandidateQueries []string        `json:"candidate_queries"`
+	Category         string    `json:"category"`
+	Condition        string    `json:"condition"`
+	FreeShipping     *bool     `json:"shipping_free"`
+	Fields           fieldList `json:"fields"`
+	MissingKeys      []string  `json:"missing_keys"`
+	CandidateQueries []string  `json:"candidate_queries"`
 }
 
 type imageField struct {
@@ -24,20 +64,20 @@ type imageField struct {
 }
 
 type stage2Result struct {
-	ImageFields           []imageField `json:"image_fields"`
-	VisibleModelNumbers   []string     `json:"visible_model_numbers"`
+	ImageFields         []imageField `json:"image_fields"`
+	VisibleModelNumbers []string     `json:"visible_model_numbers"`
 }
 
 type agentFieldsResult struct {
-	Fields []product.Field `json:"fields"`
-	Done   bool            `json:"done"`
+	Fields fieldList `json:"fields"`
+	Done   bool      `json:"done"`
 }
 
 type extractResponse struct {
-	Category     string          `json:"category"`
-	Condition    string          `json:"condition"`
-	FreeShipping *bool           `json:"shipping_free"`
-	Fields       []product.Field `json:"fields"`
+	Category     string    `json:"category"`
+	Condition    string    `json:"condition"`
+	FreeShipping *bool     `json:"shipping_free"`
+	Fields       fieldList `json:"fields"`
 }
 
 func parseStage1JSON(text string) (*stage1Result, error) {
@@ -74,6 +114,6 @@ func toProduct(raw *extractResponse) *product.Product {
 		Category:     cat,
 		Condition:    raw.Condition,
 		FreeShipping: raw.FreeShipping,
-		Fields:       product.ValidateFields(cat, raw.Fields),
+		Fields:       product.ValidateFields(cat, []product.Field(raw.Fields)),
 	}
 }

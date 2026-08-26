@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -176,6 +177,9 @@ func (a *apiClient) chatOnce(ctx context.Context, model string, messages []chatM
 }
 
 func isRetryableOpenAIError(err error) bool {
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return false
+	}
 	s := err.Error()
 	if strings.Contains(s, "429") || strings.Contains(s, "503") {
 		return true
