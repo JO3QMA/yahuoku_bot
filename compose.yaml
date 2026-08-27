@@ -1,10 +1,4 @@
 services:
-  yahoo-auctions-api:
-    image: ghcr.io/jo3qma/yahoo_auctions_api
-    expose:
-      - "8080"
-    restart: unless-stopped
-
   rqlite:
     image: rqlite/rqlite:8.28.2
     volumes:
@@ -27,14 +21,12 @@ services:
       - OPENAI_MAX_IMAGES=${OPENAI_MAX_IMAGES:-3}
       - OPENAI_MAX_SEARCH_CALLS=${OPENAI_MAX_SEARCH_CALLS:-3}
       - OPENAI_PIPELINE_TIMEOUT_SEC=${OPENAI_PIPELINE_TIMEOUT_SEC:-45}
-      - API_ENDPOINT=${API_ENDPOINT:-http://yahoo-auctions-api:8080}
       - RQLITE_URL=${RQLITE_URL:-http://rqlite:4001}
       - ALLOWED_GUILDS=${ALLOWED_GUILDS:-}
       - ALLOWED_CHANNELS=${ALLOWED_CHANNELS:-1320456756605882408}
       - CHECK_INTERVAL_MINUTES=${CHECK_INTERVAL_MINUTES:-5}
       - POLL_DELAY_MS=${POLL_DELAY_MS:-2000}
     depends_on:
-      - yahoo-auctions-api
       - rqlite
     restart: unless-stopped
 

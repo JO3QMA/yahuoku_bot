@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"jo3qma.com/yahoo_auctions_bot/internal/domain/listing"
 	"jo3qma.com/yahoo_auctions_bot/internal/domain/watch"
 
 	rqlitehttp "github.com/rqlite/rqlite-go-http"
@@ -22,11 +23,10 @@ func NewWatchRepository(client *Client) *WatchRepository {
 }
 
 func (r *WatchRepository) Add(ctx context.Context, item *watch.Watch) error {
-	// reminded = 0: 再登録時にリマインドを再送可能にする
 	query := `
-		INSERT INTO watch_items (auction_id, user_id, guild_id, channel_id, message_id, last_known_price, end_time, reminded, thread_id)
-		VALUES (?, ?, ?, ?, ?, ?, ?, 0, '')
-		ON CONFLICT(auction_id, user_id, message_id) DO UPDATE SET
+		INSERT INTO watch_items (market, listing_id, user_id, guild_id, channel_id, message_id, last_known_price, end_time, reminded, thread_id)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, '')
+		ON CONFLICT(market, listing_id, user_id, message_id) DO UPDATE SET
 			last_known_price = excluded.last_known_price,
 			end_time = excluded.end_time,
 			reminded = 0
@@ -34,11 +34,9 @@ func (r *WatchRepository) Add(ctx context.Context, item *watch.Watch) error {
 	var endTime any
 	if item.EndTime != nil {
 		endTime = item.EndTime.UTC().Format(time.RFC3339)
-	} else {
-		endTime = nil
 	}
 	_, err := r.client.h.ExecuteSingle(ctx, query,
-		item.AuctionID, item.UserID, item.GuildID, item.ChannelID, item.MessageID,
+		string(item.Market), item.ListingID, item.UserID, item.GuildID, item.ChannelID, item.MessageID,
 		item.LastKnownPrice, endTime,
 	)
 	if err != nil {
@@ -47,10 +45,10 @@ func (r *WatchRepository) Add(ctx context.Context, item *watch.Watch) error {
 	return nil
 }
 
-func (r *WatchRepository) Remove(ctx context.Context, auctionID, userID, messageID string) error {
+func (r *WatchRepository) Remove(ctx context.Context, market listing.Market, listingID, userID, messageID string) error {
 	_, err := r.client.h.ExecuteSingle(ctx,
-		`DELETE FROM watch_items WHERE auction_id = ? AND user_id = ? AND message_id = ?`,
-		auctionID, userID, messageID,
+		`DELETE FROM watch_items WHERE market = ? AND listing_id = ? AND user_id = ? AND message_id = ?`,
+		string(market), listingID, userID, messageID,
 	)
 	if err != nil {
 		return fmt.Errorf("delete watch item: %w", err)
@@ -58,16 +56,19 @@ func (r *WatchRepository) Remove(ctx context.Context, auctionID, userID, message
 	return nil
 }
 
-func (r *WatchRepository) RemoveByAuctionID(ctx context.Context, auctionID string) error {
-	_, err := r.client.h.ExecuteSingle(ctx, `DELETE FROM watch_items WHERE auction_id = ?`, auctionID)
+func (r *WatchRepository) RemoveByListing(ctx context.Context, market listing.Market, listingID string) error {
+	_, err := r.client.h.ExecuteSingle(ctx,
+		`DELETE FROM watch_items WHERE market = ? AND listing_id = ?`,
+		string(market), listingID,
+	)
 	if err != nil {
-		return fmt.Errorf("delete watch items by auction: %w", err)
+		return fmt.Errorf("delete watch items by listing: %w", err)
 	}
 	return nil
 }
 
 func (r *WatchRepository) ListActive(ctx context.Context) ([]*watch.Watch, error) {
-	q := `SELECT id, auction_id, user_id, guild_id, channel_id, message_id, last_known_price, end_time, reminded, thread_id, created_at FROM watch_items`
+	q := `SELECT id, market, listing_id, user_id, guild_id, channel_id, message_id, last_known_price, end_time, reminded, thread_id, created_at FROM watch_items`
 	resp, err := r.client.h.QuerySingle(ctx, q)
 	if err != nil {
 		return nil, fmt.Errorf("list watch items: %w", err)
@@ -100,7 +101,7 @@ func (r *WatchRepository) UpdateThreadID(ctx context.Context, messageID, threadI
 }
 
 func (r *WatchRepository) FindByMessage(ctx context.Context, messageID string) ([]*watch.Watch, error) {
-	q := `SELECT id, auction_id, user_id, guild_id, channel_id, message_id, last_known_price, end_time, reminded, thread_id, created_at FROM watch_items WHERE message_id = ?`
+	q := `SELECT id, market, listing_id, user_id, guild_id, channel_id, message_id, last_known_price, end_time, reminded, thread_id, created_at FROM watch_items WHERE message_id = ?`
 	resp, err := r.client.h.QuerySingle(ctx, q, messageID)
 	if err != nil {
 		return nil, fmt.Errorf("find by message: %w", err)
@@ -116,7 +117,6 @@ func parseQueryResults(resp *rqlitehttp.QueryResponse) ([]*watch.Watch, error) {
 	if len(results) == 0 {
 		return nil, nil
 	}
-	// 単一 SELECT の結果は results[0] に入る
 	qr := results[0]
 	var items []*watch.Watch
 	for _, row := range qr.Values {
@@ -129,31 +129,31 @@ func parseQueryResults(resp *rqlitehttp.QueryResponse) ([]*watch.Watch, error) {
 	return items, nil
 }
 
-// row は id, auction_id, user_id, guild_id, channel_id, message_id, last_known_price, end_time, reminded, thread_id, created_at の順
 func rowToWatch(row []any) (*watch.Watch, error) {
-	if len(row) < 11 {
-		return nil, fmt.Errorf("row has %d columns, want 11", len(row))
+	if len(row) < 12 {
+		return nil, fmt.Errorf("row has %d columns, want 12", len(row))
 	}
 	item := &watch.Watch{}
 	if v, err := toInt64(row[0]); err == nil {
 		item.ID = v
 	}
-	item.AuctionID = toString(row[1])
-	item.UserID = toString(row[2])
-	item.GuildID = toString(row[3])
-	item.ChannelID = toString(row[4])
-	item.MessageID = toString(row[5])
-	if v, err := toInt64(row[6]); err == nil {
+	item.Market = listing.Market(toString(row[1]))
+	item.ListingID = toString(row[2])
+	item.UserID = toString(row[3])
+	item.GuildID = toString(row[4])
+	item.ChannelID = toString(row[5])
+	item.MessageID = toString(row[6])
+	if v, err := toInt64(row[7]); err == nil {
 		item.LastKnownPrice = v
 	}
-	if t := parseTime(row[7]); t != nil {
+	if t := parseTime(row[8]); t != nil {
 		item.EndTime = t
 	}
-	if v, err := toInt64(row[8]); err == nil {
+	if v, err := toInt64(row[9]); err == nil {
 		item.Reminded = v != 0
 	}
-	item.ThreadID = toString(row[9])
-	if t := parseTime(row[10]); t != nil {
+	item.ThreadID = toString(row[10])
+	if t := parseTime(row[11]); t != nil {
 		item.CreatedAt = *t
 	}
 	return item, nil

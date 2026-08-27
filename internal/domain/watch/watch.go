@@ -1,11 +1,16 @@
 package watch
 
-import "time"
+import (
+	"time"
 
-// Watch はユーザーが Auction を追跡する登録レコード。
+	"jo3qma.com/yahoo_auctions_bot/internal/domain/listing"
+)
+
+// Watch はユーザーが Listing を追跡する登録レコード。
 type Watch struct {
 	ID             int64
-	AuctionID      string
+	Market         listing.Market
+	ListingID      string
 	UserID         string
 	GuildID        string
 	ChannelID      string

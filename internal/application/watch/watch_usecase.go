@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"jo3qma.com/yahoo_auctions_bot/internal/domain/listing"
 	"jo3qma.com/yahoo_auctions_bot/internal/domain/watch"
 )
 
@@ -18,9 +19,16 @@ func NewWatchUsecase(repo watch.Repository) *WatchUsecase {
 }
 
 // Register は Watch を登録する。
-func (u *WatchUsecase) Register(ctx context.Context, auctionID, userID, guildID, channelID, messageID string, currentPrice int64, endTime *time.Time) error {
+func (u *WatchUsecase) Register(
+	ctx context.Context,
+	market listing.Market,
+	listingID, userID, guildID, channelID, messageID string,
+	currentPrice int64,
+	endTime *time.Time,
+) error {
 	item := &watch.Watch{
-		AuctionID:      auctionID,
+		Market:         market,
+		ListingID:      listingID,
 		UserID:         userID,
 		GuildID:        guildID,
 		ChannelID:      channelID,
@@ -32,6 +40,6 @@ func (u *WatchUsecase) Register(ctx context.Context, auctionID, userID, guildID,
 }
 
 // Unregister は Watch を解除する。
-func (u *WatchUsecase) Unregister(ctx context.Context, auctionID, userID, messageID string) error {
-	return u.repo.Remove(ctx, auctionID, userID, messageID)
+func (u *WatchUsecase) Unregister(ctx context.Context, market listing.Market, listingID, userID, messageID string) error {
+	return u.repo.Remove(ctx, market, listingID, userID, messageID)
 }

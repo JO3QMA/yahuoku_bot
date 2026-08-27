@@ -52,7 +52,7 @@ func (n *ThreadNotifier) sendPriceAlert(threadID discord.ChannelID, item *domain
 		return fmt.Errorf("send price notification: %w", err)
 	}
 
-	logPriceAlertSent(item.AuctionID, item.UserID)
+	logPriceAlertSent(item.ListingID, item.UserID)
 	return nil
 }
 
@@ -89,7 +89,7 @@ func (n *ThreadNotifier) sendEndingReminder(threadID discord.ChannelID, item *do
 		return fmt.Errorf("send ending notification: %w", err)
 	}
 
-	logEndingReminderSent(item.AuctionID, item.UserID)
+	logEndingReminderSent(item.ListingID, item.UserID)
 	return nil
 }
 

@@ -18,7 +18,6 @@ type Config struct {
 	OpenAIMaxImages          int    // 推論に使う最大画像数 (default: 3)
 	OpenAIMaxSearchCalls     int    // 1商品あたりの最大検索回数 (default: 3)
 	OpenAIPipelineTimeoutSec int    // Extraction のタイムアウト秒 (default: 45)
-	APIEndpoint              string
 	AllowedGuilds            []string // 空 = 全サーバー許可
 	AllowedChannels          []string // 空 = 全チャンネル許可
 	RqliteURL                string   // rqlite のベース URL (default: http://localhost:4001)
@@ -39,15 +38,11 @@ func Load() (*Config, error) {
 		OpenAIMaxImages:          getEnvInt("OPENAI_MAX_IMAGES", 3),
 		OpenAIMaxSearchCalls:     getEnvInt("OPENAI_MAX_SEARCH_CALLS", 3),
 		OpenAIPipelineTimeoutSec: getEnvInt("OPENAI_PIPELINE_TIMEOUT_SEC", 45),
-		APIEndpoint:              strings.TrimSpace(os.Getenv("API_ENDPOINT")),
 		RqliteURL:                strings.TrimSpace(os.Getenv("RQLITE_URL")),
 		AllowedGuilds:            getEnvCSV("ALLOWED_GUILDS"),
 		AllowedChannels:          getEnvCSV("ALLOWED_CHANNELS"),
 	}
 
-	if cfg.APIEndpoint == "" {
-		cfg.APIEndpoint = "http://localhost:8080"
-	}
 	if cfg.RqliteURL == "" {
 		cfg.RqliteURL = "http://localhost:4001"
 	}

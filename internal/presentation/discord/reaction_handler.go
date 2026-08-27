@@ -3,13 +3,13 @@ package discord
 import (
 	"context"
 	"log"
-	"regexp"
 
 	"github.com/diamondburned/arikawa/v3/discord"
 	"github.com/diamondburned/arikawa/v3/gateway"
 
 	appwatch "jo3qma.com/yahoo_auctions_bot/internal/application/watch"
-	infraauction "jo3qma.com/yahoo_auctions_bot/internal/infrastructure/auction"
+	"jo3qma.com/yahoo_auctions_bot/internal/domain/listing"
+	infralisting "jo3qma.com/yahoo_auctions_bot/internal/infrastructure/listing"
 )
 
 const (
@@ -17,24 +17,22 @@ const (
 	eyesEmoji  = "\U0001F440" // 👀
 )
 
-var embedURLRe = regexp.MustCompile(`auctions?\.yahoo\.co\.jp/[^/]+/auction/([a-zA-Z0-9]{8,11})`)
-
 // ReactionHandler はリアクションイベントを処理し、Watch の登録/解除を行う。
 type ReactionHandler struct {
 	watchUsecase  *appwatch.WatchUsecase
-	auctionClient infraauction.Client
+	listingClient infralisting.Client
 	api           SessionAPI
 }
 
 // NewReactionHandler はReactionHandlerを生成する。
 func NewReactionHandler(
 	watchUsecase *appwatch.WatchUsecase,
-	auctionClient infraauction.Client,
+	listingClient infralisting.Client,
 	api SessionAPI,
 ) *ReactionHandler {
 	return &ReactionHandler{
 		watchUsecase:  watchUsecase,
-		auctionClient: auctionClient,
+		listingClient: listingClient,
 		api:           api,
 	}
 }
@@ -66,14 +64,14 @@ func (h *ReactionHandler) HandleReactionAdd(e *gateway.MessageReactionAddEvent) 
 		return
 	}
 
-	auctionID := extractAuctionIDFromEmbeds(msg.Embeds)
-	if auctionID == "" {
+	ref, ok := extractListingRefFromEmbeds(msg.Embeds)
+	if !ok {
 		return
 	}
 
-	data, err := h.auctionClient.GetAuction(ctx, auctionID)
+	data, err := h.listingClient.Get(ctx, ref)
 	if err != nil {
-		log.Printf("[ReactionHandler] GetAuction %s: %v", auctionID, err)
+		log.Printf("[ReactionHandler] GetListing %s/%s: %v", ref.Market, ref.ListingID, err)
 		return
 	}
 
@@ -84,12 +82,13 @@ func (h *ReactionHandler) HandleReactionAdd(e *gateway.MessageReactionAddEvent) 
 
 	err = h.watchUsecase.Register(
 		ctx,
-		auctionID,
+		ref.Market,
+		ref.ListingID,
 		e.UserID.String(),
 		guildID,
 		e.ChannelID.String(),
 		e.MessageID.String(),
-		data.CurrentPrice,
+		data.Price,
 		data.EndTime,
 	)
 	if err != nil {
@@ -97,7 +96,7 @@ func (h *ReactionHandler) HandleReactionAdd(e *gateway.MessageReactionAddEvent) 
 		return
 	}
 
-	log.Printf("[ReactionHandler] user %s started watching auction %s (price=%d)", e.UserID, auctionID, data.CurrentPrice)
+	log.Printf("[ReactionHandler] user %s started watching %s/%s (price=%d)", e.UserID, ref.Market, ref.ListingID, data.Price)
 }
 
 // HandleReactionRemove はリアクション削除イベントを処理する。
@@ -119,30 +118,29 @@ func (h *ReactionHandler) HandleReactionRemove(e *gateway.MessageReactionRemoveE
 		return
 	}
 
-	auctionID := extractAuctionIDFromEmbeds(msg.Embeds)
-	if auctionID == "" {
+	ref, ok := extractListingRefFromEmbeds(msg.Embeds)
+	if !ok {
 		return
 	}
 
-	err = h.watchUsecase.Unregister(ctx, auctionID, e.UserID.String(), e.MessageID.String())
+	err = h.watchUsecase.Unregister(ctx, ref.Market, ref.ListingID, e.UserID.String(), e.MessageID.String())
 	if err != nil {
 		log.Printf("[ReactionHandler] unregister watch: %v", err)
 		return
 	}
 
-	log.Printf("[ReactionHandler] user %s stopped watching auction %s", e.UserID, auctionID)
+	log.Printf("[ReactionHandler] user %s stopped watching %s/%s", e.UserID, ref.Market, ref.ListingID)
 }
 
-// isWatchEmoji は Watch を登録する対象のリアクション（🔔 / 👀）かを判定する。
 func isWatchEmoji(emoji discord.Emoji) bool {
 	return emoji.Name == watchEmoji || emoji.Name == eyesEmoji
 }
 
-func extractAuctionIDFromEmbeds(embeds []discord.Embed) string {
+func extractListingRefFromEmbeds(embeds []discord.Embed) (listing.Ref, bool) {
 	for _, emb := range embeds {
-		if m := embedURLRe.FindStringSubmatch(string(emb.URL)); len(m) >= 2 {
-			return m[1]
+		if ref, ok := listing.ParseRefFromURL(string(emb.URL)); ok {
+			return ref, true
 		}
 	}
-	return ""
+	return listing.Ref{}, false
 }

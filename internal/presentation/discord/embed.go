@@ -9,7 +9,8 @@ import (
 	"github.com/diamondburned/arikawa/v3/discord"
 	"github.com/diamondburned/arikawa/v3/gateway"
 
-	"jo3qma.com/yahoo_auctions_bot/internal/application/auction"
+	applisting "jo3qma.com/yahoo_auctions_bot/internal/application/listing"
+	"jo3qma.com/yahoo_auctions_bot/internal/domain/listing"
 	"jo3qma.com/yahoo_auctions_bot/internal/domain/product"
 )
 
@@ -24,47 +25,48 @@ func NewEmbedBuilder(api SessionAPI) *EmbedBuilder {
 }
 
 // Build はPreviewからDiscord Embedを構築する。
-func (b *EmbedBuilder) Build(preview *auction.Preview) discord.Embed {
+func (b *EmbedBuilder) Build(preview *applisting.Preview) discord.Embed {
 	emb := discord.NewEmbed()
 	emb.Title = preview.Title
 	emb.URL = discord.URL(preview.URL)
-	emb.Color = 0x7B68EE // ヤフオク風の紫
+	emb.Color = 0x7B68EE
 
 	if len(preview.Images) > 0 {
 		emb.Thumbnail = &discord.EmbedThumbnail{URL: discord.URL(preview.Images[0])}
 	}
 
-	fields := []discord.EmbedField{}
+	fields := []discord.EmbedField{
+		{Name: "マーケット", Value: marketDisplayName(preview.Ref.Market), Inline: true},
+	}
 
-	// 現在価格
-	priceStr := formatPrice(preview.CurrentPrice)
-	fields = append(fields, discord.EmbedField{Name: "現在価格", Value: priceStr, Inline: true})
+	if showSaleType(preview) {
+		fields = append(fields, discord.EmbedField{Name: "販売形式", Value: "オークション", Inline: true})
+	}
 
-	// 残り時間
-	timeStr := formatEndTime(preview.EndTime)
-	fields = append(fields, discord.EmbedField{Name: "残り時間", Value: timeStr, Inline: true})
+	fields = append(fields,
+		discord.EmbedField{Name: "現在価格", Value: formatPrice(preview.CurrentPrice), Inline: true},
+	)
 
-	// 商品状態
+	if preview.SaleType == listing.SaleTypeAuction {
+		fields = append(fields, discord.EmbedField{Name: "残り時間", Value: formatEndTime(preview.EndTime), Inline: true})
+	}
+
 	condition := "不明"
 	if preview.Product != nil && preview.Product.Condition != "" {
 		condition = preview.Product.Condition
 	}
 	fields = append(fields, discord.EmbedField{Name: "商品状態", Value: condition, Inline: true})
 
-	// 送料
 	shippingStr := formatShipping(preview.Product)
 	fields = append(fields, discord.EmbedField{Name: "送料", Value: shippingStr, Inline: true})
 
-	// 商品ジャンル
 	if preview.Product != nil {
 		fields = append(fields, discord.EmbedField{
 			Name: "商品ジャンル", Value: preview.Product.Category.DisplayName(), Inline: true,
 		})
 	}
 
-	// ジャンル別テンプレート項目
-	productFields := formatProductFields(preview.Product)
-	fields = append(fields, productFields...)
+	fields = append(fields, formatProductFields(preview.Product)...)
 
 	emb.Fields = fields
 	return *emb
@@ -75,6 +77,23 @@ func (b *EmbedBuilder) Send(e *gateway.MessageCreateEvent, emb discord.Embed) (*
 	return b.api.SendMessageComplex(e.ChannelID, api.SendMessageData{
 		Embeds: []discord.Embed{emb},
 	})
+}
+
+func marketDisplayName(m listing.Market) string {
+	switch m {
+	case listing.MarketYahooAuction:
+		return "ヤフオク"
+	case listing.MarketYahooFlea:
+		return "Yahoo!フリマ"
+	case listing.MarketMercari:
+		return "メルカリ"
+	default:
+		return string(m)
+	}
+}
+
+func showSaleType(preview *applisting.Preview) bool {
+	return preview.SaleType == listing.SaleTypeAuction && preview.Ref.Market != listing.MarketYahooAuction
 }
 
 func formatPrice(price int64) string {
@@ -122,7 +141,6 @@ func formatShipping(p *product.Product) string {
 	return "落札者負担"
 }
 
-// formatProductFields は FieldTemplate に従い EmbedField を返す。空・不明の Field は含めない。
 func formatProductFields(p *product.Product) []discord.EmbedField {
 	if p == nil {
 		return nil

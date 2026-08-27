@@ -4,7 +4,7 @@ import "testing"
 
 func TestWatch_zero(t *testing.T) {
 	var w Watch
-	if w.ID != 0 || w.AuctionID != "" {
+	if w.ID != 0 || w.ListingID != "" {
 		t.Fatal()
 	}
 }

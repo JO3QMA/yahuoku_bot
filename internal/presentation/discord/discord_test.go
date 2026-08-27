@@ -10,11 +10,11 @@ import (
 	"testing"
 	"time"
 
-	appauction "jo3qma.com/yahoo_auctions_bot/internal/application/auction"
+	applisting "jo3qma.com/yahoo_auctions_bot/internal/application/listing"
 	appwatch "jo3qma.com/yahoo_auctions_bot/internal/application/watch"
 	"jo3qma.com/yahoo_auctions_bot/internal/domain/product"
 	domainwatch "jo3qma.com/yahoo_auctions_bot/internal/domain/watch"
-	infraauction "jo3qma.com/yahoo_auctions_bot/internal/infrastructure/auction"
+	dlisting "jo3qma.com/yahoo_auctions_bot/internal/domain/listing"
 
 	"github.com/diamondburned/arikawa/v3/api"
 	"github.com/diamondburned/arikawa/v3/discord"
@@ -70,12 +70,12 @@ func (s *stubSessionAPI) StartThreadWithMessage(channelID discord.ChannelID, mes
 	return &discord.Channel{ID: 99}, nil
 }
 
-type stubAuction struct {
-	data *infraauction.AuctionData
+type stubListing struct {
+	data *dlisting.Data
 	err  error
 }
 
-func (s *stubAuction) GetAuction(ctx context.Context, id string) (*infraauction.AuctionData, error) {
+func (s *stubListing) Get(ctx context.Context, ref dlisting.Ref) (*dlisting.Data, error) {
 	return s.data, s.err
 }
 
@@ -92,7 +92,7 @@ func (m *memWatchRepo) Add(ctx context.Context, item *domainwatch.Watch) error {
 	m.items = append(m.items, item)
 	return nil
 }
-func (m *memWatchRepo) Remove(ctx context.Context, auctionID, userID, messageID string) error {
+func (m *memWatchRepo) Remove(ctx context.Context, market dlisting.Market, listingID, userID, messageID string) error {
 	return m.remErr
 }
 func (m *memWatchRepo) ListActive(ctx context.Context) ([]*domainwatch.Watch, error) {
@@ -106,14 +106,14 @@ func (m *memWatchRepo) UpdateThreadID(ctx context.Context, messageID, threadID s
 func (m *memWatchRepo) FindByMessage(ctx context.Context, messageID string) ([]*domainwatch.Watch, error) {
 	return nil, nil
 }
-func (m *memWatchRepo) RemoveByAuctionID(ctx context.Context, auctionID string) error { return nil }
+func (m *memWatchRepo) RemoveByListing(ctx context.Context, market dlisting.Market, listingID string) error { return nil }
 
 type stubPreviewFetch struct {
-	data *infraauction.AuctionData
+	data *dlisting.Data
 	err  error
 }
 
-func (s *stubPreviewFetch) GetAuction(ctx context.Context, id string) (*infraauction.AuctionData, error) {
+func (s *stubPreviewFetch) Get(ctx context.Context, ref dlisting.Ref) (*dlisting.Data, error) {
 	return s.data, s.err
 }
 
@@ -126,17 +126,26 @@ func (s *stubProductExt) Extract(ctx context.Context, in product.ExtractInput) (
 	return s.pd, s.err
 }
 
+func testListingData(id string, end *time.Time) *dlisting.Data {
+	return &dlisting.Data{
+		Ref:         dlisting.Ref{Market: dlisting.MarketYahooAuction, ListingID: id},
+		Title:       "T",
+		Price:       1,
+		Description: "d",
+		EndTime:     end,
+		SaleType:    dlisting.SaleTypeAuction,
+		IsActive:    true,
+	}
+}
+
 func TestBot_Run_connectError(t *testing.T) {
 	end := time.Now()
-	pu := appauction.NewPreviewUsecase(&stubPreviewFetch{data: &infraauction.AuctionData{
-		AuctionID: "a", Title: "T", CurrentPrice: 1, Status: "S", Description: "d",
-		EndTime: &end,
-	}}, &stubProductExt{pd: &product.Product{}})
+	pu := applisting.NewPreviewUsecase(&stubPreviewFetch{data: testListingData("a", &end)}, &stubProductExt{pd: &product.Product{}})
 	h := NewHandler(pu, NewEmbedBuilder(&stubSessionAPI{}), NewAllowedFilter(nil, nil))
 	repo := &memWatchRepo{}
 	wu := appwatch.NewWatchUsecase(repo)
-	rh := NewReactionHandler(wu, &stubAuction{data: &infraauction.AuctionData{CurrentPrice: 1}}, &stubSessionAPI{user: &discord.User{ID: discord.UserID(7)}})
-	pw := appwatch.NewPollingWorker(repo, &stubAuction{}, &noopNotifier{}, 60, 1)
+	rh := NewReactionHandler(wu, &stubListing{data: testListingData("a", nil)}, &stubSessionAPI{user: &discord.User{ID: discord.UserID(7)}})
+	pw := appwatch.NewPollingWorker(repo, &stubListing{}, &noopNotifier{}, 60, 1)
 	b := NewBotWithDeps(&mockGW{connectErr: errors.New("nope")}, h, rh, pw)
 	err := b.Run(context.Background())
 	if err == nil {
@@ -155,14 +164,12 @@ func (n *noopNotifier) NotifyEndingReminder(context.Context, *domainwatch.Watch,
 
 func TestBot_Run_cancel(t *testing.T) {
 	end := time.Now()
-	pu := appauction.NewPreviewUsecase(&stubPreviewFetch{data: &infraauction.AuctionData{
-		AuctionID: "a", Title: "T", CurrentPrice: 1, Status: "S", Description: "d", EndTime: &end,
-	}}, &stubProductExt{pd: &product.Product{}})
+	pu := applisting.NewPreviewUsecase(&stubPreviewFetch{data: testListingData("a", &end)}, &stubProductExt{pd: &product.Product{}})
 	h := NewHandler(pu, NewEmbedBuilder(&stubSessionAPI{}), NewAllowedFilter(nil, nil))
 	repo := &memWatchRepo{}
 	wu := appwatch.NewWatchUsecase(repo)
-	rh := NewReactionHandler(wu, &stubAuction{data: &infraauction.AuctionData{CurrentPrice: 1}}, &stubSessionAPI{user: &discord.User{ID: discord.UserID(7)}})
-	pw := appwatch.NewPollingWorker(repo, &stubAuction{}, &noopNotifier{}, 60, 10_000)
+	rh := NewReactionHandler(wu, &stubListing{data: testListingData("a", nil)}, &stubSessionAPI{user: &discord.User{ID: discord.UserID(7)}})
+	pw := appwatch.NewPollingWorker(repo, &stubListing{}, &noopNotifier{}, 60, 10_000)
 	b := NewBotWithDeps(&mockGW{}, h, rh, pw)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -192,10 +199,8 @@ func TestAllowedFilter_Allow(t *testing.T) {
 
 func TestHandler_HandleMessageCreate(t *testing.T) {
 	end := time.Now()
-	data := &infraauction.AuctionData{
-		AuctionID: "abc12345678", Title: "T", CurrentPrice: 1, Status: "S", Description: "d", EndTime: &end,
-	}
-	pu := appauction.NewPreviewUsecase(&stubPreviewFetch{data: data}, &stubProductExt{pd: &product.Product{}})
+	data := testListingData("abc12345678", &end)
+	pu := applisting.NewPreviewUsecase(&stubPreviewFetch{data: data}, &stubProductExt{pd: &product.Product{}})
 	sender := &stubSessionAPI{sendMsg: &discord.Message{ID: 1}}
 	h := NewHandler(pu, NewEmbedBuilder(sender), NewAllowedFilter(nil, nil))
 
@@ -222,7 +227,7 @@ func TestHandler_HandleMessageCreate(t *testing.T) {
 		})
 	})
 	t.Run("usecase error", func(t *testing.T) {
-		pu2 := appauction.NewPreviewUsecase(&stubPreviewFetch{err: errors.New("e")}, &stubProductExt{})
+		pu2 := applisting.NewPreviewUsecase(&stubPreviewFetch{err: errors.New("e")}, &stubProductExt{})
 		h2 := NewHandler(pu2, NewEmbedBuilder(sender), NewAllowedFilter(nil, nil))
 		h2.HandleMessageCreate(&gateway.MessageCreateEvent{
 			Message: discord.Message{
@@ -231,7 +236,7 @@ func TestHandler_HandleMessageCreate(t *testing.T) {
 		})
 	})
 	t.Run("send error", func(t *testing.T) {
-		pu2 := appauction.NewPreviewUsecase(&stubPreviewFetch{data: data}, &stubProductExt{pd: &product.Product{}})
+		pu2 := applisting.NewPreviewUsecase(&stubPreviewFetch{data: data}, &stubProductExt{pd: &product.Product{}})
 		h2 := NewHandler(pu2, NewEmbedBuilder(&stubSessionAPI{sendErr: errors.New("s")}), NewAllowedFilter(nil, nil))
 		h2.HandleMessageCreate(&gateway.MessageCreateEvent{
 			Message: discord.Message{
@@ -258,8 +263,8 @@ func TestHandler_HandleMessageCreate(t *testing.T) {
 
 func TestEmbedBuilder_Build_and_Send(t *testing.T) {
 	sf := true
-	p := &appauction.Preview{
-		AuctionID: "a", Title: "T", URL: "https://page.auctions.yahoo.co.jp/jp/auction/abc12345678",
+	p := &applisting.Preview{
+		Ref: dlisting.Ref{Market: dlisting.MarketYahooAuction, ListingID: "a"}, Title: "T", URL: "https://page.auctions.yahoo.co.jp/jp/auction/abc12345678",
 		CurrentPrice: 0, Images: []string{"https://i"}, EndTime: nil,
 		Product: &product.Product{
 			Category: product.CategoryServer, Condition: "新品", FreeShipping: &sf,
@@ -299,17 +304,17 @@ func TestEmbedBuilder_priceAndTime(t *testing.T) {
 	future := time.Now().Add(30 * time.Minute)
 	future2 := time.Now().Add(3 * time.Hour)
 	future3 := time.Now().Add(30 * time.Hour)
-	_ = b.Build(&appauction.Preview{CurrentPrice: -1, EndTime: &past})
-	_ = b.Build(&appauction.Preview{CurrentPrice: 1500, EndTime: &future})
-	_ = b.Build(&appauction.Preview{CurrentPrice: 2000, EndTime: &future2})
-	_ = b.Build(&appauction.Preview{CurrentPrice: 3000, EndTime: &future3})
+	_ = b.Build(&applisting.Preview{CurrentPrice: -1, EndTime: &past})
+	_ = b.Build(&applisting.Preview{CurrentPrice: 1500, EndTime: &future})
+	_ = b.Build(&applisting.Preview{CurrentPrice: 2000, EndTime: &future2})
+	_ = b.Build(&applisting.Preview{CurrentPrice: 3000, EndTime: &future3})
 	sf := false
-	_ = b.Build(&appauction.Preview{Product: &product.Product{FreeShipping: &sf}})
-	_ = b.Build(&appauction.Preview{Product: &product.Product{
+	_ = b.Build(&applisting.Preview{Product: &product.Product{FreeShipping: &sf}})
+	_ = b.Build(&applisting.Preview{Product: &product.Product{
 		Category: product.CategoryServer,
 		Fields:   []product.Field{{Key: "cpu_model_line", Value: "不明"}},
 	}})
-	_ = b.Build(&appauction.Preview{CurrentPrice: 12_345_678, EndTime: &future})
+	_ = b.Build(&applisting.Preview{CurrentPrice: 12_345_678, EndTime: &future})
 }
 
 func TestThreadNotifier(t *testing.T) {
@@ -323,7 +328,7 @@ func TestThreadNotifier(t *testing.T) {
 		UserID:    uid.String(),
 		ChannelID: bid.String(),
 		MessageID: bid.String(),
-		AuctionID: "a",
+		ListingID: "a",
 		ThreadID:  "99",
 	}
 	if err := n.NotifyPriceAlert(ctx, item, 10, 20, "title"); err != nil {
@@ -331,7 +336,7 @@ func TestThreadNotifier(t *testing.T) {
 	}
 	item2 := &domainwatch.Watch{
 		UserID: uid.String(), ChannelID: bid.String(), MessageID: bid.String(),
-		AuctionID: "a2", ThreadID: "",
+		ListingID: "a2", ThreadID: "",
 	}
 	if err := n.NotifyEndingReminder(ctx, item2, 5, "t2", 5*time.Minute); err != nil {
 		t.Fatal(err)
@@ -344,7 +349,7 @@ func TestThreadNotifier_ensureThread_sibling(t *testing.T) {
 	api := &stubSessionAPI{}
 	n := NewThreadNotifier(api, repo)
 	item := &domainwatch.Watch{
-		UserID: "1", ChannelID: "10", MessageID: "20", AuctionID: "a",
+		UserID: "1", ChannelID: "10", MessageID: "20", ListingID: "a",
 		ThreadID: "",
 	}
 	if err := n.NotifyPriceAlert(ctx, item, 1, 2, "long title for truncate test long long long"); err != nil {
@@ -355,7 +360,7 @@ func TestThreadNotifier_ensureThread_sibling(t *testing.T) {
 type siblingRepo struct{}
 
 func (s *siblingRepo) Add(ctx context.Context, item *domainwatch.Watch) error { return nil }
-func (s *siblingRepo) Remove(ctx context.Context, auctionID, userID, messageID string) error {
+func (s *siblingRepo) Remove(ctx context.Context, market dlisting.Market, listingID, userID, messageID string) error {
 	return nil
 }
 func (s *siblingRepo) ListActive(ctx context.Context) ([]*domainwatch.Watch, error) { return nil, nil }
@@ -367,7 +372,7 @@ func (s *siblingRepo) UpdateThreadID(ctx context.Context, messageID, threadID st
 func (s *siblingRepo) FindByMessage(ctx context.Context, messageID string) ([]*domainwatch.Watch, error) {
 	return []*domainwatch.Watch{{ThreadID: "55"}}, nil
 }
-func (s *siblingRepo) RemoveByAuctionID(ctx context.Context, auctionID string) error { return nil }
+func (s *siblingRepo) RemoveByListing(ctx context.Context, market dlisting.Market, listingID string) error { return nil }
 
 func TestThreadNotifier_startThreadErr(t *testing.T) {
 	ctx := context.Background()
@@ -375,7 +380,7 @@ func TestThreadNotifier_startThreadErr(t *testing.T) {
 	api := &stubSessionAPI{startErr: errors.New("st")}
 	n := NewThreadNotifier(api, repo)
 	item := &domainwatch.Watch{
-		UserID: "1", ChannelID: "10", MessageID: "20", AuctionID: "a",
+		UserID: "1", ChannelID: "10", MessageID: "20", ListingID: "a",
 	}
 	err := n.NotifyPriceAlert(ctx, item, 1, 2, "t")
 	if err == nil {
@@ -387,7 +392,7 @@ func TestThreadNotifier_startThreadErr_endingSoon(t *testing.T) {
 	ctx := context.Background()
 	n := NewThreadNotifier(&stubSessionAPI{startErr: errors.New("st")}, &memWatchRepo{})
 	item := &domainwatch.Watch{
-		UserID: "200", ChannelID: "100", MessageID: "20", AuctionID: "a", ThreadID: "",
+		UserID: "200", ChannelID: "100", MessageID: "20", ListingID: "a", ThreadID: "",
 	}
 	err := n.NotifyEndingReminder(ctx, item, 1, "t", time.Minute)
 	if err == nil {
@@ -410,7 +415,7 @@ func TestThreadNotifier_sendErr(t *testing.T) {
 type findErrThreadRepo struct{}
 
 func (findErrThreadRepo) Add(context.Context, *domainwatch.Watch) error { return nil }
-func (findErrThreadRepo) Remove(context.Context, string, string, string) error { return nil }
+func (findErrThreadRepo) Remove(context.Context, dlisting.Market, string, string, string) error { return nil }
 func (findErrThreadRepo) ListActive(context.Context) ([]*domainwatch.Watch, error) {
 	return nil, nil
 }
@@ -420,13 +425,13 @@ func (findErrThreadRepo) UpdateThreadID(context.Context, string, string) error {
 func (findErrThreadRepo) FindByMessage(context.Context, string) ([]*domainwatch.Watch, error) {
 	return nil, errors.New("find")
 }
-func (findErrThreadRepo) RemoveByAuctionID(context.Context, string) error { return nil }
+func (findErrThreadRepo) RemoveByListing(context.Context, dlisting.Market, string) error { return nil }
 
 func TestThreadNotifier_findByMessageErrStillCreates(t *testing.T) {
 	ctx := context.Background()
 	n := NewThreadNotifier(&stubSessionAPI{}, findErrThreadRepo{})
 	item := &domainwatch.Watch{
-		UserID: "200", ChannelID: "100", MessageID: "20", AuctionID: "a", ThreadID: "",
+		UserID: "200", ChannelID: "100", MessageID: "20", ListingID: "a", ThreadID: "",
 	}
 	if err := n.NotifyPriceAlert(ctx, item, 1, 2, "t"); err != nil {
 		t.Fatal(err)
@@ -436,7 +441,7 @@ func TestThreadNotifier_findByMessageErrStillCreates(t *testing.T) {
 type updateThreadErrRepo struct{}
 
 func (updateThreadErrRepo) Add(context.Context, *domainwatch.Watch) error { return nil }
-func (updateThreadErrRepo) Remove(context.Context, string, string, string) error { return nil }
+func (updateThreadErrRepo) Remove(context.Context, dlisting.Market, string, string, string) error { return nil }
 func (updateThreadErrRepo) ListActive(context.Context) ([]*domainwatch.Watch, error) {
 	return nil, nil
 }
@@ -448,13 +453,13 @@ func (updateThreadErrRepo) FindByMessage(context.Context, string) ([]*domainwatc
 func (updateThreadErrRepo) UpdateThreadID(context.Context, string, string) error {
 	return errors.New("db")
 }
-func (updateThreadErrRepo) RemoveByAuctionID(context.Context, string) error { return nil }
+func (updateThreadErrRepo) RemoveByListing(context.Context, dlisting.Market, string) error { return nil }
 
 func TestThreadNotifier_updateThreadIDLogNonFatal(t *testing.T) {
 	ctx := context.Background()
 	n := NewThreadNotifier(&stubSessionAPI{}, updateThreadErrRepo{})
 	item := &domainwatch.Watch{
-		UserID: "200", ChannelID: "100", MessageID: "20", AuctionID: "a", ThreadID: "",
+		UserID: "200", ChannelID: "100", MessageID: "20", ListingID: "a", ThreadID: "",
 	}
 	if err := n.NotifyPriceAlert(ctx, item, 1, 2, "t"); err != nil {
 		t.Fatal(err)
@@ -474,7 +479,7 @@ func TestThreadNotifier_negativePriceComma(t *testing.T) {
 
 func TestThreadNotifier_sendPriceAlert_direct(t *testing.T) {
 	n := NewThreadNotifier(&stubSessionAPI{}, &memWatchRepo{})
-	item := &domainwatch.Watch{UserID: "200", AuctionID: "a"}
+	item := &domainwatch.Watch{UserID: "200", Market: dlisting.MarketYahooAuction, ListingID: "a"}
 	if err := n.sendPriceAlert(discord.ChannelID(99), item, 1, 2); err != nil {
 		t.Fatal(err)
 	}
@@ -483,7 +488,7 @@ func TestThreadNotifier_sendPriceAlert_direct(t *testing.T) {
 func TestThreadNotifier_sendEndingReminder_direct(t *testing.T) {
 	api := &stubSessionAPI{}
 	n := NewThreadNotifier(api, &memWatchRepo{})
-	item := &domainwatch.Watch{UserID: "200", AuctionID: "a"}
+	item := &domainwatch.Watch{UserID: "200", Market: dlisting.MarketYahooAuction, ListingID: "a"}
 	if err := n.sendEndingReminder(discord.ChannelID(99), item, 500, 8*time.Minute+30*time.Second); err != nil {
 		t.Fatal(err)
 	}
@@ -494,7 +499,7 @@ func TestThreadNotifier_sendEndingReminder_direct(t *testing.T) {
 
 func TestThreadNotifier_sendPriceAlert_sendErr(t *testing.T) {
 	n := NewThreadNotifier(&stubSessionAPI{sendErr: errors.New("se")}, &memWatchRepo{})
-	item := &domainwatch.Watch{UserID: "200", AuctionID: "a"}
+	item := &domainwatch.Watch{UserID: "200", Market: dlisting.MarketYahooAuction, ListingID: "a"}
 	err := n.sendPriceAlert(discord.ChannelID(99), item, 1, 2)
 	if err == nil {
 		t.Fatal("expected error")
@@ -503,7 +508,7 @@ func TestThreadNotifier_sendPriceAlert_sendErr(t *testing.T) {
 
 func TestThreadNotifier_sendEndingReminder_sendErr(t *testing.T) {
 	n := NewThreadNotifier(&stubSessionAPI{sendErr: errors.New("se")}, &memWatchRepo{})
-	item := &domainwatch.Watch{UserID: "200", AuctionID: "a"}
+	item := &domainwatch.Watch{UserID: "200", Market: dlisting.MarketYahooAuction, ListingID: "a"}
 	err := n.sendEndingReminder(discord.ChannelID(99), item, 1, time.Minute)
 	if err == nil {
 		t.Fatal("expected error")
@@ -517,7 +522,7 @@ func TestThreadNotifier_successLogLines(t *testing.T) {
 	ctx := context.Background()
 	n := NewThreadNotifier(&stubSessionAPI{}, &memWatchRepo{})
 	item := &domainwatch.Watch{
-		UserID: "200", ChannelID: "100", MessageID: "20", AuctionID: "a", ThreadID: "99",
+		UserID: "200", ChannelID: "100", MessageID: "20", ListingID: "a", ThreadID: "99",
 	}
 	if err := n.NotifyPriceAlert(ctx, item, 1, 2, "t"); err != nil {
 		t.Fatal(err)
@@ -546,7 +551,7 @@ func TestLogThreadNotifyHelpers_smoke(t *testing.T) {
 func TestReactionHandler_flows(t *testing.T) {
 	repo := &memWatchRepo{}
 	wu := appwatch.NewWatchUsecase(repo)
-	ac := &stubAuction{data: &infraauction.AuctionData{CurrentPrice: 1, EndTime: nil}}
+	ac := &stubListing{data: testListingData("a", nil)}
 	botID := discord.UserID(50)
 	ch := discord.ChannelID(10)
 	mid := discord.MessageID(20)
@@ -602,7 +607,7 @@ func TestReactionHandler_flows(t *testing.T) {
 		})
 	})
 	t.Run("get auction err", func(t *testing.T) {
-		rh2 := NewReactionHandler(wu, &stubAuction{err: errors.New("a")}, sess)
+		rh2 := NewReactionHandler(wu, &stubListing{err: errors.New("a")}, sess)
 		rh2.HandleReactionAdd(&gateway.MessageReactionAddEvent{
 			UserID: 2, ChannelID: ch, MessageID: mid,
 			Emoji: discord.Emoji{Name: "\U0001F514"},

@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"jo3qma.com/yahoo_auctions_bot/internal/domain/listing"
 	"jo3qma.com/yahoo_auctions_bot/internal/domain/watch"
 
 	rqlitehttp "github.com/rqlite/rqlite-go-http"
@@ -194,7 +195,7 @@ func TestRowToWatch_shortRow(t *testing.T) {
 func TestRowToWatch_types(t *testing.T) {
 	created := time.Now().UTC().Truncate(time.Second)
 	row := []any{
-		json.Number("1"), "a", "u", "g", "c", "m",
+		json.Number("1"), "yahoo_auction", "a", "u", "g", "c", "m",
 		json.Number("99"),
 		created.Format(time.RFC3339),
 		json.Number("0"),
@@ -208,8 +209,8 @@ func TestRowToWatch_types(t *testing.T) {
 	if item.ID != 1 || item.LastKnownPrice != 99 || item.Reminded {
 		t.Fatalf("%+v", item)
 	}
-	row[6] = float64(100)
-	row[8] = int64(1)
+	row[7] = float64(100)
+	row[9] = int64(1)
 	item2, err := rowToWatch(row)
 	if err != nil || !item2.Reminded {
 		t.Fatal(item2, err)
@@ -243,7 +244,7 @@ func TestWatchRepository_Add_nilEndTime(t *testing.T) {
 	repo := NewWatchRepository(&Client{h: f})
 	ctx := context.Background()
 	err := repo.Add(ctx, &watch.Watch{
-		AuctionID: "a", UserID: "u", GuildID: "g", ChannelID: "c", MessageID: "m",
+		Market: listing.MarketYahooAuction, ListingID: "a", UserID: "u", GuildID: "g", ChannelID: "c", MessageID: "m",
 		LastKnownPrice: 1,
 		EndTime:        nil,
 	})
@@ -256,8 +257,8 @@ func TestWatchRepository_methods(t *testing.T) {
 	f := &fakeHTTP{}
 	repo := NewWatchRepository(&Client{h: f})
 	ctx := context.Background()
-	_ = repo.Remove(ctx, "a", "u", "m")
-	_ = repo.RemoveByAuctionID(ctx, "a")
+	_ = repo.Remove(ctx, listing.MarketYahooAuction, "a", "u", "m")
+	_ = repo.RemoveByListing(ctx, listing.MarketYahooAuction, "a")
 	_ = repo.UpdatePrice(ctx, 1, 2)
 	_ = repo.MarkReminded(ctx, 1)
 	_ = repo.UpdateThreadID(ctx, "m", "t")
@@ -286,7 +287,7 @@ func TestWatchRepository_List_parseRows(t *testing.T) {
 	qr := &rqlitehttp.QueryResponse{
 		Results: []rqlitehttp.QueryResult{{
 			Values: [][]any{{
-				int64(5), "aid", "uid", "gid", "cid", "mid",
+				int64(5), "yahoo_auction", "aid", "uid", "gid", "cid", "mid",
 				int64(1000),
 				nil,
 				int64(0),
@@ -301,7 +302,7 @@ func TestWatchRepository_List_parseRows(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(items) != 1 || items[0].AuctionID != "aid" {
+	if len(items) != 1 || items[0].ListingID != "aid" {
 		t.Fatalf("%+v", items[0])
 	}
 }
@@ -323,9 +324,9 @@ func (execFailHTTP) Close() error { return nil }
 func TestWatchRepository_executeFailures(t *testing.T) {
 	repo := NewWatchRepository(&Client{h: execFailHTTP{}})
 	ctx := context.Background()
-	_ = repo.Add(ctx, &watch.Watch{AuctionID: "a", UserID: "u", GuildID: "g", ChannelID: "c", MessageID: "m", LastKnownPrice: 1})
-	_ = repo.Remove(ctx, "a", "u", "m")
-	_ = repo.RemoveByAuctionID(ctx, "a")
+	_ = repo.Add(ctx, &watch.Watch{Market: listing.MarketYahooAuction, ListingID: "a", UserID: "u", GuildID: "g", ChannelID: "c", MessageID: "m", LastKnownPrice: 1})
+	_ = repo.Remove(ctx, listing.MarketYahooAuction, "a", "u", "m")
+	_ = repo.RemoveByListing(ctx, listing.MarketYahooAuction, "a")
 	_ = repo.UpdatePrice(ctx, 1, 2)
 	_ = repo.MarkReminded(ctx, 1)
 	_ = repo.UpdateThreadID(ctx, "m", "t")
@@ -348,7 +349,7 @@ func TestWatchRepository_FindByMessage_ok(t *testing.T) {
 	qr := &rqlitehttp.QueryResponse{
 		Results: []rqlitehttp.QueryResult{{
 			Values: [][]any{{
-				int64(5), "aid", "uid", "gid", "cid", "mid",
+				int64(5), "yahoo_auction", "aid", "uid", "gid", "cid", "mid",
 				int64(1000),
 				nil,
 				int64(0),
@@ -371,7 +372,7 @@ func TestWatchRepository_Add_withEndTime(t *testing.T) {
 	et := time.Now().UTC().Truncate(time.Second)
 	ctx := context.Background()
 	err := repo.Add(ctx, &watch.Watch{
-		AuctionID: "a", UserID: "u", GuildID: "g", ChannelID: "c", MessageID: "m",
+		Market: listing.MarketYahooAuction, ListingID: "a", UserID: "u", GuildID: "g", ChannelID: "c", MessageID: "m",
 		LastKnownPrice: 1,
 		EndTime:        &et,
 	})
@@ -385,14 +386,14 @@ func TestWatchRepository_Add_onConflictResetsReminded(t *testing.T) {
 	repo := NewWatchRepository(&Client{h: f})
 	ctx := context.Background()
 	item := &watch.Watch{
-		AuctionID: "a", UserID: "u", GuildID: "g", ChannelID: "c", MessageID: "m",
+		Market: listing.MarketYahooAuction, ListingID: "a", UserID: "u", GuildID: "g", ChannelID: "c", MessageID: "m",
 		LastKnownPrice: 1000,
 	}
 	if err := repo.Add(ctx, item); err != nil {
 		t.Fatal(err)
 	}
 	if err := repo.Add(ctx, &watch.Watch{
-		AuctionID: "a", UserID: "u", GuildID: "g", ChannelID: "c", MessageID: "m",
+		Market: listing.MarketYahooAuction, ListingID: "a", UserID: "u", GuildID: "g", ChannelID: "c", MessageID: "m",
 		LastKnownPrice: 2000,
 	}); err != nil {
 		t.Fatal(err)

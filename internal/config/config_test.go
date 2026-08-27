@@ -8,7 +8,6 @@ import (
 func TestLoad_envDefaults(t *testing.T) {
 	t.Setenv("DISCORD_TOKEN", " tok ")
 	t.Setenv("OPENAI_API_KEY", "k")
-	t.Setenv("API_ENDPOINT", "")
 	t.Setenv("RQLITE_URL", "")
 	t.Setenv("ALLOWED_GUILDS", "")
 	t.Setenv("ALLOWED_CHANNELS", "")
@@ -24,9 +23,6 @@ func TestLoad_envDefaults(t *testing.T) {
 	}
 	if cfg.OpenAIAPIKey != "k" {
 		t.Fatalf("OpenAIAPIKey")
-	}
-	if cfg.APIEndpoint != "http://localhost:8080" {
-		t.Fatalf("APIEndpoint=%q", cfg.APIEndpoint)
 	}
 	if cfg.RqliteURL != "http://localhost:4001" {
 		t.Fatalf("RqliteURL=%q", cfg.RqliteURL)

@@ -7,10 +7,10 @@ import (
 	"github.com/diamondburned/arikawa/v3/gateway"
 	"github.com/diamondburned/arikawa/v3/state"
 
-	"jo3qma.com/yahoo_auctions_bot/internal/application/auction"
+	applisting "jo3qma.com/yahoo_auctions_bot/internal/application/listing"
 	appwatch "jo3qma.com/yahoo_auctions_bot/internal/application/watch"
 	domainwatch "jo3qma.com/yahoo_auctions_bot/internal/domain/watch"
-	infraauction "jo3qma.com/yahoo_auctions_bot/internal/infrastructure/auction"
+	infralisting "jo3qma.com/yahoo_auctions_bot/internal/infrastructure/listing"
 )
 
 // gatewaySession は Bot の Gateway 接続（テストで差し替え可能）。
@@ -36,10 +36,10 @@ type BotConfig struct {
 // NewBot はBotを生成する。DIは呼び出し元で行う。
 func NewBot(
 	token string,
-	previewUsecase *auction.PreviewUsecase,
+	previewUsecase *applisting.PreviewUsecase,
 	allowed *AllowedFilter,
 	watchUsecase *appwatch.WatchUsecase,
-	auctionClient infraauction.Client,
+	listingClient infralisting.Client,
 	watchRepo domainwatch.Repository,
 	botCfg BotConfig,
 ) (*Bot, error) {
@@ -54,9 +54,9 @@ func NewBot(
 	embed := NewEmbedBuilder(s)
 	h := NewHandler(previewUsecase, embed, allowed)
 
-	reactionHandler := NewReactionHandler(watchUsecase, auctionClient, s)
+	reactionHandler := NewReactionHandler(watchUsecase, listingClient, s)
 	threadNotifier := NewThreadNotifier(s, watchRepo)
-	pollingWorker := appwatch.NewPollingWorker(watchRepo, auctionClient, threadNotifier, botCfg.CheckIntervalMinutes, botCfg.PollDelayMs)
+	pollingWorker := appwatch.NewPollingWorker(watchRepo, listingClient, threadNotifier, botCfg.CheckIntervalMinutes, botCfg.PollDelayMs)
 
 	return &Bot{
 		gateway:         s,

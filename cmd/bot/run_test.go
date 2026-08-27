@@ -9,12 +9,13 @@ import (
 	"testing"
 	"time"
 
-	appauction "jo3qma.com/yahoo_auctions_bot/internal/application/auction"
+	applisting "jo3qma.com/yahoo_auctions_bot/internal/application/listing"
 	appwatch "jo3qma.com/yahoo_auctions_bot/internal/application/watch"
 	"jo3qma.com/yahoo_auctions_bot/internal/config"
 	"jo3qma.com/yahoo_auctions_bot/internal/domain/product"
+	"jo3qma.com/yahoo_auctions_bot/internal/domain/listing"
 	"jo3qma.com/yahoo_auctions_bot/internal/domain/watch"
-	infraauction "jo3qma.com/yahoo_auctions_bot/internal/infrastructure/auction"
+	infralisting "jo3qma.com/yahoo_auctions_bot/internal/infrastructure/listing"
 	"jo3qma.com/yahoo_auctions_bot/internal/infrastructure/openai"
 	infrarqlite "jo3qma.com/yahoo_auctions_bot/internal/infrastructure/rqlite"
 	"jo3qma.com/yahoo_auctions_bot/internal/presentation/discord"
@@ -123,7 +124,7 @@ func TestRun_rqliteError(t *testing.T) {
 
 func TestRun_discordNewBotError(t *testing.T) {
 	deps := successDeps()
-	deps.NewDiscordBot = func(string, *appauction.PreviewUsecase, *discord.AllowedFilter, *appwatch.WatchUsecase, infraauction.Client, watch.Repository, discord.BotConfig) (discordRunner, error) {
+	deps.NewDiscordBot = func(string, *applisting.PreviewUsecase, *discord.AllowedFilter, *appwatch.WatchUsecase, infralisting.Client, watch.Repository, discord.BotConfig) (discordRunner, error) {
 		return nil, errors.New("bot")
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -148,10 +149,10 @@ func TestRun_tokenPrefix(t *testing.T) {
 	deps.LoadConfig = func() (*config.Config, error) {
 		return &config.Config{
 			DiscordToken: "rawtoken", OpenAIAPIKey: "k",
-			RqliteURL: "http://noop", APIEndpoint: "http://localhost:8080",
+			RqliteURL: "http://noop",
 		}, nil
 	}
-	deps.NewDiscordBot = func(token string, _ *appauction.PreviewUsecase, _ *discord.AllowedFilter, _ *appwatch.WatchUsecase, _ infraauction.Client, _ watch.Repository, _ discord.BotConfig) (discordRunner, error) {
+	deps.NewDiscordBot = func(token string, _ *applisting.PreviewUsecase, _ *discord.AllowedFilter, _ *appwatch.WatchUsecase, _ infralisting.Client, _ watch.Repository, _ discord.BotConfig) (discordRunner, error) {
 		if token != "Bot rawtoken" {
 			t.Fatalf("token=%q", token)
 		}
@@ -228,7 +229,7 @@ func TestMergeBotDeps_defaultWatchRepoBody(t *testing.T) {
 
 func TestRunWithSignal_onSigint(t *testing.T) {
 	deps := successDeps()
-	deps.NewDiscordBot = func(string, *appauction.PreviewUsecase, *discord.AllowedFilter, *appwatch.WatchUsecase, infraauction.Client, watch.Repository, discord.BotConfig) (discordRunner, error) {
+	deps.NewDiscordBot = func(string, *applisting.PreviewUsecase, *discord.AllowedFilter, *appwatch.WatchUsecase, infralisting.Client, watch.Repository, discord.BotConfig) (discordRunner, error) {
 		return waitCtxRunner{}, nil
 	}
 	go func() {
@@ -250,8 +251,8 @@ func TestRunWithSignal_onSigint(t *testing.T) {
 
 func TestDefaultNewDiscordBot_invokesNewBot(t *testing.T) {
 	repo := &memRepoRqlite{}
-	ac := infraauction.NewClient("http://127.0.0.1:9", nil)
-	pu := appauction.NewPreviewUsecase(ac, &fakeOpenAI{})
+	ac := infralisting.NewClient()
+	pu := applisting.NewPreviewUsecase(ac, &fakeOpenAI{})
 	wu := appwatch.NewWatchUsecase(repo)
 	af := discord.NewAllowedFilter(nil, nil)
 	_, errBot := defaultNewDiscordBot("Bot unit-test-token.invalid", pu, af, wu, ac, repo, discord.BotConfig{CheckIntervalMinutes: 60, PollDelayMs: 1})
@@ -264,7 +265,7 @@ func TestRun_botRunLogsNonCancelError(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	deps := successDeps()
-	deps.NewDiscordBot = func(string, *appauction.PreviewUsecase, *discord.AllowedFilter, *appwatch.WatchUsecase, infraauction.Client, watch.Repository, discord.BotConfig) (discordRunner, error) {
+	deps.NewDiscordBot = func(string, *applisting.PreviewUsecase, *discord.AllowedFilter, *appwatch.WatchUsecase, infralisting.Client, watch.Repository, discord.BotConfig) (discordRunner, error) {
 		return errRunner{}, nil
 	}
 	if err := run(ctx, deps); err != nil {
@@ -281,7 +282,7 @@ func successDeps() *botDeps {
 		LoadConfig: func() (*config.Config, error) {
 			return &config.Config{
 				DiscordToken: "Bot x.y.z", OpenAIAPIKey: "k",
-				RqliteURL: "http://noop", APIEndpoint: "http://localhost:8080",
+				RqliteURL: "http://noop",
 			}, nil
 		},
 		NewOpenAIClient: func(cfg *config.Config) (openai.Client, error) { return &fakeOpenAI{}, nil },
@@ -289,7 +290,7 @@ func successDeps() *botDeps {
 		NewWatchRepo: func(*infrarqlite.Client) watch.Repository {
 			return &memRepoRqlite{}
 		},
-		NewDiscordBot: func(string, *appauction.PreviewUsecase, *discord.AllowedFilter, *appwatch.WatchUsecase, infraauction.Client, watch.Repository, discord.BotConfig) (discordRunner, error) {
+		NewDiscordBot: func(string, *applisting.PreviewUsecase, *discord.AllowedFilter, *appwatch.WatchUsecase, infralisting.Client, watch.Repository, discord.BotConfig) (discordRunner, error) {
 			return fakeRunner{}, nil
 		},
 	}
@@ -320,7 +321,7 @@ func (okRqliteHTTP) Close() error { return nil }
 type memRepoRqlite struct{}
 
 func (memRepoRqlite) Add(context.Context, *watch.Watch) error { return nil }
-func (memRepoRqlite) Remove(context.Context, string, string, string) error {
+func (memRepoRqlite) Remove(context.Context, listing.Market, string, string, string) error {
 	return nil
 }
 func (memRepoRqlite) ListActive(context.Context) ([]*watch.Watch, error) { return nil, nil }
@@ -332,4 +333,4 @@ func (memRepoRqlite) UpdateThreadID(context.Context, string, string) error {
 func (memRepoRqlite) FindByMessage(context.Context, string) ([]*watch.Watch, error) {
 	return nil, nil
 }
-func (memRepoRqlite) RemoveByAuctionID(context.Context, string) error { return nil }
+func (memRepoRqlite) RemoveByListing(context.Context, listing.Market, string) error { return nil }
