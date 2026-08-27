@@ -13,7 +13,7 @@ var listingURLPatterns = []urlPattern{
 	{MarketMercari, regexp.MustCompile(`jp\.mercari\.com/item/([a-zA-Z0-9]+)`)},
 }
 
-// ParseRefs はテキスト中の対応 URL から Listing 参照を抽出する（出現順、重複は呼び出し側で除去）。
+// ParseRefs はテキスト中の対応 URL から Listing 参照を抽出する（Market 定義順、重複は呼び出し側で除去）。
 func ParseRefs(text string) []Ref {
 	var out []Ref
 	for _, p := range listingURLPatterns {
