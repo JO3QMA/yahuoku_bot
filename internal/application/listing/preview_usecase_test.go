@@ -6,21 +6,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jo3qma/sansai"
+
 	domainlisting "jo3qma.com/yahoo_auctions_bot/internal/domain/listing"
 	"jo3qma.com/yahoo_auctions_bot/internal/domain/product"
 )
-
-type fakeFetcher struct {
-	data *domainlisting.Data
-	err  error
-}
-
-func (f *fakeFetcher) Get(ctx context.Context, ref domainlisting.Ref) (*domainlisting.Data, error) {
-	if f.err != nil {
-		return nil, f.err
-	}
-	return f.data, nil
-}
 
 type fakeExtractor struct {
 	product *product.Product
@@ -37,17 +27,27 @@ func (f *fakeExtractor) Extract(ctx context.Context, in product.ExtractInput) (*
 func TestPreviewUsecase_Execute_success(t *testing.T) {
 	end := time.Now().Add(time.Hour)
 	ref := domainlisting.Ref{Market: domainlisting.MarketYahooAuction, ListingID: "a1"}
-	ff := &fakeFetcher{data: &domainlisting.Data{
+	data := &domainlisting.Data{
 		Ref: ref, Title: "T", Price: 500,
 		URL: "https://auctions.yahoo.co.jp/jp/auction/a1",
 		ImageURLs: []string{"i"}, Description: "d", EndTime: &end,
 		SaleType: domainlisting.SaleTypeAuction, IsActive: true,
-	}}
+	}
+	prev := SansaiGetItem
+	SansaiGetItem = func(context.Context, sansai.Market, string) (*sansai.Item, error) {
+		return &sansai.Item{
+			Market: sansai.MarketYahooAuction, ID: "a1", Title: "T", Price: 500,
+			URL: data.URL, ImageURLs: data.ImageURLs, Description: "d",
+			SaleType: "auction", EndTime: end.Format(time.RFC3339), IsActive: true,
+		}, nil
+	}
+	t.Cleanup(func() { SansaiGetItem = prev })
+
 	fe := &fakeExtractor{product: &product.Product{
 		Category: product.CategoryServer,
 		Fields:   []product.Field{{Key: "cpu_model_line", Value: "cpu"}},
 	}}
-	u := NewPreviewUsecase(ff, fe)
+	u := NewPreviewUsecase(fe)
 	out, err := u.Execute(context.Background(), ref)
 	if err != nil {
 		t.Fatal(err)
@@ -61,7 +61,13 @@ func TestPreviewUsecase_Execute_success(t *testing.T) {
 }
 
 func TestPreviewUsecase_Execute_fetchError(t *testing.T) {
-	u := NewPreviewUsecase(&fakeFetcher{err: errors.New("e")}, &fakeExtractor{})
+	prev := SansaiGetItem
+	SansaiGetItem = func(context.Context, sansai.Market, string) (*sansai.Item, error) {
+		return nil, errors.New("e")
+	}
+	t.Cleanup(func() { SansaiGetItem = prev })
+
+	u := NewPreviewUsecase(&fakeExtractor{})
 	_, err := u.Execute(context.Background(), domainlisting.Ref{Market: domainlisting.MarketMercari, ListingID: "x"})
 	if err == nil {
 		t.Fatal("expected error")
@@ -71,11 +77,17 @@ func TestPreviewUsecase_Execute_fetchError(t *testing.T) {
 func TestPreviewUsecase_Execute_extractErrorContinues(t *testing.T) {
 	end := time.Now().Add(time.Hour)
 	ref := domainlisting.Ref{Market: domainlisting.MarketYahooAuction, ListingID: "a1"}
-	ff := &fakeFetcher{data: &domainlisting.Data{
-		Ref: ref, Title: "T", Price: 500, Description: "d", EndTime: &end,
-		SaleType: domainlisting.SaleTypeAuction, IsActive: true,
-	}}
-	u := NewPreviewUsecase(ff, &fakeExtractor{err: errors.New("extract")})
+	prev := SansaiGetItem
+	SansaiGetItem = func(context.Context, sansai.Market, string) (*sansai.Item, error) {
+		return &sansai.Item{
+			Market: sansai.MarketYahooAuction, ID: "a1", Title: "T", Price: 500,
+			Description: "d", SaleType: "auction",
+			EndTime: end.Format(time.RFC3339), IsActive: true,
+		}, nil
+	}
+	t.Cleanup(func() { SansaiGetItem = prev })
+
+	u := NewPreviewUsecase(&fakeExtractor{err: errors.New("extract")})
 	out, err := u.Execute(context.Background(), ref)
 	if err != nil {
 		t.Fatal(err)
@@ -88,15 +100,21 @@ func TestPreviewUsecase_Execute_extractErrorContinues(t *testing.T) {
 func TestPreviewUsecase_Execute_partialExtractSuccess(t *testing.T) {
 	end := time.Now().Add(time.Hour)
 	ref := domainlisting.Ref{Market: domainlisting.MarketYahooAuction, ListingID: "a1"}
-	ff := &fakeFetcher{data: &domainlisting.Data{
-		Ref: ref, Title: "T", Price: 500, Description: "d", EndTime: &end,
-		SaleType: domainlisting.SaleTypeAuction, IsActive: true,
-	}}
+	prev := SansaiGetItem
+	SansaiGetItem = func(context.Context, sansai.Market, string) (*sansai.Item, error) {
+		return &sansai.Item{
+			Market: sansai.MarketYahooAuction, ID: "a1", Title: "T", Price: 500,
+			Description: "d", SaleType: "auction",
+			EndTime: end.Format(time.RFC3339), IsActive: true,
+		}, nil
+	}
+	t.Cleanup(func() { SansaiGetItem = prev })
+
 	partial := &product.Product{
 		Category: product.CategoryGPU,
 		Fields:   []product.Field{{Key: "model", Value: "RTX 3080"}},
 	}
-	u := NewPreviewUsecase(ff, &fakeExtractorPartial{detail: partial, err: errors.New("stage3")})
+	u := NewPreviewUsecase(&fakeExtractorPartial{detail: partial, err: errors.New("stage3")})
 	out, err := u.Execute(context.Background(), ref)
 	if err != nil {
 		t.Fatal(err)

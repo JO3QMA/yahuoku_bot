@@ -21,11 +21,13 @@ func TestNewBot_smoke(t *testing.T) {
 		SaleType:    dlisting.SaleTypeAuction,
 		IsActive:    true,
 	}
-	pu := applisting.NewPreviewUsecase(&stubPreviewFetch{data: data}, &stubProductExt{pd: &product.Product{}})
+	stubPreviewSansai(t, data, nil)
+	stubReactionSansai(t, data, nil)
+	stubPollingSansai(t)
+	pu := applisting.NewPreviewUsecase(&stubProductExt{pd: &product.Product{}})
 	repo := &memWatchRepo{}
 	wu := appwatch.NewWatchUsecase(repo)
-	ac := &stubListing{data: data}
-	_, err := NewBot("Bot unit-test-token.invalid", pu, NewAllowedFilter(nil, nil), wu, ac, repo, BotConfig{
+	_, err := NewBot("Bot unit-test-token.invalid", pu, NewAllowedFilter(nil, nil), wu, repo, BotConfig{
 		CheckIntervalMinutes: 120,
 		PollDelayMs:          9999,
 	})

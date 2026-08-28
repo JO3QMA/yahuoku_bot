@@ -9,15 +9,14 @@ import (
 	applisting "jo3qma.com/yahoo_auctions_bot/internal/application/listing"
 	"jo3qma.com/yahoo_auctions_bot/internal/config"
 	"jo3qma.com/yahoo_auctions_bot/internal/domain/listing"
-	infralisting "jo3qma.com/yahoo_auctions_bot/internal/infrastructure/listing"
 	"jo3qma.com/yahoo_auctions_bot/internal/infrastructure/openai"
 )
 
 // previewDeps は RunPreview の依存注入用。
 type previewDeps struct {
-	LoadConfig      func() (*config.Config, error)
-	NewOpenAIClient func(cfg *config.Config) (openai.Client, error)
-	NewListingClient func() infralisting.Client
+	LoadConfig       func() (*config.Config, error)
+	NewOpenAIClient  func(cfg *config.Config) (openai.Client, error)
+	NewPreviewUsecase func(openai.Client) *applisting.PreviewUsecase
 }
 
 func mergePreviewDeps(d *previewDeps) {
@@ -33,8 +32,8 @@ func mergePreviewDeps(d *previewDeps) {
 			return openai.NewClient(cfg.OpenAIAPIKey, opts)
 		}
 	}
-	if d.NewListingClient == nil {
-		d.NewListingClient = infralisting.NewClient
+	if d.NewPreviewUsecase == nil {
+		d.NewPreviewUsecase = applisting.NewPreviewUsecase
 	}
 }
 
@@ -66,13 +65,12 @@ func RunPreview(stdout io.Writer, argv []string, deps *previewDeps) int {
 		return 2
 	}
 
-	listingClient := deps.NewListingClient()
 	openaiClient, err := deps.NewOpenAIClient(cfg)
 	if err != nil {
 		log.Printf("openai client: %v", err)
 		return 2
 	}
-	previewUsecase := applisting.NewPreviewUsecase(listingClient, openaiClient)
+	previewUsecase := deps.NewPreviewUsecase(openaiClient)
 
 	ctx := context.Background()
 	preview, err := previewUsecase.Execute(ctx, ref)

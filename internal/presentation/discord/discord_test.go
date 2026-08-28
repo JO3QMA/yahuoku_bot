@@ -19,6 +19,7 @@ import (
 	"github.com/diamondburned/arikawa/v3/api"
 	"github.com/diamondburned/arikawa/v3/discord"
 	"github.com/diamondburned/arikawa/v3/gateway"
+	"github.com/jo3qma/sansai"
 )
 
 type mockGW struct {
@@ -70,13 +71,69 @@ func (s *stubSessionAPI) StartThreadWithMessage(channelID discord.ChannelID, mes
 	return &discord.Channel{ID: 99}, nil
 }
 
-type stubListing struct {
-	data *dlisting.Data
-	err  error
+type stubProductExt struct {
+	pd  *product.Product
+	err error
 }
 
-func (s *stubListing) Get(ctx context.Context, ref dlisting.Ref) (*dlisting.Data, error) {
-	return s.data, s.err
+func (s *stubProductExt) Extract(ctx context.Context, in product.ExtractInput) (*product.Product, error) {
+	return s.pd, s.err
+}
+
+func sansaiItemFromData(data *dlisting.Data) *sansai.Item {
+	if data == nil {
+		return nil
+	}
+	item := &sansai.Item{
+		Market:      sansai.Market(data.Ref.Market),
+		ID:          data.Ref.ListingID,
+		Title:       data.Title,
+		Price:       int(data.Price),
+		URL:         data.URL,
+		Description: data.Description,
+		ImageURLs:   data.ImageURLs,
+		SaleType:    "auction",
+		Status:      data.Status,
+		IsActive:    data.IsActive,
+	}
+	if data.EndTime != nil {
+		item.EndTime = data.EndTime.Format(time.RFC3339)
+	}
+	return item
+}
+
+func stubPreviewSansai(t *testing.T, data *dlisting.Data, err error) {
+	t.Helper()
+	prev := applisting.SansaiGetItem
+	applisting.SansaiGetItem = func(context.Context, sansai.Market, string) (*sansai.Item, error) {
+		if err != nil {
+			return nil, err
+		}
+		return sansaiItemFromData(data), nil
+	}
+	t.Cleanup(func() { applisting.SansaiGetItem = prev })
+}
+
+func stubReactionSansai(t *testing.T, data *dlisting.Data, err error) {
+	t.Helper()
+	prev := sansaiGetItem
+	sansaiGetItem = func(context.Context, sansai.Market, string) (*sansai.Item, error) {
+		if err != nil {
+			return nil, err
+		}
+		return sansaiItemFromData(data), nil
+	}
+	t.Cleanup(func() { sansaiGetItem = prev })
+}
+
+func stubPollingSansai(t *testing.T) {
+	t.Helper()
+	prev := appwatch.SansaiGetItem
+	appwatch.SansaiGetItem = func(_ context.Context, m sansai.Market, id string) (*sansai.Item, error) {
+		e := time.Now().Add(time.Hour)
+		return sansaiItemFromData(testListingData(id, &e)), nil
+	}
+	t.Cleanup(func() { appwatch.SansaiGetItem = prev })
 }
 
 type memWatchRepo struct {
@@ -108,24 +165,6 @@ func (m *memWatchRepo) FindByMessage(ctx context.Context, messageID string) ([]*
 }
 func (m *memWatchRepo) RemoveByListing(ctx context.Context, market dlisting.Market, listingID string) error { return nil }
 
-type stubPreviewFetch struct {
-	data *dlisting.Data
-	err  error
-}
-
-func (s *stubPreviewFetch) Get(ctx context.Context, ref dlisting.Ref) (*dlisting.Data, error) {
-	return s.data, s.err
-}
-
-type stubProductExt struct {
-	pd  *product.Product
-	err error
-}
-
-func (s *stubProductExt) Extract(ctx context.Context, in product.ExtractInput) (*product.Product, error) {
-	return s.pd, s.err
-}
-
 func testListingData(id string, end *time.Time) *dlisting.Data {
 	return &dlisting.Data{
 		Ref:         dlisting.Ref{Market: dlisting.MarketYahooAuction, ListingID: id},
@@ -140,12 +179,16 @@ func testListingData(id string, end *time.Time) *dlisting.Data {
 
 func TestBot_Run_connectError(t *testing.T) {
 	end := time.Now()
-	pu := applisting.NewPreviewUsecase(&stubPreviewFetch{data: testListingData("a", &end)}, &stubProductExt{pd: &product.Product{}})
+	data := testListingData("a", &end)
+	stubPreviewSansai(t, data, nil)
+	stubReactionSansai(t, testListingData("a", nil), nil)
+	stubPollingSansai(t)
+	pu := applisting.NewPreviewUsecase(&stubProductExt{pd: &product.Product{}})
 	h := NewHandler(pu, NewEmbedBuilder(&stubSessionAPI{}), NewAllowedFilter(nil, nil))
 	repo := &memWatchRepo{}
 	wu := appwatch.NewWatchUsecase(repo)
-	rh := NewReactionHandler(wu, &stubListing{data: testListingData("a", nil)}, &stubSessionAPI{user: &discord.User{ID: discord.UserID(7)}})
-	pw := appwatch.NewPollingWorker(repo, &stubListing{}, &noopNotifier{}, 60, 1)
+	rh := NewReactionHandler(wu, &stubSessionAPI{user: &discord.User{ID: discord.UserID(7)}})
+	pw := appwatch.NewPollingWorker(repo, &noopNotifier{}, 60, 1)
 	b := NewBotWithDeps(&mockGW{connectErr: errors.New("nope")}, h, rh, pw)
 	err := b.Run(context.Background())
 	if err == nil {
@@ -164,12 +207,16 @@ func (n *noopNotifier) NotifyEndingReminder(context.Context, *domainwatch.Watch,
 
 func TestBot_Run_cancel(t *testing.T) {
 	end := time.Now()
-	pu := applisting.NewPreviewUsecase(&stubPreviewFetch{data: testListingData("a", &end)}, &stubProductExt{pd: &product.Product{}})
+	data := testListingData("a", &end)
+	stubPreviewSansai(t, data, nil)
+	stubReactionSansai(t, testListingData("a", nil), nil)
+	stubPollingSansai(t)
+	pu := applisting.NewPreviewUsecase(&stubProductExt{pd: &product.Product{}})
 	h := NewHandler(pu, NewEmbedBuilder(&stubSessionAPI{}), NewAllowedFilter(nil, nil))
 	repo := &memWatchRepo{}
 	wu := appwatch.NewWatchUsecase(repo)
-	rh := NewReactionHandler(wu, &stubListing{data: testListingData("a", nil)}, &stubSessionAPI{user: &discord.User{ID: discord.UserID(7)}})
-	pw := appwatch.NewPollingWorker(repo, &stubListing{}, &noopNotifier{}, 60, 10_000)
+	rh := NewReactionHandler(wu, &stubSessionAPI{user: &discord.User{ID: discord.UserID(7)}})
+	pw := appwatch.NewPollingWorker(repo, &noopNotifier{}, 60, 10_000)
 	b := NewBotWithDeps(&mockGW{}, h, rh, pw)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -200,7 +247,8 @@ func TestAllowedFilter_Allow(t *testing.T) {
 func TestHandler_HandleMessageCreate(t *testing.T) {
 	end := time.Now()
 	data := testListingData("abc12345678", &end)
-	pu := applisting.NewPreviewUsecase(&stubPreviewFetch{data: data}, &stubProductExt{pd: &product.Product{}})
+	stubPreviewSansai(t, data, nil)
+	pu := applisting.NewPreviewUsecase(&stubProductExt{pd: &product.Product{}})
 	sender := &stubSessionAPI{sendMsg: &discord.Message{ID: 1}}
 	h := NewHandler(pu, NewEmbedBuilder(sender), NewAllowedFilter(nil, nil))
 
@@ -227,7 +275,8 @@ func TestHandler_HandleMessageCreate(t *testing.T) {
 		})
 	})
 	t.Run("usecase error", func(t *testing.T) {
-		pu2 := applisting.NewPreviewUsecase(&stubPreviewFetch{err: errors.New("e")}, &stubProductExt{})
+		stubPreviewSansai(t, nil, errors.New("e"))
+		pu2 := applisting.NewPreviewUsecase(&stubProductExt{})
 		h2 := NewHandler(pu2, NewEmbedBuilder(sender), NewAllowedFilter(nil, nil))
 		h2.HandleMessageCreate(&gateway.MessageCreateEvent{
 			Message: discord.Message{
@@ -236,7 +285,8 @@ func TestHandler_HandleMessageCreate(t *testing.T) {
 		})
 	})
 	t.Run("send error", func(t *testing.T) {
-		pu2 := applisting.NewPreviewUsecase(&stubPreviewFetch{data: data}, &stubProductExt{pd: &product.Product{}})
+		stubPreviewSansai(t, data, nil)
+		pu2 := applisting.NewPreviewUsecase(&stubProductExt{pd: &product.Product{}})
 		h2 := NewHandler(pu2, NewEmbedBuilder(&stubSessionAPI{sendErr: errors.New("s")}), NewAllowedFilter(nil, nil))
 		h2.HandleMessageCreate(&gateway.MessageCreateEvent{
 			Message: discord.Message{
@@ -551,7 +601,7 @@ func TestLogThreadNotifyHelpers_smoke(t *testing.T) {
 func TestReactionHandler_flows(t *testing.T) {
 	repo := &memWatchRepo{}
 	wu := appwatch.NewWatchUsecase(repo)
-	ac := &stubListing{data: testListingData("a", nil)}
+	stubReactionSansai(t, testListingData("a", nil), nil)
 	botID := discord.UserID(50)
 	ch := discord.ChannelID(10)
 	mid := discord.MessageID(20)
@@ -560,7 +610,7 @@ func TestReactionHandler_flows(t *testing.T) {
 		Embeds: []discord.Embed{{URL: "https://page.auctions.yahoo.co.jp/jp/auction/abc12345678"}},
 	}
 	sess := &stubSessionAPI{msg: msg, user: &discord.User{ID: botID}}
-	rh := NewReactionHandler(wu, ac, sess)
+	rh := NewReactionHandler(wu, sess)
 
 	t.Run("wrong emoji", func(t *testing.T) {
 		rh.HandleReactionAdd(&gateway.MessageReactionAddEvent{
@@ -569,7 +619,7 @@ func TestReactionHandler_flows(t *testing.T) {
 		})
 	})
 	t.Run("me err", func(t *testing.T) {
-		rh2 := NewReactionHandler(wu, ac, &stubSessionAPI{msg: msg, meErr: errors.New("m")})
+		rh2 := NewReactionHandler(wu, &stubSessionAPI{msg: msg, meErr: errors.New("m")})
 		rh2.HandleReactionAdd(&gateway.MessageReactionAddEvent{
 			UserID: 1, ChannelID: ch, MessageID: mid,
 			Emoji: discord.Emoji{Name: "\U0001F514"},
@@ -582,14 +632,14 @@ func TestReactionHandler_flows(t *testing.T) {
 		})
 	})
 	t.Run("fetch err", func(t *testing.T) {
-		rh2 := NewReactionHandler(wu, ac, &stubSessionAPI{msgErr: errors.New("f"), user: &discord.User{ID: botID}})
+		rh2 := NewReactionHandler(wu, &stubSessionAPI{msgErr: errors.New("f"), user: &discord.User{ID: botID}})
 		rh2.HandleReactionAdd(&gateway.MessageReactionAddEvent{
 			UserID: 2, ChannelID: ch, MessageID: mid,
 			Emoji: discord.Emoji{Name: "\U0001F514"},
 		})
 	})
 	t.Run("non bot author", func(t *testing.T) {
-		rh2 := NewReactionHandler(wu, ac, &stubSessionAPI{msg: &discord.Message{
+		rh2 := NewReactionHandler(wu, &stubSessionAPI{msg: &discord.Message{
 			Author: discord.User{ID: 2}, Embeds: msg.Embeds,
 		}, user: &discord.User{ID: botID}})
 		rh2.HandleReactionAdd(&gateway.MessageReactionAddEvent{
@@ -598,7 +648,7 @@ func TestReactionHandler_flows(t *testing.T) {
 		})
 	})
 	t.Run("no auction in embed", func(t *testing.T) {
-		rh2 := NewReactionHandler(wu, ac, &stubSessionAPI{msg: &discord.Message{
+		rh2 := NewReactionHandler(wu, &stubSessionAPI{msg: &discord.Message{
 			Author: discord.User{ID: botID}, Embeds: []discord.Embed{{URL: "https://example.com"}},
 		}, user: &discord.User{ID: botID}})
 		rh2.HandleReactionAdd(&gateway.MessageReactionAddEvent{
@@ -607,7 +657,8 @@ func TestReactionHandler_flows(t *testing.T) {
 		})
 	})
 	t.Run("get auction err", func(t *testing.T) {
-		rh2 := NewReactionHandler(wu, &stubListing{err: errors.New("a")}, sess)
+		stubReactionSansai(t, nil, errors.New("a"))
+		rh2 := NewReactionHandler(wu, sess)
 		rh2.HandleReactionAdd(&gateway.MessageReactionAddEvent{
 			UserID: 2, ChannelID: ch, MessageID: mid,
 			Emoji: discord.Emoji{Name: "\U0001F514"},
@@ -615,7 +666,7 @@ func TestReactionHandler_flows(t *testing.T) {
 	})
 	t.Run("register err", func(t *testing.T) {
 		rrepo := &memWatchRepo{addErr: errors.New("a")}
-		rh2 := NewReactionHandler(appwatch.NewWatchUsecase(rrepo), ac, sess)
+		rh2 := NewReactionHandler(appwatch.NewWatchUsecase(rrepo), sess)
 		rh2.HandleReactionAdd(&gateway.MessageReactionAddEvent{
 			UserID: 2, ChannelID: ch, MessageID: mid,
 			Emoji: discord.Emoji{Name: "\U0001F514"},
@@ -637,19 +688,19 @@ func TestReactionHandler_flows(t *testing.T) {
 			UserID: botID, ChannelID: ch, MessageID: mid,
 			Emoji: discord.Emoji{Name: "\U0001F514"},
 		})
-		rh2 := NewReactionHandler(wu, ac, &stubSessionAPI{msgErr: errors.New("f"), user: &discord.User{ID: botID}})
+		rh2 := NewReactionHandler(wu, &stubSessionAPI{msgErr: errors.New("f"), user: &discord.User{ID: botID}})
 		rh2.HandleReactionRemove(&gateway.MessageReactionRemoveEvent{
 			UserID: 2, ChannelID: ch, MessageID: mid,
 			Emoji: discord.Emoji{Name: "\U0001F514"},
 		})
-		rh3 := NewReactionHandler(wu, ac, &stubSessionAPI{msg: &discord.Message{
+		rh3 := NewReactionHandler(wu, &stubSessionAPI{msg: &discord.Message{
 			Author: discord.User{ID: 2}, Embeds: msg.Embeds,
 		}, user: &discord.User{ID: botID}})
 		rh3.HandleReactionRemove(&gateway.MessageReactionRemoveEvent{
 			UserID: 2, ChannelID: ch, MessageID: mid,
 			Emoji: discord.Emoji{Name: "\U0001F514"},
 		})
-		rh4 := NewReactionHandler(wu, ac, &stubSessionAPI{msg: &discord.Message{
+		rh4 := NewReactionHandler(wu, &stubSessionAPI{msg: &discord.Message{
 			Author: discord.User{ID: botID}, Embeds: []discord.Embed{{URL: "https://example.com"}},
 		}, user: &discord.User{ID: botID}})
 		rh4.HandleReactionRemove(&gateway.MessageReactionRemoveEvent{
@@ -657,7 +708,7 @@ func TestReactionHandler_flows(t *testing.T) {
 			Emoji: discord.Emoji{Name: "\U0001F514"},
 		})
 		rrepo := &memWatchRepo{remErr: errors.New("r")}
-		rh5 := NewReactionHandler(appwatch.NewWatchUsecase(rrepo), ac, sess)
+		rh5 := NewReactionHandler(appwatch.NewWatchUsecase(rrepo), sess)
 		rh5.HandleReactionRemove(&gateway.MessageReactionRemoveEvent{
 			UserID: 2, ChannelID: ch, MessageID: mid,
 			Emoji: discord.Emoji{Name: "\U0001F514"},
