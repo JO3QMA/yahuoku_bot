@@ -234,8 +234,7 @@ type stage1Result struct {
 	Condition        flexString      `json:"condition"`
 	FreeShipping     nullableFlexBool `json:"shipping_free"`
 	Fields           fieldList       `json:"fields"`
-	MissingKeys      flexStringSlice `json:"missing_keys"`
-	CandidateQueries flexStringSlice `json:"candidate_queries"`
+	MissingKeys flexStringSlice `json:"missing_keys"`
 }
 
 type imageField struct {

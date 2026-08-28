@@ -56,7 +56,7 @@ func serverValueExamples() string {
 func buildStage1Prompt(title, plainDesc string) string {
 	var b strings.Builder
 	b.WriteString(`以下のヤフオク商品のタイトルと説明文から、商品ジャンルを1つ判別し、該当ジャンルのテンプレート項目を抽出してください。
-また、テンプレート上まだ埋められていないフィールドキーを missing_keys に、Web検索で補完できそうなクエリを candidate_queries に列挙してください。
+また、テンプレート上まだ埋められていないフィールドキーを missing_keys に列挙してください。
 
 【ジャンル一覧（category に設定する値）】
 `)
@@ -67,7 +67,6 @@ func buildStage1Prompt(title, plainDesc string) string {
 【出力形式】
 - category, condition, shipping_free, fields: [{"key":"<テンプレートキー>","value":"..."}] の配列
 - missing_keys: 値が不明または空のテンプレートキー
-- candidate_queries: 型番・スペック補完用の日本語検索クエリ（最大3件）
 
 【重要】
 - タイトルを特に重視してください
