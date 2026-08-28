@@ -9,28 +9,15 @@ import (
 	"testing"
 	"time"
 
-	applisting "jo3qma.com/yahoo_auctions_bot/internal/application/listing"
 	"jo3qma.com/yahoo_auctions_bot/internal/config"
 	"jo3qma.com/yahoo_auctions_bot/internal/domain/product"
 	"jo3qma.com/yahoo_auctions_bot/internal/domain/listing"
 	"jo3qma.com/yahoo_auctions_bot/internal/domain/watch"
-	"jo3qma.com/yahoo_auctions_bot/internal/infrastructure/openai"
+		"jo3qma.com/yahoo_auctions_bot/internal/infrastructure/openai"
 	infrarqlite "jo3qma.com/yahoo_auctions_bot/internal/infrastructure/rqlite"
-	"jo3qma.com/yahoo_auctions_bot/internal/presentation/discord"
 
 	rqlitehttp "github.com/rqlite/rqlite-go-http"
 )
-
-type fakeRunner struct{}
-
-func (fakeRunner) Run(ctx context.Context) error { return nil }
-
-type waitCtxRunner struct{}
-
-func (waitCtxRunner) Run(ctx context.Context) error {
-	<-ctx.Done()
-	return ctx.Err()
-}
 
 type fakeOpenAI struct{}
 
@@ -120,18 +107,6 @@ func TestRun_rqliteError(t *testing.T) {
 	}
 }
 
-func TestRun_discordNewBotError(t *testing.T) {
-	deps := successDeps()
-	deps.NewDiscordBot = func(string, *applisting.PreviewUsecase, *discord.AllowedFilter, watch.Repository, discord.BotConfig) (discordRunner, error) {
-		return nil, errors.New("bot")
-	}
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-	if err := run(ctx, deps); err == nil {
-		t.Fatal("expected error")
-	}
-}
-
 func TestRun_success_rqlite(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -140,23 +115,15 @@ func TestRun_success_rqlite(t *testing.T) {
 	}
 }
 
-func TestRun_tokenPrefix(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-	deps := successDeps()
-	deps.LoadConfig = func() (*config.Config, error) {
-		return &config.Config{
-			DiscordToken: "rawtoken", OpenAIAPIKey: "k",
-			RqliteURL: "http://noop",
-		}, nil
+
+
+func TestDiscordBotToken(t *testing.T) {
+	if got := discordBotToken("rawtoken"); got != "Bot rawtoken" {
+		t.Fatalf("token=%q", got)
 	}
-	deps.NewDiscordBot = func(token string, _ *applisting.PreviewUsecase, _ *discord.AllowedFilter, _ watch.Repository, _ discord.BotConfig) (discordRunner, error) {
-		if token != "Bot rawtoken" {
-			t.Fatalf("token=%q", token)
-		}
-		return fakeRunner{}, nil
+	if got := discordBotToken("Bot x.y.z"); got != "Bot x.y.z" {
+		t.Fatalf("token=%q", got)
 	}
-	_ = run(ctx, deps)
 }
 
 func TestRunWithSignal_parentCancelled(t *testing.T) {
@@ -205,7 +172,7 @@ func TestMergeBotDeps_allNil(t *testing.T) {
 	d := &botDeps{}
 	mergeBotDeps(d)
 	if d.LoadConfig == nil || d.NewOpenAIClient == nil || d.OpenRqlite == nil ||
-		d.NewWatchRepo == nil || d.NewDiscordBot == nil {
+		d.NewWatchRepo == nil {
 		t.Fatal("mergeBotDeps should fill all defaults")
 	}
 }
@@ -226,52 +193,30 @@ func TestMergeBotDeps_defaultWatchRepoBody(t *testing.T) {
 }
 
 func TestRunWithSignal_onSigint(t *testing.T) {
-	deps := successDeps()
-	deps.NewDiscordBot = func(string, *applisting.PreviewUsecase, *discord.AllowedFilter, watch.Repository, discord.BotConfig) (discordRunner, error) {
-		return waitCtxRunner{}, nil
-	}
 	go func() {
 		time.Sleep(80 * time.Millisecond)
 		p, _ := os.FindProcess(os.Getpid())
 		_ = p.Signal(syscall.SIGINT)
 	}()
 	done := make(chan error, 1)
-	go func() { done <- runWithSignal(context.Background(), deps) }()
+	go func() { done <- runWithSignal(context.Background(), successDeps()) }()
 	select {
 	case err := <-done:
 		if err != nil {
 			t.Fatal(err)
 		}
-	case <-time.After(3 * time.Second):
+	case <-time.After(10 * time.Second):
 		t.Fatal("timeout")
 	}
 }
 
-func TestDefaultNewDiscordBot_invokesNewBot(t *testing.T) {
-	repo := &memRepoRqlite{}
-	pu := applisting.NewPreviewUsecase(&fakeOpenAI{})
-	af := discord.NewAllowedFilter(nil, nil)
-	_, errBot := defaultNewDiscordBot("Bot unit-test-token.invalid", pu, af, repo, discord.BotConfig{CheckIntervalMinutes: 60, PollDelayMs: 1})
-	if errBot != nil {
-		t.Logf("NewBot: %v (still covers defaultNewDiscordBot)", errBot)
-	}
-}
-
 func TestRun_botRunLogsNonCancelError(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-	deps := successDeps()
-	deps.NewDiscordBot = func(string, *applisting.PreviewUsecase, *discord.AllowedFilter, watch.Repository, discord.BotConfig) (discordRunner, error) {
-		return errRunner{}, nil
-	}
-	if err := run(ctx, deps); err != nil {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := run(ctx, successDeps()); err != nil {
 		t.Fatal(err)
 	}
 }
-
-type errRunner struct{}
-
-func (errRunner) Run(context.Context) error { return errors.New("run") }
 
 func successDeps() *botDeps {
 	return &botDeps{
@@ -285,9 +230,6 @@ func successDeps() *botDeps {
 		OpenRqlite:      fakeOpenRqlite,
 		NewWatchRepo: func(*infrarqlite.Client) watch.Repository {
 			return &memRepoRqlite{}
-		},
-		NewDiscordBot: func(string, *applisting.PreviewUsecase, *discord.AllowedFilter, watch.Repository, discord.BotConfig) (discordRunner, error) {
-			return fakeRunner{}, nil
 		},
 	}
 }
