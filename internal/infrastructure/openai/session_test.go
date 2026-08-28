@@ -37,27 +37,22 @@ func lastUserText(msgs []chatMessage) string {
 	return ""
 }
 
-func stubStageExtractor(t *testing.T, stage1, stage4 string) (*apiClient, *int) {
+func stubStageExtractor(t *testing.T, stage1 string) (*apiClient, *int) {
 	t.Helper()
 	api := &apiClient{httpClient: &http.Client{}}
 	var toolsCalled int
-	api.stubChat = func(_ context.Context, _ string, msgs []chatMessage, cfg *chatConfig) (*chatResponse, error) {
+	api.stubChat = func(_ context.Context, _ string, _ []chatMessage, cfg *chatConfig) (*chatResponse, error) {
 		if cfg != nil && len(cfg.Tools) > 0 {
 			toolsCalled++
 		}
-		text := lastUserText(msgs)
-		if strings.Contains(text, "missing_keys") {
-			return jsonResponse(stage1), nil
-		}
-		return jsonResponse(stage4), nil
+		return jsonResponse(stage1), nil
 	}
 	return api, &toolsCalled
 }
 
 func Test_extract_skips_search_when_resolved(t *testing.T) {
 	stage1 := `{"category":"gpu","condition":"中古","shipping_free":false,"fields":[{"key":"model","value":"RTX 3080"}],"missing_keys":[],"candidate_queries":[]}`
-	stage4 := `{"category":"gpu","condition":"中古","shipping_free":false,"fields":[{"key":"model","value":"RTX 3080"}]}`
-	api, toolsCalled := stubStageExtractor(t, stage1, stage4)
+	api, toolsCalled := stubStageExtractor(t, stage1)
 
 	pd, err := NewTestClient(api, Options{}).Extract(context.Background(), product.ExtractInput{
 		Title: "GPU", Description: "NVIDIA GeForce RTX 3080 10GB",
@@ -75,8 +70,7 @@ func Test_extract_skips_search_when_resolved(t *testing.T) {
 
 func Test_extract_skips_search_when_only_installed_configuration_missing(t *testing.T) {
 	stage1 := `{"category":"server","condition":"中古","shipping_free":false,"fields":[{"key":"server_model","value":"Dell R740"}],"missing_keys":["cpu_model_line","memory_info"],"candidate_queries":["Dell R740 スペック"]}`
-	stage4 := `{"category":"server","condition":"中古","shipping_free":false,"fields":[{"key":"server_model","value":"Dell R740"}]}`
-	api, toolsCalled := stubStageExtractor(t, stage1, stage4)
+	api, toolsCalled := stubStageExtractor(t, stage1)
 
 	pd, err := NewTestClient(api, Options{}).Extract(context.Background(), product.ExtractInput{
 		Title: "Dell R740", Description: "中古サーバー",
@@ -94,8 +88,7 @@ func Test_extract_skips_search_when_only_installed_configuration_missing(t *test
 
 func Test_extract_accepts_object_shaped_fields(t *testing.T) {
 	stage1 := `{"category":"gpu","condition":"中古","shipping_free":false,"fields":{"model":"RTX 3080"},"missing_keys":[],"candidate_queries":[]}`
-	stage4 := `{"category":"gpu","condition":"中古","shipping_free":false,"fields":{"model":"RTX 3080"}}`
-	api, toolsCalled := stubStageExtractor(t, stage1, stage4)
+	api, toolsCalled := stubStageExtractor(t, stage1)
 
 	pd, err := NewTestClient(api, Options{}).Extract(context.Background(), product.ExtractInput{
 		Title: "GPU", Description: "NVIDIA GeForce RTX 3080 10GB",
@@ -116,8 +109,7 @@ func Test_extract_accepts_object_shaped_fields(t *testing.T) {
 
 func Test_extract_text_only(t *testing.T) {
 	stage1 := `{"category":"other","condition":"","shipping_free":null,"fields":[],"missing_keys":[],"candidate_queries":[]}`
-	stage4 := `{"category":"other","condition":"","fields":[]}`
-	api, _ := stubStageExtractor(t, stage1, stage4)
+	api, _ := stubStageExtractor(t, stage1)
 
 	pd, err := NewTestClient(api, Options{FastModel: "m"}).Extract(context.Background(), product.ExtractInput{Title: "t", Description: "d"})
 	if err != nil {
@@ -131,7 +123,6 @@ func Test_extract_text_only(t *testing.T) {
 func Test_extract_search_supplement_with_lookup(t *testing.T) {
 	stage1 := `{"category":"server","condition":"","shipping_free":null,"fields":[],"missing_keys":["server_model"],"candidate_queries":[]}`
 	agentDone := `{"fields":[{"key":"server_model","value":"PowerEdge R740"}],"done":true}`
-	stage4 := `{"category":"server","condition":"","fields":[{"key":"server_model","value":"PowerEdge R740"}]}`
 
 	api := &apiClient{httpClient: &http.Client{}}
 	api.stubLookup = func(_ context.Context, q string) (string, error) {
@@ -157,7 +148,8 @@ func Test_extract_search_supplement_with_lookup(t *testing.T) {
 			}
 			return jsonResponse(agentDone), nil
 		}
-		return jsonResponse(stage4), nil
+		t.Fatal("unexpected chat call after search supplement")
+		return nil, nil
 	}
 
 	pd, err := NewTestClient(api, Options{}).Extract(context.Background(), product.ExtractInput{

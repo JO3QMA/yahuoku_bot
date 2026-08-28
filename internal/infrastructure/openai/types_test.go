@@ -32,39 +32,6 @@ func Test_parseStage1JSON_objectFields(t *testing.T) {
 	}
 }
 
-func Test_parseProductJSON_objectFields(t *testing.T) {
-	got, err := parseProductJSON(`{"category":"gpu","fields":{"model":"RTX 3080"}}`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(got.Fields) != 1 || got.Fields[0].Key != "model" || got.Fields[0].Value != "RTX 3080" {
-		t.Fatalf("%+v", got)
-	}
-}
-
-func Test_parseProductJSON_objectCondition(t *testing.T) {
-	got, err := parseProductJSON(`{"category":"gpu","condition":{"label":"中古"},"fields":[]}`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(got.Condition) != "中古" {
-		t.Fatalf("condition=%q", got.Condition)
-	}
-}
-
-func Test_parseProductJSON_objectCategoryAndShipping(t *testing.T) {
-	got, err := parseProductJSON(`{"category":{"value":"gpu"},"condition":"中古","shipping_free":{"value":true},"fields":[]}`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(got.Category) != "gpu" {
-		t.Fatalf("category=%q", got.Category)
-	}
-	if got.FreeShipping.ptr() == nil || !*got.FreeShipping.ptr() {
-		t.Fatalf("shipping_free=%v", got.FreeShipping.ptr())
-	}
-}
-
 func Test_parseStage1JSON_flexibleScalars(t *testing.T) {
 	got, err := parseStage1JSON(`{"category":{"label":"server"},"condition":{"value":"中古"},"shipping_free":"false","missing_keys":[{"value":"cpu_model_line"}],"candidate_queries":"Dell R740","fields":[{"key":{"value":"server_model"},"value":{"label":"R740"}}]}`)
 	if err != nil {
