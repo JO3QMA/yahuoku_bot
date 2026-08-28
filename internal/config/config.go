@@ -5,19 +5,15 @@ import (
 	"os"
 	"strconv"
 	"strings"
+
+	"jo3qma.com/yahoo_auctions_bot/internal/infrastructure/openai"
 )
 
 // Config は環境変数から読み込む実行時設定。
 type Config struct {
-	DiscordToken             string
-	OpenAIAPIKey             string
-	OpenAIBaseURL            string // OpenAI 互換 API のベース URL (default: https://api.openai.com/v1)
-	OpenAIModel              string // Stage1/4 用。空の場合は gpt-4o-mini
-	OpenAIModelVision        string // Stage2 用。空の場合は gpt-4o
-	OpenAIModelAgent         string // Stage3 用。空の場合は gpt-4o
-	OpenAIMaxImages          int    // 推論に使う最大画像数 (default: 3)
-	OpenAIMaxSearchCalls     int    // 1商品あたりの最大検索回数 (default: 3)
-	OpenAIPipelineTimeoutSec int    // Extraction のタイムアウト秒 (default: 45)
+	DiscordToken string
+	OpenAIAPIKey string
+	OpenAI       openai.Options
 	AllowedGuilds            []string // 空 = 全サーバー許可
 	AllowedChannels          []string // 空 = 全チャンネル許可
 	RqliteURL                string   // rqlite のベース URL (default: http://localhost:4001)
@@ -29,18 +25,20 @@ type Config struct {
 // 環境変数は direnv 等で .env を読み込んだ状態で起動すること。
 func Load() (*Config, error) {
 	cfg := &Config{
-		DiscordToken:             strings.TrimSpace(os.Getenv("DISCORD_TOKEN")),
-		OpenAIAPIKey:             strings.TrimSpace(os.Getenv("OPENAI_API_KEY")),
-		OpenAIBaseURL:            strings.TrimSpace(os.Getenv("OPENAI_BASE_URL")),
-		OpenAIModel:              strings.TrimSpace(os.Getenv("OPENAI_MODEL")),
-		OpenAIModelVision:        strings.TrimSpace(os.Getenv("OPENAI_MODEL_VISION")),
-		OpenAIModelAgent:         strings.TrimSpace(os.Getenv("OPENAI_MODEL_AGENT")),
-		OpenAIMaxImages:          getEnvInt("OPENAI_MAX_IMAGES", 3),
-		OpenAIMaxSearchCalls:     getEnvInt("OPENAI_MAX_SEARCH_CALLS", 3),
-		OpenAIPipelineTimeoutSec: getEnvInt("OPENAI_PIPELINE_TIMEOUT_SEC", 45),
-		RqliteURL:                strings.TrimSpace(os.Getenv("RQLITE_URL")),
-		AllowedGuilds:            getEnvCSV("ALLOWED_GUILDS"),
-		AllowedChannels:          getEnvCSV("ALLOWED_CHANNELS"),
+		DiscordToken: strings.TrimSpace(os.Getenv("DISCORD_TOKEN")),
+		OpenAIAPIKey: strings.TrimSpace(os.Getenv("OPENAI_API_KEY")),
+		OpenAI: openai.Options{
+			BaseURL:            strings.TrimSpace(os.Getenv("OPENAI_BASE_URL")),
+			FastModel:          strings.TrimSpace(os.Getenv("OPENAI_MODEL")),
+			VisionModel:        strings.TrimSpace(os.Getenv("OPENAI_MODEL_VISION")),
+			AgentModel:         strings.TrimSpace(os.Getenv("OPENAI_MODEL_AGENT")),
+			MaxImages:          getEnvInt("OPENAI_MAX_IMAGES", 0),
+			MaxSearchCalls:     getEnvInt("OPENAI_MAX_SEARCH_CALLS", 0),
+			PipelineTimeoutSec: getEnvInt("OPENAI_PIPELINE_TIMEOUT_SEC", 0),
+		}.Normalize(),
+		RqliteURL:       strings.TrimSpace(os.Getenv("RQLITE_URL")),
+		AllowedGuilds:   getEnvCSV("ALLOWED_GUILDS"),
+		AllowedChannels: getEnvCSV("ALLOWED_CHANNELS"),
 	}
 
 	if cfg.RqliteURL == "" {
