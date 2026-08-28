@@ -25,11 +25,12 @@ type discordRunner interface {
 
 // botDeps は run の依存注入用（テストで差し替え）。
 type botDeps struct {
-	LoadConfig       func() (*config.Config, error)
-	NewOpenAIClient  func(cfg *config.Config) (openai.Client, error)
-	OpenRqlite       func(ctx context.Context, url string, opts ...infrarqlite.NewClientOption) (*infrarqlite.Client, error)
-	NewWatchRepo     func(*infrarqlite.Client) watch.Repository
-	NewDiscordBot    func(token string, pu *applisting.PreviewUsecase, af *discord.AllowedFilter, wu *appwatch.WatchUsecase, lc infralisting.Client, repo watch.Repository, cfg discord.BotConfig) (discordRunner, error)
+	LoadConfig        func() (*config.Config, error)
+	NewOpenAIClient   func(cfg *config.Config) (openai.Client, error)
+	NewListingClient  func() infralisting.Client
+	OpenRqlite        func(ctx context.Context, url string, opts ...infrarqlite.NewClientOption) (*infrarqlite.Client, error)
+	NewWatchRepo      func(*infrarqlite.Client) watch.Repository
+	NewDiscordBot     func(token string, pu *applisting.PreviewUsecase, af *discord.AllowedFilter, wu *appwatch.WatchUsecase, lc infralisting.Client, repo watch.Repository, cfg discord.BotConfig) (discordRunner, error)
 }
 
 func runWithSignal(parent context.Context, deps *botDeps) error {
@@ -64,6 +65,9 @@ func mergeBotDeps(d *botDeps) {
 			)
 			return openai.NewClient(cfg.OpenAIAPIKey, opts)
 		}
+	}
+	if d.NewListingClient == nil {
+		d.NewListingClient = infralisting.NewClient
 	}
 	if d.OpenRqlite == nil {
 		d.OpenRqlite = infrarqlite.Open
@@ -100,7 +104,7 @@ func run(ctx context.Context, deps *botDeps) error {
 		return fmt.Errorf("OPENAI_API_KEY is required")
 	}
 
-	listingClient := infralisting.NewClient()
+	listingClient := deps.NewListingClient()
 	openaiClient, err := deps.NewOpenAIClient(cfg)
 	if err != nil {
 		return fmt.Errorf("openai client: %w", err)

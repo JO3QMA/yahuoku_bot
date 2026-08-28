@@ -142,6 +142,29 @@ func TestRun_success_rqlite(t *testing.T) {
 	}
 }
 
+func TestRun_usesInjectedListingClient(t *testing.T) {
+	called := false
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	deps := successDeps()
+	deps.NewListingClient = func() infralisting.Client {
+		called = true
+		return stubListingClient{}
+	}
+	if err := run(ctx, deps); err != nil {
+		t.Fatal(err)
+	}
+	if !called {
+		t.Fatal("NewListingClient not called")
+	}
+}
+
+type stubListingClient struct{}
+
+func (stubListingClient) Get(context.Context, listing.Ref) (*listing.Data, error) {
+	return nil, errors.New("stub")
+}
+
 func TestRun_tokenPrefix(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -206,7 +229,7 @@ func TestRun_loadConfigFromEnv(t *testing.T) {
 func TestMergeBotDeps_allNil(t *testing.T) {
 	d := &botDeps{}
 	mergeBotDeps(d)
-	if d.LoadConfig == nil || d.NewOpenAIClient == nil || d.OpenRqlite == nil ||
+	if d.LoadConfig == nil || d.NewOpenAIClient == nil || d.NewListingClient == nil || d.OpenRqlite == nil ||
 		d.NewWatchRepo == nil || d.NewDiscordBot == nil {
 		t.Fatal("mergeBotDeps should fill all defaults")
 	}

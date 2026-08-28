@@ -56,6 +56,21 @@ func TestMigrateSchemaIfNeeded_freshDB(t *testing.T) {
 	}
 }
 
+func TestMigrateSchemaIfNeeded_retriesQuery503(t *testing.T) {
+	f := &fakeHTTP{
+		queryErrs: []error{errors.New("503 Service Unavailable"), nil},
+		queryResp: &rqlitehttp.QueryResponse{
+			Results: []rqlitehttp.QueryResult{{Values: [][]any{{"market"}}}},
+		},
+	}
+	if err := migrateSchemaIfNeeded(context.Background(), f); err != nil {
+		t.Fatal(err)
+	}
+	if f.queryCalls < 2 {
+		t.Fatalf("expected query retry, got %d calls", f.queryCalls)
+	}
+}
+
 func TestIsRetryableRqliteError(t *testing.T) {
 	if !isRetryableRqliteError(errors.New("503 Service")) {
 		t.Fatal("503")
@@ -72,6 +87,8 @@ type fakeHTTP struct {
 	promoted          bool
 	execCalls         int
 	execErrs          []error
+	queryCalls        int
+	queryErrs         []error
 	queryResp         *rqlitehttp.QueryResponse
 	queryErr          error
 	closed            bool
@@ -92,9 +109,18 @@ func (f *fakeHTTP) ExecuteSingle(ctx context.Context, statement string, args ...
 }
 
 func (f *fakeHTTP) QuerySingle(ctx context.Context, statement string, args ...any) (*rqlitehttp.QueryResponse, error) {
+	if f.queryCalls < len(f.queryErrs) {
+		err := f.queryErrs[f.queryCalls]
+		f.queryCalls++
+		if err != nil {
+			return nil, err
+		}
+	}
 	if f.queryErr != nil {
+		f.queryCalls++
 		return nil, f.queryErr
 	}
+	f.queryCalls++
 	return f.queryResp, nil
 }
 
@@ -221,6 +247,22 @@ func TestParseQueryResults_empty(t *testing.T) {
 
 func TestRowToWatch_shortRow(t *testing.T) {
 	_, err := rowToWatch([]any{1})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestRowToWatch_invalidMarket(t *testing.T) {
+	created := time.Now().UTC().Truncate(time.Second)
+	row := []any{
+		json.Number("1"), "ebay", "a", "u", "g", "c", "m",
+		json.Number("99"),
+		created.Format(time.RFC3339),
+		json.Number("0"),
+		"",
+		created.Format(time.RFC3339),
+	}
+	_, err := rowToWatch(row)
 	if err == nil {
 		t.Fatal("expected error")
 	}

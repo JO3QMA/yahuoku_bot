@@ -61,34 +61,40 @@ func Open(ctx context.Context, baseURL string, opts ...NewClientOption) (*Client
 	}
 
 	statements := splitSchema(schema)
-	const maxRetries = 5
-	backoff := []time.Duration{0, 500 * time.Millisecond, time.Second, 2 * time.Second, 4 * time.Second}
 	for _, stmt := range statements {
-		for attempt := 0; attempt < maxRetries; attempt++ {
-			if attempt > 0 {
-				select {
-				case <-ctx.Done():
-					_ = raw.Close()
-					return nil, ctx.Err()
-				case <-time.After(backoff[attempt]):
-				}
-			}
-			_, err = raw.ExecuteSingle(ctx, stmt)
-			if err == nil {
-				break
-			}
-			if !isRetryableRqliteError(err) {
-				_ = raw.Close()
-				return nil, fmt.Errorf("rqlite init schema: %w", err)
-			}
-		}
-		if err != nil {
+		if err := withRqliteRetry(ctx, func() error {
+			_, err := raw.ExecuteSingle(ctx, stmt)
+			return err
+		}); err != nil {
 			_ = raw.Close()
 			return nil, fmt.Errorf("rqlite init schema: %w", err)
 		}
 	}
 
 	return &Client{h: raw}, nil
+}
+
+func withRqliteRetry(ctx context.Context, fn func() error) error {
+	const maxRetries = 5
+	backoff := []time.Duration{0, 500 * time.Millisecond, time.Second, 2 * time.Second, 4 * time.Second}
+	var err error
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		if attempt > 0 {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(backoff[attempt]):
+			}
+		}
+		err = fn()
+		if err == nil {
+			return nil
+		}
+		if !isRetryableRqliteError(err) {
+			return err
+		}
+	}
+	return err
 }
 
 func isRetryableRqliteError(err error) bool {

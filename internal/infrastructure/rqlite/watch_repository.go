@@ -138,6 +138,9 @@ func rowToWatch(row []any) (*watch.Watch, error) {
 		item.ID = v
 	}
 	item.Market = listing.Market(toString(row[1]))
+	if !item.Market.Valid() {
+		return nil, fmt.Errorf("invalid market %q", item.Market)
+	}
 	item.ListingID = toString(row[2])
 	item.UserID = toString(row[3])
 	item.GuildID = toString(row[4])
