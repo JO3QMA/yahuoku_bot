@@ -148,7 +148,7 @@ func (s *session) runSearchSupplement(ctx context.Context, title, plainDesc stri
 			parsed, err := parseAgentFieldsJSON(text)
 			if err == nil {
 				mirror.applySupplementFields([]product.Field(parsed.Fields))
-				if parsed.Done {
+				if bool(parsed.Done) {
 					if remaining := product.FilterSupplementEligibleKeys(mirror.category, mirror.unresolvedKeys()); len(remaining) > 0 {
 						messages = append(messages, chatMessage{Role: "assistant", Content: text})
 						messages = append(messages, chatMessage{

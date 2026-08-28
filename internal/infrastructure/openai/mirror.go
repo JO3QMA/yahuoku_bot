@@ -30,9 +30,9 @@ func (m *productMirror) applyStage1(s1 *stage1Result) {
 	if s1 == nil {
 		return
 	}
-	m.category = product.ParseCategory(s1.Category)
-	m.condition = s1.Condition
-	m.freeShipping = s1.FreeShipping
+	m.category = product.ParseCategory(string(s1.Category))
+	m.condition = string(s1.Condition)
+	m.freeShipping = s1.FreeShipping.ptr()
 	m.pendingMissing = filterTemplateKeys(m.category, s1.MissingKeys)
 	for _, f := range s1.Fields {
 		m.setField(f.Key, f.Value)
@@ -45,11 +45,12 @@ func (m *productMirror) applyVision(s2 *stage2Result) {
 	}
 	m.vision = s2
 	for _, f := range s2.ImageFields {
-		canon := product.CanonicalFieldKey(m.category, f.Key)
-		value := strings.TrimSpace(f.Value)
+		key := string(f.Key)
+		canon := product.CanonicalFieldKey(m.category, key)
+		value := strings.TrimSpace(string(f.Value))
 		if canon == "" {
 			if value != "" {
-				warnUnknownFieldKey(m.category, f.Key)
+				warnUnknownFieldKey(m.category, key)
 			}
 			continue
 		}
@@ -148,9 +149,9 @@ func (m *productMirror) asStage1() *stage1Result {
 		return nil
 	}
 	return &stage1Result{
-		Category:     string(m.category),
-		Condition:    m.condition,
-		FreeShipping: m.freeShipping,
+		Category:     flexString(m.category),
+		Condition:    flexString(m.condition),
+		FreeShipping: nullableBoolFromPtr(m.freeShipping),
 		Fields:       m.fieldsSlice(),
 		MissingKeys:  m.unresolvedKeys(),
 	}

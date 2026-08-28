@@ -87,7 +87,7 @@ func Test_parseAgentFieldsJSON(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !got.Done || len(got.Fields) != 1 || got.Fields[0].Value != "R740" {
+	if !bool(got.Done) || len(got.Fields) != 1 || got.Fields[0].Value != "R740" {
 		t.Fatalf("%+v", got)
 	}
 }

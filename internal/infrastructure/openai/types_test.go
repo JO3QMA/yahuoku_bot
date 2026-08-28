@@ -42,12 +42,84 @@ func Test_parseProductJSON_objectFields(t *testing.T) {
 	}
 }
 
+func Test_parseProductJSON_objectCondition(t *testing.T) {
+	got, err := parseProductJSON(`{"category":"gpu","condition":{"label":"中古"},"fields":[]}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got.Condition) != "中古" {
+		t.Fatalf("condition=%q", got.Condition)
+	}
+}
+
+func Test_parseProductJSON_objectCategoryAndShipping(t *testing.T) {
+	got, err := parseProductJSON(`{"category":{"value":"gpu"},"condition":"中古","shipping_free":{"value":true},"fields":[]}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got.Category) != "gpu" {
+		t.Fatalf("category=%q", got.Category)
+	}
+	if got.FreeShipping.ptr() == nil || !*got.FreeShipping.ptr() {
+		t.Fatalf("shipping_free=%v", got.FreeShipping.ptr())
+	}
+}
+
+func Test_parseStage1JSON_flexibleScalars(t *testing.T) {
+	got, err := parseStage1JSON(`{"category":{"label":"server"},"condition":{"value":"中古"},"shipping_free":"false","missing_keys":[{"value":"cpu_model_line"}],"candidate_queries":"Dell R740","fields":[{"key":{"value":"server_model"},"value":{"label":"R740"}}]}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got.Category) != "server" || string(got.Condition) != "中古" {
+		t.Fatalf("%+v", got)
+	}
+	if got.FreeShipping.ptr() == nil || *got.FreeShipping.ptr() {
+		t.Fatalf("shipping_free=%v", got.FreeShipping.ptr())
+	}
+	if len(got.MissingKeys) != 1 || got.MissingKeys[0] != "cpu_model_line" {
+		t.Fatalf("missing_keys=%v", got.MissingKeys)
+	}
+	if len(got.CandidateQueries) != 1 || got.CandidateQueries[0] != "Dell R740" {
+		t.Fatalf("candidate_queries=%v", got.CandidateQueries)
+	}
+	if len(got.Fields) != 1 || got.Fields[0].Key != "server_model" || got.Fields[0].Value != "R740" {
+		t.Fatalf("fields=%+v", got.Fields)
+	}
+}
+
+func Test_parseStage2JSON_flexibleFields(t *testing.T) {
+	got, err := parseStage2JSON(`{"image_fields":[{"key":{"value":"model"},"value":{"label":"RTX 3080"},"confidence":{"value":"high"}}],"visible_model_numbers":[{"label":"RTX3080"}]}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.ImageFields) != 1 {
+		t.Fatalf("%+v", got.ImageFields)
+	}
+	f := got.ImageFields[0]
+	if string(f.Key) != "model" || string(f.Value) != "RTX 3080" || string(f.Confidence) != "high" {
+		t.Fatalf("%+v", f)
+	}
+	if len(got.VisibleModelNumbers) != 1 || got.VisibleModelNumbers[0] != "RTX3080" {
+		t.Fatalf("%+v", got.VisibleModelNumbers)
+	}
+}
+
+func Test_parseAgentFieldsJSON_objectDone(t *testing.T) {
+	got, err := parseAgentFieldsJSON(`{"fields":{"server_model":"R740"},"done":{"value":true}}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bool(got.Done) || len(got.Fields) != 1 || got.Fields[0].Key != "server_model" {
+		t.Fatalf("%+v", got)
+	}
+}
+
 func Test_parseAgentFieldsJSON_objectFields(t *testing.T) {
 	got, err := parseAgentFieldsJSON(`{"fields":{"server_model":"R740"},"done":true}`)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !got.Done || len(got.Fields) != 1 || got.Fields[0].Key != "server_model" || got.Fields[0].Value != "R740" {
+	if !bool(got.Done) || len(got.Fields) != 1 || got.Fields[0].Key != "server_model" || got.Fields[0].Value != "R740" {
 		t.Fatalf("%+v", got)
 	}
 }
