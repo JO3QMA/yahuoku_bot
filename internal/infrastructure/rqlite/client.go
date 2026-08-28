@@ -99,7 +99,9 @@ func withRqliteRetry(ctx context.Context, fn func() error) error {
 
 func isRetryableRqliteError(err error) bool {
 	s := err.Error()
-	return strings.Contains(s, "503") || strings.Contains(s, "leader not found")
+	return strings.Contains(s, "503") ||
+		strings.Contains(s, "leader not found") ||
+		strings.Contains(s, "store not open")
 }
 
 func splitSchema(s string) []string {

@@ -176,7 +176,7 @@ func stageEvidenceJSON(s1 *stage1Result) string {
 		return "{}"
 	}
 	var b strings.Builder
-	fmt.Fprintf(&b, "category: %s\ncondition: %s\n", s1.Category, s1.Condition)
+	fmt.Fprintf(&b, "category: %s\ncondition: %s\n", string(s1.Category), string(s1.Condition))
 	for _, f := range s1.Fields {
 		fmt.Fprintf(&b, "- %s: %s\n", f.Key, f.Value)
 	}
@@ -189,7 +189,7 @@ func stage2EvidenceJSON(s2 *stage2Result) string {
 	}
 	var b strings.Builder
 	for _, f := range s2.ImageFields {
-		fmt.Fprintf(&b, "- %s: %s (%s)\n", f.Key, f.Value, f.Confidence)
+		fmt.Fprintf(&b, "- %s: %s (%s)\n", string(f.Key), string(f.Value), string(f.Confidence))
 	}
 	if len(s2.VisibleModelNumbers) > 0 {
 		b.WriteString("型番: ")

@@ -56,6 +56,21 @@ func TestMigrateSchemaIfNeeded_freshDB(t *testing.T) {
 	}
 }
 
+func TestMigrateSchemaIfNeeded_retriesStoreNotOpen(t *testing.T) {
+	f := &fakeHTTP{
+		queryErrs: []error{errors.New("statement -1: store not open"), nil},
+		queryResp: &rqlitehttp.QueryResponse{
+			Results: []rqlitehttp.QueryResult{{Values: [][]any{{"market"}}}},
+		},
+	}
+	if err := migrateSchemaIfNeeded(context.Background(), f); err != nil {
+		t.Fatal(err)
+	}
+	if f.queryCalls < 2 {
+		t.Fatalf("expected query retry, got %d calls", f.queryCalls)
+	}
+}
+
 func TestMigrateSchemaIfNeeded_retriesQuery503(t *testing.T) {
 	f := &fakeHTTP{
 		queryErrs: []error{errors.New("503 Service Unavailable"), nil},
@@ -77,6 +92,9 @@ func TestIsRetryableRqliteError(t *testing.T) {
 	}
 	if !isRetryableRqliteError(errors.New("leader not found x")) {
 		t.Fatal("leader")
+	}
+	if !isRetryableRqliteError(errors.New("statement -1: store not open")) {
+		t.Fatal("store not open")
 	}
 	if isRetryableRqliteError(errors.New("other")) {
 		t.Fatal("not retryable")
