@@ -8,9 +8,9 @@ type urlPattern struct {
 }
 
 var listingURLPatterns = []urlPattern{
-	{MarketYahooAuction, regexp.MustCompile(`auctions?\.yahoo\.co\.jp/[^/]+/auction/([a-zA-Z0-9]{8,11})`)},
-	{MarketYahooFlea, regexp.MustCompile(`paypayfleamarket\.yahoo\.co\.jp/item/([a-zA-Z0-9]+)`)},
-	{MarketMercari, regexp.MustCompile(`jp\.mercari\.com/item/([a-zA-Z0-9]+)`)},
+	{MarketYahooAuction, regexp.MustCompile(`(?:^|[^a-zA-Z0-9])auctions?\.yahoo\.co\.jp/[^/]+/auction/([a-zA-Z0-9]{8,11})`)},
+	{MarketYahooFlea, regexp.MustCompile(`(?:^|[^a-zA-Z0-9])paypayfleamarket\.yahoo\.co\.jp/item/([a-zA-Z0-9]+)`)},
+	{MarketMercari, regexp.MustCompile(`(?:^|[^a-zA-Z0-9])jp\.mercari\.com/item/([a-zA-Z0-9]+)`)},
 }
 
 // ParseRefs はテキスト中の対応 URL から Listing 参照を抽出する（Market 定義順、重複は呼び出し側で除去）。

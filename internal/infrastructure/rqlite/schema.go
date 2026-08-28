@@ -1,8 +1,7 @@
 package rqlite
 
 const schema = `
-DROP TABLE IF EXISTS watch_items;
-CREATE TABLE watch_items (
+CREATE TABLE IF NOT EXISTS watch_items (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     market TEXT NOT NULL,
     listing_id TEXT NOT NULL,

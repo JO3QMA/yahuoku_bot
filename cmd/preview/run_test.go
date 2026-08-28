@@ -21,6 +21,12 @@ func TestRunPreview_usage(t *testing.T) {
 	}
 }
 
+func TestRunPreview_unknownMarket(t *testing.T) {
+	if c := RunPreview(&bytes.Buffer{}, []string{"ebay", "id"}, nil); c != 2 {
+		t.Fatalf("code=%d", c)
+	}
+}
+
 func TestRunPreview_configErr(t *testing.T) {
 	c := RunPreview(&bytes.Buffer{}, []string{"yahoo_auction", "id"}, &previewDeps{
 		LoadConfig: func() (*config.Config, error) {

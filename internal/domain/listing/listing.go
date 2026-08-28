@@ -11,6 +11,16 @@ const (
 	MarketMercari      Market = "mercari"
 )
 
+// Valid は既知の Market かを返す。
+func (m Market) Valid() bool {
+	switch m {
+	case MarketYahooAuction, MarketYahooFlea, MarketMercari:
+		return true
+	default:
+		return false
+	}
+}
+
 // SaleType は Listing の販売形式。
 type SaleType string
 

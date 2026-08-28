@@ -48,7 +48,7 @@ func (u *PreviewUsecase) Execute(ctx context.Context, ref domainlisting.Ref) (*P
 		ImageURLs:   data.ImageURLs,
 	})
 	if err != nil {
-		log.Printf("[yahoo_auctions_bot] extraction failed for %s/%s: %v", ref.Market, ref.ListingID, err)
+		log.Printf("[listing] extraction failed for %s/%s: %v", ref.Market, ref.ListingID, err)
 		if productData == nil {
 			productData = product.EmptyProduct()
 		}

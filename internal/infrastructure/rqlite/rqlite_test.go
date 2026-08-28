@@ -22,6 +22,40 @@ func TestSplitSchema(t *testing.T) {
 	}
 }
 
+func TestMigrateSchemaIfNeeded_skipsNewSchema(t *testing.T) {
+	f := &fakeHTTP{queryResp: &rqlitehttp.QueryResponse{
+		Results: []rqlitehttp.QueryResult{{Values: [][]any{{"market"}, {"listing_id"}}}},
+	}}
+	if err := migrateSchemaIfNeeded(context.Background(), f); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.executeStatements) != 0 {
+		t.Fatalf("unexpected drop: %#v", f.executeStatements)
+	}
+}
+
+func TestMigrateSchemaIfNeeded_dropsLegacySchema(t *testing.T) {
+	f := &fakeHTTP{queryResp: &rqlitehttp.QueryResponse{
+		Results: []rqlitehttp.QueryResult{{Values: [][]any{{"auction_id"}}}},
+	}}
+	if err := migrateSchemaIfNeeded(context.Background(), f); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.executeStatements) != 1 || f.executeStatements[0] != dropWatchItems {
+		t.Fatalf("got %#v", f.executeStatements)
+	}
+}
+
+func TestMigrateSchemaIfNeeded_freshDB(t *testing.T) {
+	f := &fakeHTTP{}
+	if err := migrateSchemaIfNeeded(context.Background(), f); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.executeStatements) != 0 {
+		t.Fatalf("unexpected execute: %#v", f.executeStatements)
+	}
+}
+
 func TestIsRetryableRqliteError(t *testing.T) {
 	if !isRetryableRqliteError(errors.New("503 Service")) {
 		t.Fatal("503")

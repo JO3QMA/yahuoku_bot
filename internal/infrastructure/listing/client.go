@@ -2,6 +2,8 @@ package listing
 
 import (
 	"context"
+	"fmt"
+	"log"
 	"time"
 
 	"github.com/jo3qma/sansai"
@@ -26,6 +28,9 @@ func (c *client) Get(ctx context.Context, ref domainlisting.Ref) (*domainlisting
 	if err != nil {
 		return nil, err
 	}
+	if item == nil {
+		return nil, fmt.Errorf("listing not found: %s/%s", ref.Market, ref.ListingID)
+	}
 	return itemToData(item), nil
 }
 
@@ -39,7 +44,10 @@ func itemToData(item *sansai.Item) *domainlisting.Data {
 	}
 	var endTime *time.Time
 	if item.EndTime != "" {
-		if t, err := time.Parse(time.RFC3339, item.EndTime); err == nil {
+		t, err := time.Parse(time.RFC3339, item.EndTime)
+		if err != nil {
+			log.Printf("[listing] parse end_time %q for %s/%s: %v", item.EndTime, item.Market, item.ID, err)
+		} else {
 			endTime = &t
 		}
 	}

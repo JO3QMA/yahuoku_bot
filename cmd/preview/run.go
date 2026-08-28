@@ -50,6 +50,10 @@ func RunPreview(stdout io.Writer, argv []string, deps *previewDeps) int {
 		return 2
 	}
 	market := listing.Market(argv[0])
+	if !market.Valid() {
+		log.Printf("unknown market %q (want yahoo_auction, yahoo_flea, or mercari)", argv[0])
+		return 2
+	}
 	ref := listing.Ref{Market: market, ListingID: argv[1]}
 
 	cfg, err := deps.LoadConfig()

@@ -31,3 +31,28 @@ func TestParseRefFromURL(t *testing.T) {
 		t.Fatal("expected no match")
 	}
 }
+
+func TestParseRefFromURL_rejectsHostSubstring(t *testing.T) {
+	_, ok := ParseRefFromURL("https://eviljp.mercari.com/item/m123")
+	if ok {
+		t.Fatal("expected no match for host substring")
+	}
+}
+
+func TestParseRefFromURL_sansaiCanonicalURLs(t *testing.T) {
+	cases := []struct {
+		url    string
+		market Market
+		id     string
+	}{
+		{"https://auctions.yahoo.co.jp/jp/auction/o123456789", MarketYahooAuction, "o123456789"},
+		{"https://paypayfleamarket.yahoo.co.jp/item/z668531248", MarketYahooFlea, "z668531248"},
+		{"https://jp.mercari.com/item/m56797713000", MarketMercari, "m56797713000"},
+	}
+	for _, tc := range cases {
+		ref, ok := ParseRefFromURL(tc.url)
+		if !ok || ref != (Ref{Market: tc.market, ListingID: tc.id}) {
+			t.Fatalf("%s: got %#v ok=%v", tc.url, ref, ok)
+		}
+	}
+}

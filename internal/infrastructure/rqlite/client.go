@@ -55,6 +55,11 @@ func Open(ctx context.Context, baseURL string, opts ...NewClientOption) (*Client
 	}
 	raw.PromoteErrors(true)
 
+	if err := migrateSchemaIfNeeded(ctx, raw); err != nil {
+		_ = raw.Close()
+		return nil, err
+	}
+
 	statements := splitSchema(schema)
 	const maxRetries = 5
 	backoff := []time.Duration{0, 500 * time.Millisecond, time.Second, 2 * time.Second, 4 * time.Second}

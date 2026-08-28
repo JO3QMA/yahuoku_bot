@@ -57,8 +57,8 @@ func (n *ThreadNotifier) sendPriceAlert(threadID discord.ChannelID, item *domain
 }
 
 // logPriceAlertSent は PriceAlert 送信成功をログする（テストでカバーしやすくするため分離）。
-func logPriceAlertSent(auctionID, userID string) {
-	log.Printf("[ThreadNotifier] price alert sent for auction %s (user=%s)", auctionID, userID)
+func logPriceAlertSent(listingID, userID string) {
+	log.Printf("[ThreadNotifier] price alert sent for listing %s (user=%s)", listingID, userID)
 }
 
 // NotifyEndingReminder は EndingReminder を NotificationThread に送信する。
@@ -105,8 +105,8 @@ func remainingMinutesForDisplay(d time.Duration) int {
 	return minutes
 }
 
-func logEndingReminderSent(auctionID, userID string) {
-	log.Printf("[ThreadNotifier] ending reminder sent for auction %s (user=%s)", auctionID, userID)
+func logEndingReminderSent(listingID, userID string) {
+	log.Printf("[ThreadNotifier] ending reminder sent for listing %s (user=%s)", listingID, userID)
 }
 
 func (n *ThreadNotifier) ensureThread(ctx context.Context, item *domainwatch.Watch, title string) (discord.ChannelID, error) {
