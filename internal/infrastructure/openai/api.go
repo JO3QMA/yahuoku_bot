@@ -12,6 +12,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"jo3qma.com/yahoo_auctions_bot/internal/retry"
 )
 
 const maxResponseBytes = 16 << 20 // 16MB
@@ -109,30 +111,18 @@ func newAPIClient(apiKey, baseURL string) (*apiClient, error) {
 }
 
 func (a *apiClient) chat(ctx context.Context, model string, messages []chatMessage, cfg *chatConfig) (*chatResponse, error) {
-	const maxRetries = 5
-	backoff := []time.Duration{0, 500 * time.Millisecond, time.Second, 2 * time.Second, 4 * time.Second}
-	var lastErr error
-	for attempt := 0; attempt < maxRetries; attempt++ {
-		if attempt > 0 {
-			select {
-			case <-ctx.Done():
-				return nil, ctx.Err()
-			case <-time.After(backoff[attempt]):
-			}
-		}
-		resp, err := a.chatOnce(ctx, model, messages, cfg)
-		if err == nil {
-			return resp, nil
-		}
-		lastErr = err
-		if !isRetryableOpenAIError(err) {
-			return nil, err
-		}
-		if attempt < maxRetries-1 {
-			log.Printf("[openai] retry %d/%d: %v", attempt+1, maxRetries, err)
-		}
+	var resp *chatResponse
+	err := retry.Do(ctx, func() error {
+		var err error
+		resp, err = a.chatOnce(ctx, model, messages, cfg)
+		return err
+	}, isRetryableOpenAIError, func(attempt int, err error) {
+		log.Printf("[openai] retry %d/%d: %v", attempt, retry.MaxAttempts, err)
+	})
+	if err != nil {
+		return nil, err
 	}
-	return nil, lastErr
+	return resp, nil
 }
 
 func (a *apiClient) chatOnce(ctx context.Context, model string, messages []chatMessage, cfg *chatConfig) (*chatResponse, error) {
