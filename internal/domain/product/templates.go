@@ -80,17 +80,6 @@ func ValidateFields(cat Category, fields []Field) []Field {
 	return out
 }
 
-// FieldValueMap は Fields をキー→値のマップに変換する。
-func FieldValueMap(fields []Field) map[string]string {
-	m := make(map[string]string, len(fields))
-	for _, f := range fields {
-		if f.Key != "" {
-			m[f.Key] = f.Value
-		}
-	}
-	return m
-}
-
 var serverTemplate = []FieldTemplate{
 	{Key: "server_model", Label: "サーバー機種名", Inline: false},
 	{Key: "cpu_model_line", Label: "CPU型番", Inline: false},

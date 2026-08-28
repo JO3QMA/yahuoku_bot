@@ -146,7 +146,12 @@ func formatProductFields(p *product.Product) []discord.EmbedField {
 		return nil
 	}
 	defs := product.TemplatesFor(p.Category)
-	values := product.FieldValueMap(p.Fields)
+	values := make(map[string]string, len(p.Fields))
+	for _, f := range p.Fields {
+		if f.Key != "" {
+			values[f.Key] = f.Value
+		}
+	}
 	fields := []discord.EmbedField{}
 
 	for _, def := range defs {
