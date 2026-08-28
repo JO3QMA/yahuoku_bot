@@ -39,16 +39,6 @@ func TemplatesFor(cat Category) []FieldTemplate {
 	}
 }
 
-// TemplateKeys は Category の FieldTemplate キー一覧を返す。
-func TemplateKeys(cat Category) []string {
-	defs := TemplatesFor(cat)
-	keys := make([]string, len(defs))
-	for i, d := range defs {
-		keys[i] = d.Key
-	}
-	return keys
-}
-
 // CanonicalFieldKey はカテゴリのテンプレートキーに正規化する。未知キーは空文字。
 func CanonicalFieldKey(cat Category, key string) string {
 	if key == "" {
@@ -196,13 +186,4 @@ var desktopNUCTemplate = []FieldTemplate{
 var otherTemplate = []FieldTemplate{
 	{Key: "summary", Label: "概要", Inline: false},
 	{Key: "other_notes", Label: "その他", Inline: false},
-}
-
-// CategoryFieldKeysForPrompt はプロンプト用に Category 別 FieldTemplate キー一覧を返す。
-func CategoryFieldKeysForPrompt() map[Category][]string {
-	out := make(map[Category][]string, len(AllCategories))
-	for _, cat := range AllCategories {
-		out[cat] = TemplateKeys(cat)
-	}
-	return out
 }
