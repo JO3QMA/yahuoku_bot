@@ -8,7 +8,7 @@ import (
 
 // Client は OpenAI 互換 API で Extraction を行うクライアント。
 type Client interface {
-	Extract(ctx context.Context, in product.ExtractInput) (*product.Product, error)
+	Extract(ctx context.Context, title, description string, imageURLs []string) (*product.Product, error)
 }
 
 // NewClient は OpenAI 互換 API を使用する Extraction クライアントを生成する。

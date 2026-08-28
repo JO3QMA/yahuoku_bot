@@ -80,7 +80,7 @@ type stubClient struct {
 	err    error
 }
 
-func (s stubClient) Extract(context.Context, product.ExtractInput) (*product.Product, error) {
+func (s stubClient) Extract(context.Context, string, string, []string) (*product.Product, error) {
 	return s.result, s.err
 }
 
@@ -89,7 +89,7 @@ func TestClient_Extract_viaStub(t *testing.T) {
 		Category: product.CategoryServer,
 		Fields:   []product.Field{{Key: "cpu_model_line", Value: "X"}},
 	}}
-	pd, err := c.Extract(context.Background(), product.ExtractInput{Title: "t", Description: "d"})
+	pd, err := c.Extract(context.Background(), "t", "d", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,7 +100,7 @@ func TestClient_Extract_viaStub(t *testing.T) {
 
 func TestClient_Extract_errors(t *testing.T) {
 	c := stubClient{err: errors.New("gen")}
-	_, err := c.Extract(context.Background(), product.ExtractInput{Title: "t"})
+	_, err := c.Extract(context.Background(), "t", "", nil)
 	if err == nil {
 		t.Fatal("expected error")
 	}

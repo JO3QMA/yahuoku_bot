@@ -65,7 +65,7 @@ func TestRunPreview_openaiClientErr(t *testing.T) {
 
 type fakePreviewGem struct{}
 
-func (fakePreviewGem) Extract(context.Context, product.ExtractInput) (*product.Product, error) {
+func (fakePreviewGem) Extract(context.Context, string, string, []string) (*product.Product, error) {
 	return &product.Product{
 		Category: product.CategoryGPU,
 		Fields:   []product.Field{{Key: "model", Value: "x"}},
@@ -145,7 +145,7 @@ func TestRunPreview_emptyProductExit(t *testing.T) {
 
 type emptyProductGem struct{}
 
-func (emptyProductGem) Extract(context.Context, product.ExtractInput) (*product.Product, error) {
+func (emptyProductGem) Extract(context.Context, string, string, []string) (*product.Product, error) {
 	return &product.Product{}, nil
 }
 

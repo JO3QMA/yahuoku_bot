@@ -27,7 +27,7 @@ func newSession(api *apiClient, opts Options) *session {
 }
 
 // Extract はタイトル・説明・画像から Category 判別と Field 抽出（Extraction）を行う。
-func (s *session) Extract(ctx context.Context, in product.ExtractInput) (*product.Product, error) {
+func (s *session) Extract(ctx context.Context, title, description string, imageURLs []string) (*product.Product, error) {
 	timeout := s.opts.PipelineTimeoutSec
 	if timeout <= 0 {
 		timeout = extractionTimeout
@@ -35,8 +35,8 @@ func (s *session) Extract(ctx context.Context, in product.ExtractInput) (*produc
 	ctx, cancel := context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
 	defer cancel()
 
-	title := sanitizeUTF8(in.Title)
-	plainDesc := plainDescription(in.Description)
+	title = sanitizeUTF8(title)
+	plainDesc := plainDescription(description)
 	mirror := newProductMirror()
 
 	var s1 *stage1Result
@@ -55,10 +55,10 @@ func (s *session) Extract(ctx context.Context, in product.ExtractInput) (*produc
 		return nil
 	})
 	g.Go(func() error {
-		if len(in.ImageURLs) == 0 {
+		if len(imageURLs) == 0 {
 			return nil
 		}
-		r, err := s.runVisionSupplement(gctx, title, plainDesc, in.ImageURLs)
+		r, err := s.runVisionSupplement(gctx, title, plainDesc, imageURLs)
 		if err != nil {
 			log.Printf("[openai] vision supplement failed: %v", err)
 			return nil
