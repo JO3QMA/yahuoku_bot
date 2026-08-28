@@ -55,11 +55,6 @@ func Open(ctx context.Context, baseURL string, opts ...NewClientOption) (*Client
 	}
 	raw.PromoteErrors(true)
 
-	if err := migrateSchemaIfNeeded(ctx, raw); err != nil {
-		_ = raw.Close()
-		return nil, err
-	}
-
 	statements := splitSchema(schema)
 	for _, stmt := range statements {
 		if err := withRqliteRetry(ctx, func() error {
