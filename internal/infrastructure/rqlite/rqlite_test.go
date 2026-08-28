@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"jo3qma.com/yahoo_auctions_bot/internal/domain/listing"
 	"jo3qma.com/yahoo_auctions_bot/internal/domain/watch"
 
 	rqlitehttp "github.com/rqlite/rqlite-go-http"
@@ -18,6 +19,55 @@ func TestSplitSchema(t *testing.T) {
 	out := splitSchema(" A ; ; B ")
 	if len(out) != 2 || out[0] != "A" || out[1] != "B" {
 		t.Fatalf("%#v", out)
+	}
+}
+
+func TestMigrateSchemaIfNeeded_skipsNewSchema(t *testing.T) {
+	f := &fakeHTTP{queryResp: &rqlitehttp.QueryResponse{
+		Results: []rqlitehttp.QueryResult{{Values: [][]any{{"market"}, {"listing_id"}}}},
+	}}
+	if err := migrateSchemaIfNeeded(context.Background(), f); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.executeStatements) != 0 {
+		t.Fatalf("unexpected drop: %#v", f.executeStatements)
+	}
+}
+
+func TestMigrateSchemaIfNeeded_dropsLegacySchema(t *testing.T) {
+	f := &fakeHTTP{queryResp: &rqlitehttp.QueryResponse{
+		Results: []rqlitehttp.QueryResult{{Values: [][]any{{"auction_id"}}}},
+	}}
+	if err := migrateSchemaIfNeeded(context.Background(), f); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.executeStatements) != 1 || f.executeStatements[0] != dropWatchItems {
+		t.Fatalf("got %#v", f.executeStatements)
+	}
+}
+
+func TestMigrateSchemaIfNeeded_freshDB(t *testing.T) {
+	f := &fakeHTTP{}
+	if err := migrateSchemaIfNeeded(context.Background(), f); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.executeStatements) != 0 {
+		t.Fatalf("unexpected execute: %#v", f.executeStatements)
+	}
+}
+
+func TestMigrateSchemaIfNeeded_retriesQuery503(t *testing.T) {
+	f := &fakeHTTP{
+		queryErrs: []error{errors.New("503 Service Unavailable"), nil},
+		queryResp: &rqlitehttp.QueryResponse{
+			Results: []rqlitehttp.QueryResult{{Values: [][]any{{"market"}}}},
+		},
+	}
+	if err := migrateSchemaIfNeeded(context.Background(), f); err != nil {
+		t.Fatal(err)
+	}
+	if f.queryCalls < 2 {
+		t.Fatalf("expected query retry, got %d calls", f.queryCalls)
 	}
 }
 
@@ -37,6 +87,8 @@ type fakeHTTP struct {
 	promoted          bool
 	execCalls         int
 	execErrs          []error
+	queryCalls        int
+	queryErrs         []error
 	queryResp         *rqlitehttp.QueryResponse
 	queryErr          error
 	closed            bool
@@ -57,9 +109,18 @@ func (f *fakeHTTP) ExecuteSingle(ctx context.Context, statement string, args ...
 }
 
 func (f *fakeHTTP) QuerySingle(ctx context.Context, statement string, args ...any) (*rqlitehttp.QueryResponse, error) {
+	if f.queryCalls < len(f.queryErrs) {
+		err := f.queryErrs[f.queryCalls]
+		f.queryCalls++
+		if err != nil {
+			return nil, err
+		}
+	}
 	if f.queryErr != nil {
+		f.queryCalls++
 		return nil, f.queryErr
 	}
+	f.queryCalls++
 	return f.queryResp, nil
 }
 
@@ -191,10 +252,26 @@ func TestRowToWatch_shortRow(t *testing.T) {
 	}
 }
 
+func TestRowToWatch_invalidMarket(t *testing.T) {
+	created := time.Now().UTC().Truncate(time.Second)
+	row := []any{
+		json.Number("1"), "ebay", "a", "u", "g", "c", "m",
+		json.Number("99"),
+		created.Format(time.RFC3339),
+		json.Number("0"),
+		"",
+		created.Format(time.RFC3339),
+	}
+	_, err := rowToWatch(row)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
 func TestRowToWatch_types(t *testing.T) {
 	created := time.Now().UTC().Truncate(time.Second)
 	row := []any{
-		json.Number("1"), "a", "u", "g", "c", "m",
+		json.Number("1"), "yahoo_auction", "a", "u", "g", "c", "m",
 		json.Number("99"),
 		created.Format(time.RFC3339),
 		json.Number("0"),
@@ -208,8 +285,8 @@ func TestRowToWatch_types(t *testing.T) {
 	if item.ID != 1 || item.LastKnownPrice != 99 || item.Reminded {
 		t.Fatalf("%+v", item)
 	}
-	row[6] = float64(100)
-	row[8] = int64(1)
+	row[7] = float64(100)
+	row[9] = int64(1)
 	item2, err := rowToWatch(row)
 	if err != nil || !item2.Reminded {
 		t.Fatal(item2, err)
@@ -243,7 +320,7 @@ func TestWatchRepository_Add_nilEndTime(t *testing.T) {
 	repo := NewWatchRepository(&Client{h: f})
 	ctx := context.Background()
 	err := repo.Add(ctx, &watch.Watch{
-		AuctionID: "a", UserID: "u", GuildID: "g", ChannelID: "c", MessageID: "m",
+		Market: listing.MarketYahooAuction, ListingID: "a", UserID: "u", GuildID: "g", ChannelID: "c", MessageID: "m",
 		LastKnownPrice: 1,
 		EndTime:        nil,
 	})
@@ -256,8 +333,8 @@ func TestWatchRepository_methods(t *testing.T) {
 	f := &fakeHTTP{}
 	repo := NewWatchRepository(&Client{h: f})
 	ctx := context.Background()
-	_ = repo.Remove(ctx, "a", "u", "m")
-	_ = repo.RemoveByAuctionID(ctx, "a")
+	_ = repo.Remove(ctx, listing.MarketYahooAuction, "a", "u", "m")
+	_ = repo.RemoveByListing(ctx, listing.MarketYahooAuction, "a")
 	_ = repo.UpdatePrice(ctx, 1, 2)
 	_ = repo.MarkReminded(ctx, 1)
 	_ = repo.UpdateThreadID(ctx, "m", "t")
@@ -286,7 +363,7 @@ func TestWatchRepository_List_parseRows(t *testing.T) {
 	qr := &rqlitehttp.QueryResponse{
 		Results: []rqlitehttp.QueryResult{{
 			Values: [][]any{{
-				int64(5), "aid", "uid", "gid", "cid", "mid",
+				int64(5), "yahoo_auction", "aid", "uid", "gid", "cid", "mid",
 				int64(1000),
 				nil,
 				int64(0),
@@ -301,7 +378,7 @@ func TestWatchRepository_List_parseRows(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(items) != 1 || items[0].AuctionID != "aid" {
+	if len(items) != 1 || items[0].ListingID != "aid" {
 		t.Fatalf("%+v", items[0])
 	}
 }
@@ -323,9 +400,9 @@ func (execFailHTTP) Close() error { return nil }
 func TestWatchRepository_executeFailures(t *testing.T) {
 	repo := NewWatchRepository(&Client{h: execFailHTTP{}})
 	ctx := context.Background()
-	_ = repo.Add(ctx, &watch.Watch{AuctionID: "a", UserID: "u", GuildID: "g", ChannelID: "c", MessageID: "m", LastKnownPrice: 1})
-	_ = repo.Remove(ctx, "a", "u", "m")
-	_ = repo.RemoveByAuctionID(ctx, "a")
+	_ = repo.Add(ctx, &watch.Watch{Market: listing.MarketYahooAuction, ListingID: "a", UserID: "u", GuildID: "g", ChannelID: "c", MessageID: "m", LastKnownPrice: 1})
+	_ = repo.Remove(ctx, listing.MarketYahooAuction, "a", "u", "m")
+	_ = repo.RemoveByListing(ctx, listing.MarketYahooAuction, "a")
 	_ = repo.UpdatePrice(ctx, 1, 2)
 	_ = repo.MarkReminded(ctx, 1)
 	_ = repo.UpdateThreadID(ctx, "m", "t")
@@ -348,7 +425,7 @@ func TestWatchRepository_FindByMessage_ok(t *testing.T) {
 	qr := &rqlitehttp.QueryResponse{
 		Results: []rqlitehttp.QueryResult{{
 			Values: [][]any{{
-				int64(5), "aid", "uid", "gid", "cid", "mid",
+				int64(5), "yahoo_auction", "aid", "uid", "gid", "cid", "mid",
 				int64(1000),
 				nil,
 				int64(0),
@@ -371,7 +448,7 @@ func TestWatchRepository_Add_withEndTime(t *testing.T) {
 	et := time.Now().UTC().Truncate(time.Second)
 	ctx := context.Background()
 	err := repo.Add(ctx, &watch.Watch{
-		AuctionID: "a", UserID: "u", GuildID: "g", ChannelID: "c", MessageID: "m",
+		Market: listing.MarketYahooAuction, ListingID: "a", UserID: "u", GuildID: "g", ChannelID: "c", MessageID: "m",
 		LastKnownPrice: 1,
 		EndTime:        &et,
 	})
@@ -385,14 +462,14 @@ func TestWatchRepository_Add_onConflictResetsReminded(t *testing.T) {
 	repo := NewWatchRepository(&Client{h: f})
 	ctx := context.Background()
 	item := &watch.Watch{
-		AuctionID: "a", UserID: "u", GuildID: "g", ChannelID: "c", MessageID: "m",
+		Market: listing.MarketYahooAuction, ListingID: "a", UserID: "u", GuildID: "g", ChannelID: "c", MessageID: "m",
 		LastKnownPrice: 1000,
 	}
 	if err := repo.Add(ctx, item); err != nil {
 		t.Fatal(err)
 	}
 	if err := repo.Add(ctx, &watch.Watch{
-		AuctionID: "a", UserID: "u", GuildID: "g", ChannelID: "c", MessageID: "m",
+		Market: listing.MarketYahooAuction, ListingID: "a", UserID: "u", GuildID: "g", ChannelID: "c", MessageID: "m",
 		LastKnownPrice: 2000,
 	}); err != nil {
 		t.Fatal(err)

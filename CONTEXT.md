@@ -1,15 +1,27 @@
 # yahoo_auctions_bot
 
-Discord 上のヤフオク URL に反応し、オークション情報のプレビュー表示と価格監視通知を行う Bot。
+Discord 上の C2C マーケット（ヤフオク・Yahoo!フリマ・メルカリ）URL に反応し、出品情報の Preview 表示と価格監視通知を行う Bot。
 
 ## Language
 
+**Listing**:
+いずれかの C2C マーケット上の1出品単位。`market` と `listingID` の組で識別される。Preview・Watch・Extraction の対象。
+_Avoid_: Item（sansai の取得型）, 出品, Posting
+
+**Market**:
+Listing が属する C2C サービス。`yahoo_auction`・`yahoo_flea`・`mercari` のいずれか。
+_Avoid_: Platform, Site, マーケットプレイス
+
 **Auction**:
-ヤフオク上の1出品単位。`auctionID` で識別され、現在価格・終了時刻・ステータスなどのオークション属性を持つ。
-_Avoid_: Listing, Item, 出品
+入札により価格が変動し、終了時刻を持つ Listing。`yahoo_auction` Market の出品、および `mercari` Market のオークション形式出品が該当する。Market とは独立した販売形式。
+_Avoid_: オークション出品（日本語説明向け）, BidSession
+
+**FixedPriceListing**:
+固定価格で販売される Listing。`yahoo_flea` Market の出品、および `mercari` Market の通常（フリマ）出品が該当する。
+_Avoid_: 定額出品, フリマ出品
 
 **Product**:
-Auction に載っている売り物そのもの。Category・Condition・FreeShipping・Field など、Extraction で得られた物品情報を指す。
+Listing に載っている売り物そのもの。Category・Condition・FreeShipping・Field など、Extraction で得られた物品情報を指す。
 _Avoid_: Spec, 商品詳細
 
 **Category**:
@@ -25,11 +37,11 @@ Product に実際に入ったスペック欄の1項目。key と value の組。
 _Avoid_: Spec, Attribute, スペック値
 
 **ListingEvidence**:
-Auction のタイトル・説明文・出品画像から読み取れる事実。Field の根拠となる情報源。
+Listing のタイトル・説明文・出品画像から読み取れる事実。Field の根拠となる情報源。
 _Avoid_: 出品情報, オークション記載
 
 **CatalogConfiguration**:
-メーカーが筐体などを販売する際に選択できる標準構成・オプション一覧（例: BTO の CPU・メモリ・搭載ディスクの選択肢）。この Auction に実際に載っている構成とは限らない。Field の値にならない。
+メーカーが筐体などを販売する際に選択できる標準構成・オプション一覧（例: BTO の CPU・メモリ・搭載ディスクの選択肢）。この Listing に実際に載っている構成とは限らない。Field の値にならない。
 _Avoid_: 販売オプション, カタログスペック, メーカー構成
 
 **ModelInvariant**:
@@ -37,7 +49,7 @@ _Avoid_: 販売オプション, カタログスペック, メーカー構成
 _Avoid_: カタログ構成, 搭載スペック, 最大搭載数
 
 **InstalledConfiguration**:
-この Auction の出品物に実際に搭載・装着されている構成（CPU 型番、メモリ容量、入っているディスクなど）。ListingEvidence に裏付けがある場合のみ Field に入る。曖昧な記載（例: 「HDD付き」のみ）は記載された範囲だけ入れ、詳細を Supplement で補完しない。`cpu_model_line`・`memory_info` 等の搭載スペック欄は原則ここに属する。
+この Listing の出品物に実際に搭載・装着されている構成（CPU 型番、メモリ容量、入っているディスクなど）。ListingEvidence に裏付けがある場合のみ Field に入る。曖昧な記載（例: 「HDD付き」のみ）は記載された範囲だけ入れ、詳細を Supplement で補完しない。`cpu_model_line`・`memory_info` 等の搭載スペック欄は原則ここに属する。
 _Avoid_: 標準構成, 出荷時構成
 
 **Condition**:
@@ -49,7 +61,7 @@ Product が送料無料かどうか。
 _Avoid_: 送料無料（日本語説明向け）
 
 **Extraction**:
-Auction のタイトル・説明文・画像から Product を導き出す処理。
+Listing のタイトル・説明文・画像から Product を導き出す処理。
 _Avoid_: Inference, Analysis, 推論（実装・モデル寄りの説明向け）
 
 **UnresolvedField**:
@@ -61,19 +73,19 @@ ListingEvidence に無い情報を画像解析や Web 検索で補う手段。
 _Avoid_: Sub-agent, Tool, サブエージェント（実装寄りの説明向け）
 
 **Preview**:
-Auction のオークション属性と Product の Extraction 結果を統合した、Discord 表示用データ。
+Listing のマーケット属性（価格・ステータス等）と Product の Extraction 結果を統合した、Discord 表示用データ。
 _Avoid_: Embed（Discord の表示形式。presentation 層の用語）, AuctionSummary, 概要
 
 **Watch**:
-ユーザーが特定の Auction を価格・終了時刻まで追跡する登録。🔔 / 👀 リアクションで登録し、ポーリングにより変動を通知する。機能全体も個別レコードも Watch と呼ぶ。
+ユーザーが特定の Listing を追跡する登録。3 Market すべてが対象。🔔 / 👀 リアクションで登録し、ポーリングにより変動を通知する。機能全体も個別レコードも Watch と呼ぶ。
 _Avoid_: Subscription, Alert, 監視アイテム
 
 **PriceAlert**:
-Watch 中の Auction で価格が最後に記録した値から上昇したときに送る通知。
+Watch 中の Listing で価格が最後に記録した値から変動したときに送る通知。入札による上昇（Auction）と出品者による値下げ・値上げ（FixedPriceListing）の両方を含む。
 _Avoid_: PriceIncreaseNotification, 値上がり通知（日本語説明向け）
 
 **EndingReminder**:
-Watch 中の Auction の終了が近づいたときに送る通知。1 Watch につき1回。
+Watch 中の Auction の終了が近づいたときに送る通知。1 Watch につき1回。FixedPriceListing には送らない。
 _Avoid_: EndingSoonNotification, 終了間近通知（日本語説明向け）, Reminder（単体では曖昧）
 
 **NotificationThread**:

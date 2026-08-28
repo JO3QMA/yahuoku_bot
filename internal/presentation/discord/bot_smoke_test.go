@@ -4,20 +4,27 @@ import (
 	"testing"
 	"time"
 
-	appauction "jo3qma.com/yahoo_auctions_bot/internal/application/auction"
+	applisting "jo3qma.com/yahoo_auctions_bot/internal/application/listing"
 	appwatch "jo3qma.com/yahoo_auctions_bot/internal/application/watch"
+	dlisting "jo3qma.com/yahoo_auctions_bot/internal/domain/listing"
 	"jo3qma.com/yahoo_auctions_bot/internal/domain/product"
-	infraauction "jo3qma.com/yahoo_auctions_bot/internal/infrastructure/auction"
 )
 
 func TestNewBot_smoke(t *testing.T) {
 	end := time.Now()
-	pu := appauction.NewPreviewUsecase(&stubPreviewFetch{data: &infraauction.AuctionData{
-		AuctionID: "a", Title: "T", CurrentPrice: 1, Status: "S", Description: "d", EndTime: &end,
-	}}, &stubProductExt{pd: &product.Product{}})
+	data := &dlisting.Data{
+		Ref:         dlisting.Ref{Market: dlisting.MarketYahooAuction, ListingID: "a"},
+		Title:       "T",
+		Price:       1,
+		Description: "d",
+		EndTime:     &end,
+		SaleType:    dlisting.SaleTypeAuction,
+		IsActive:    true,
+	}
+	pu := applisting.NewPreviewUsecase(&stubPreviewFetch{data: data}, &stubProductExt{pd: &product.Product{}})
 	repo := &memWatchRepo{}
 	wu := appwatch.NewWatchUsecase(repo)
-	ac := &stubAuction{data: &infraauction.AuctionData{CurrentPrice: 1}}
+	ac := &stubListing{data: data}
 	_, err := NewBot("Bot unit-test-token.invalid", pu, NewAllowedFilter(nil, nil), wu, ac, repo, BotConfig{
 		CheckIntervalMinutes: 120,
 		PollDelayMs:          9999,

@@ -1,4 +1,4 @@
-package auction
+package listing
 
 import (
 	"context"
@@ -6,16 +6,16 @@ import (
 	"testing"
 	"time"
 
+	domainlisting "jo3qma.com/yahoo_auctions_bot/internal/domain/listing"
 	"jo3qma.com/yahoo_auctions_bot/internal/domain/product"
-	infraauction "jo3qma.com/yahoo_auctions_bot/internal/infrastructure/auction"
 )
 
 type fakeFetcher struct {
-	data *infraauction.AuctionData
+	data *domainlisting.Data
 	err  error
 }
 
-func (f *fakeFetcher) GetAuction(ctx context.Context, auctionID string) (*infraauction.AuctionData, error) {
+func (f *fakeFetcher) Get(ctx context.Context, ref domainlisting.Ref) (*domainlisting.Data, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -36,20 +36,23 @@ func (f *fakeExtractor) Extract(ctx context.Context, in product.ExtractInput) (*
 
 func TestPreviewUsecase_Execute_success(t *testing.T) {
 	end := time.Now().Add(time.Hour)
-	ff := &fakeFetcher{data: &infraauction.AuctionData{
-		AuctionID: "a1", Title: "T", CurrentPrice: 500,
-		Status: "S", Images: []string{"i"}, Description: "d", EndTime: &end,
+	ref := domainlisting.Ref{Market: domainlisting.MarketYahooAuction, ListingID: "a1"}
+	ff := &fakeFetcher{data: &domainlisting.Data{
+		Ref: ref, Title: "T", Price: 500,
+		URL: "https://auctions.yahoo.co.jp/jp/auction/a1",
+		ImageURLs: []string{"i"}, Description: "d", EndTime: &end,
+		SaleType: domainlisting.SaleTypeAuction, IsActive: true,
 	}}
 	fe := &fakeExtractor{product: &product.Product{
 		Category: product.CategoryServer,
 		Fields:   []product.Field{{Key: "cpu_model_line", Value: "cpu"}},
 	}}
 	u := NewPreviewUsecase(ff, fe)
-	out, err := u.Execute(context.Background(), "a1")
+	out, err := u.Execute(context.Background(), ref)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if out.URL != "https://page.auctions.yahoo.co.jp/jp/auction/a1" {
+	if out.URL != "https://auctions.yahoo.co.jp/jp/auction/a1" {
 		t.Fatalf("url %s", out.URL)
 	}
 	if len(out.Product.Fields) != 1 || out.Product.Fields[0].Value != "cpu" {
@@ -59,7 +62,7 @@ func TestPreviewUsecase_Execute_success(t *testing.T) {
 
 func TestPreviewUsecase_Execute_fetchError(t *testing.T) {
 	u := NewPreviewUsecase(&fakeFetcher{err: errors.New("e")}, &fakeExtractor{})
-	_, err := u.Execute(context.Background(), "x")
+	_, err := u.Execute(context.Background(), domainlisting.Ref{Market: domainlisting.MarketMercari, ListingID: "x"})
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -67,12 +70,13 @@ func TestPreviewUsecase_Execute_fetchError(t *testing.T) {
 
 func TestPreviewUsecase_Execute_extractErrorContinues(t *testing.T) {
 	end := time.Now().Add(time.Hour)
-	ff := &fakeFetcher{data: &infraauction.AuctionData{
-		AuctionID: "a1", Title: "T", CurrentPrice: 500,
-		Status: "S", Description: "d", EndTime: &end,
+	ref := domainlisting.Ref{Market: domainlisting.MarketYahooAuction, ListingID: "a1"}
+	ff := &fakeFetcher{data: &domainlisting.Data{
+		Ref: ref, Title: "T", Price: 500, Description: "d", EndTime: &end,
+		SaleType: domainlisting.SaleTypeAuction, IsActive: true,
 	}}
 	u := NewPreviewUsecase(ff, &fakeExtractor{err: errors.New("extract")})
-	out, err := u.Execute(context.Background(), "a1")
+	out, err := u.Execute(context.Background(), ref)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,16 +87,17 @@ func TestPreviewUsecase_Execute_extractErrorContinues(t *testing.T) {
 
 func TestPreviewUsecase_Execute_partialExtractSuccess(t *testing.T) {
 	end := time.Now().Add(time.Hour)
-	ff := &fakeFetcher{data: &infraauction.AuctionData{
-		AuctionID: "a1", Title: "T", CurrentPrice: 500,
-		Status: "S", Description: "d", EndTime: &end,
+	ref := domainlisting.Ref{Market: domainlisting.MarketYahooAuction, ListingID: "a1"}
+	ff := &fakeFetcher{data: &domainlisting.Data{
+		Ref: ref, Title: "T", Price: 500, Description: "d", EndTime: &end,
+		SaleType: domainlisting.SaleTypeAuction, IsActive: true,
 	}}
 	partial := &product.Product{
 		Category: product.CategoryGPU,
 		Fields:   []product.Field{{Key: "model", Value: "RTX 3080"}},
 	}
 	u := NewPreviewUsecase(ff, &fakeExtractorPartial{detail: partial, err: errors.New("stage3")})
-	out, err := u.Execute(context.Background(), "a1")
+	out, err := u.Execute(context.Background(), ref)
 	if err != nil {
 		t.Fatal(err)
 	}

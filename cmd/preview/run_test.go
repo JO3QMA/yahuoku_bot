@@ -9,8 +9,9 @@ import (
 	"time"
 
 	"jo3qma.com/yahoo_auctions_bot/internal/config"
+	dlisting "jo3qma.com/yahoo_auctions_bot/internal/domain/listing"
 	"jo3qma.com/yahoo_auctions_bot/internal/domain/product"
-	infraauction "jo3qma.com/yahoo_auctions_bot/internal/infrastructure/auction"
+	infralisting "jo3qma.com/yahoo_auctions_bot/internal/infrastructure/listing"
 	"jo3qma.com/yahoo_auctions_bot/internal/infrastructure/openai"
 )
 
@@ -20,8 +21,14 @@ func TestRunPreview_usage(t *testing.T) {
 	}
 }
 
+func TestRunPreview_unknownMarket(t *testing.T) {
+	if c := RunPreview(&bytes.Buffer{}, []string{"ebay", "id"}, nil); c != 2 {
+		t.Fatalf("code=%d", c)
+	}
+}
+
 func TestRunPreview_configErr(t *testing.T) {
-	c := RunPreview(&bytes.Buffer{}, []string{"id"}, &previewDeps{
+	c := RunPreview(&bytes.Buffer{}, []string{"yahoo_auction", "id"}, &previewDeps{
 		LoadConfig: func() (*config.Config, error) {
 			return nil, errors.New("e")
 		},
@@ -32,7 +39,7 @@ func TestRunPreview_configErr(t *testing.T) {
 }
 
 func TestRunPreview_noOpenAI(t *testing.T) {
-	c := RunPreview(&bytes.Buffer{}, []string{"id"}, &previewDeps{
+	c := RunPreview(&bytes.Buffer{}, []string{"yahoo_auction", "id"}, &previewDeps{
 		LoadConfig: func() (*config.Config, error) {
 			return &config.Config{}, nil
 		},
@@ -43,7 +50,7 @@ func TestRunPreview_noOpenAI(t *testing.T) {
 }
 
 func TestRunPreview_openaiClientErr(t *testing.T) {
-	c := RunPreview(&bytes.Buffer{}, []string{"id"}, &previewDeps{
+	c := RunPreview(&bytes.Buffer{}, []string{"yahoo_auction", "id"}, &previewDeps{
 		LoadConfig: func() (*config.Config, error) {
 			return &config.Config{OpenAIAPIKey: "k"}, nil
 		},
@@ -66,39 +73,35 @@ func (fakePreviewGem) Extract(context.Context, product.ExtractInput) (*product.P
 }
 
 func TestRunPreview_executeErr(t *testing.T) {
-	c := RunPreview(&bytes.Buffer{}, []string{"id"}, &previewDeps{
+	c := RunPreview(&bytes.Buffer{}, []string{"yahoo_auction", "id"}, &previewDeps{
 		LoadConfig: func() (*config.Config, error) {
-			return &config.Config{OpenAIAPIKey: "k", APIEndpoint: "http://localhost:8080"}, nil
+			return &config.Config{OpenAIAPIKey: "k"}, nil
 		},
 		NewOpenAIClient: func(cfg *config.Config) (openai.Client, error) {
 			return &fakePreviewGem{}, nil
 		},
-		NewAuctionClient: func(string) infraauction.Client {
-			return &failAuction{}
-		},
+		NewListingClient: func() infralisting.Client { return &failListing{} },
 	})
 	if c != 2 {
 		t.Fatalf("code=%d", c)
 	}
 }
 
-type failAuction struct{}
+type failListing struct{}
 
-func (failAuction) GetAuction(context.Context, string) (*infraauction.AuctionData, error) {
+func (failListing) Get(context.Context, dlisting.Ref) (*dlisting.Data, error) {
 	return nil, errors.New("x")
 }
 
 func TestRunPreview_encodeErr(t *testing.T) {
-	c := RunPreview(errWriter{}, []string{"id"}, &previewDeps{
+	c := RunPreview(errWriter{}, []string{"yahoo_auction", "id"}, &previewDeps{
 		LoadConfig: func() (*config.Config, error) {
-			return &config.Config{OpenAIAPIKey: "k", APIEndpoint: "http://localhost:8080"}, nil
+			return &config.Config{OpenAIAPIKey: "k"}, nil
 		},
 		NewOpenAIClient: func(cfg *config.Config) (openai.Client, error) {
 			return &fakePreviewGem{}, nil
 		},
-		NewAuctionClient: func(string) infraauction.Client {
-			return &okAuction{}
-		},
+		NewListingClient: func() infralisting.Client { return &okListing{} },
 	})
 	if c != 2 {
 		t.Fatalf("code=%d", c)
@@ -109,27 +112,31 @@ type errWriter struct{}
 
 func (errWriter) Write(p []byte) (n int, err error) { return 0, errors.New("w") }
 
-type okAuction struct{}
+type okListing struct{}
 
-func (okAuction) GetAuction(context.Context, string) (*infraauction.AuctionData, error) {
+func (okListing) Get(context.Context, dlisting.Ref) (*dlisting.Data, error) {
 	end := time.Now()
-	return &infraauction.AuctionData{
-		AuctionID: "a", Title: "T", CurrentPrice: 1, Status: "S", Description: "d", EndTime: &end,
+	return &dlisting.Data{
+		Ref:         dlisting.Ref{Market: dlisting.MarketYahooAuction, ListingID: "id"},
+		Title:       "T",
+		Price:       1,
+		Description: "d",
+		EndTime:     &end,
+		SaleType:    dlisting.SaleTypeAuction,
+		IsActive:    true,
 	}, nil
 }
 
 func TestRunPreview_emptyProductExit(t *testing.T) {
 	var buf bytes.Buffer
-	c := RunPreview(&buf, []string{"id"}, &previewDeps{
+	c := RunPreview(&buf, []string{"yahoo_auction", "id"}, &previewDeps{
 		LoadConfig: func() (*config.Config, error) {
-			return &config.Config{OpenAIAPIKey: "k", APIEndpoint: "http://localhost:8080"}, nil
+			return &config.Config{OpenAIAPIKey: "k"}, nil
 		},
 		NewOpenAIClient: func(cfg *config.Config) (openai.Client, error) {
 			return &emptyProductGem{}, nil
 		},
-		NewAuctionClient: func(string) infraauction.Client {
-			return &okAuction{}
-		},
+		NewListingClient: func() infralisting.Client { return &okListing{} },
 	})
 	if c != 1 {
 		t.Fatalf("code=%d", c)
@@ -144,16 +151,14 @@ func (emptyProductGem) Extract(context.Context, product.ExtractInput) (*product.
 
 func TestRunPreview_success(t *testing.T) {
 	var buf bytes.Buffer
-	c := RunPreview(&buf, []string{"id"}, &previewDeps{
+	c := RunPreview(&buf, []string{"yahoo_auction", "id"}, &previewDeps{
 		LoadConfig: func() (*config.Config, error) {
-			return &config.Config{OpenAIAPIKey: "k", APIEndpoint: "http://localhost:8080"}, nil
+			return &config.Config{OpenAIAPIKey: "k"}, nil
 		},
 		NewOpenAIClient: func(cfg *config.Config) (openai.Client, error) {
 			return &fakePreviewGem{}, nil
 		},
-		NewAuctionClient: func(string) infraauction.Client {
-			return &okAuction{}
-		},
+		NewListingClient: func() infralisting.Client { return &okListing{} },
 	})
 	if c != 0 {
 		t.Fatalf("code=%d", c)

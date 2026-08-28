@@ -7,9 +7,11 @@ import (
 	"time"
 
 	appwatch "jo3qma.com/yahoo_auctions_bot/internal/application/watch"
+	dlisting "jo3qma.com/yahoo_auctions_bot/internal/domain/listing"
 	domainwatch "jo3qma.com/yahoo_auctions_bot/internal/domain/watch"
-	"jo3qma.com/yahoo_auctions_bot/internal/infrastructure/auction"
 )
+
+const testMarket = dlisting.MarketYahooAuction
 
 type mockNotifier struct {
 	mu               sync.Mutex
@@ -18,14 +20,14 @@ type mockNotifier struct {
 }
 
 type priceNotification struct {
-	AuctionID string
+	ListingID string
 	UserID    string
 	OldPrice  int64
 	NewPrice  int64
 }
 
 type endingNotification struct {
-	AuctionID    string
+	ListingID    string
 	UserID       string
 	CurrentPrice int64
 }
@@ -34,7 +36,7 @@ func (m *mockNotifier) NotifyPriceAlert(_ context.Context, item *domainwatch.Wat
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.priceIncreases = append(m.priceIncreases, priceNotification{
-		AuctionID: item.AuctionID, UserID: item.UserID, OldPrice: oldPrice, NewPrice: newPrice,
+		ListingID: item.ListingID, UserID: item.UserID, OldPrice: oldPrice, NewPrice: newPrice,
 	})
 	return nil
 }
@@ -43,17 +45,17 @@ func (m *mockNotifier) NotifyEndingReminder(_ context.Context, item *domainwatch
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.endingSoonAlerts = append(m.endingSoonAlerts, endingNotification{
-		AuctionID: item.AuctionID, UserID: item.UserID, CurrentPrice: currentPrice,
+		ListingID: item.ListingID, UserID: item.UserID, CurrentPrice: currentPrice,
 	})
 	return nil
 }
 
 type mockFetcher struct {
-	data map[string]*auction.AuctionData
+	data map[string]*dlisting.Data
 }
 
-func (m *mockFetcher) GetAuction(_ context.Context, auctionID string) (*auction.AuctionData, error) {
-	return m.data[auctionID], nil
+func (m *mockFetcher) Get(_ context.Context, ref dlisting.Ref) (*dlisting.Data, error) {
+	return m.data[ref.ListingID], nil
 }
 
 func setupTestRepo(t *testing.T) domainwatch.Repository {
@@ -78,10 +80,10 @@ func (s *storeRepo) Add(_ context.Context, item *domainwatch.Watch) error {
 	return nil
 }
 
-func (s *storeRepo) Remove(_ context.Context, auctionID, userID, messageID string) error {
+func (s *storeRepo) Remove(_ context.Context, market dlisting.Market, listingID, userID, messageID string) error {
 	out := s.items[:0]
 	for _, it := range s.items {
-		if it.AuctionID == auctionID && it.UserID == userID && it.MessageID == messageID {
+		if it.Market == market && it.ListingID == listingID && it.UserID == userID && it.MessageID == messageID {
 			continue
 		}
 		out = append(out, it)
@@ -133,10 +135,10 @@ func (s *storeRepo) FindByMessage(_ context.Context, messageID string) ([]*domai
 	return out, nil
 }
 
-func (s *storeRepo) RemoveByAuctionID(_ context.Context, auctionID string) error {
+func (s *storeRepo) RemoveByListing(_ context.Context, market dlisting.Market, listingID string) error {
 	out := s.items[:0]
 	for _, it := range s.items {
-		if it.AuctionID == auctionID {
+		if it.Market == market && it.ListingID == listingID {
 			continue
 		}
 		out = append(out, it)
@@ -151,17 +153,18 @@ func TestPollingWorker_PriceAlert(t *testing.T) {
 
 	endTime := time.Now().Add(2 * time.Hour)
 	if err := repo.Add(ctx, &domainwatch.Watch{
-		AuctionID: "auc1", UserID: "u1", GuildID: "g1",
+		Market: testMarket, ListingID: "auc1", UserID: "u1", GuildID: "g1",
 		ChannelID: "c1", MessageID: "m1", LastKnownPrice: 1000, EndTime: &endTime,
 	}); err != nil {
 		t.Fatalf("repo.Add: %v", err)
 	}
 
 	notifier := &mockNotifier{}
-	fetcher := &mockFetcher{data: map[string]*auction.AuctionData{
+	fetcher := &mockFetcher{data: map[string]*dlisting.Data{
 		"auc1": {
-			AuctionID: "auc1", Title: "Test Item", CurrentPrice: 2000,
-			Status: "AUCTION_STATUS_ACTIVE", EndTime: &endTime,
+			Ref: dlisting.Ref{Market: testMarket, ListingID: "auc1"},
+			Title: "Test Item", Price: 2000,
+			SaleType: dlisting.SaleTypeAuction, IsActive: true, EndTime: &endTime,
 		},
 	}}
 
@@ -195,17 +198,18 @@ func TestPollingWorker_EndingReminder(t *testing.T) {
 
 	endTime := time.Now().Add(5 * time.Minute)
 	if err := repo.Add(ctx, &domainwatch.Watch{
-		AuctionID: "auc1", UserID: "u1", GuildID: "g1",
+		Market: testMarket, ListingID: "auc1", UserID: "u1", GuildID: "g1",
 		ChannelID: "c1", MessageID: "m1", LastKnownPrice: 1000, EndTime: &endTime,
 	}); err != nil {
 		t.Fatalf("repo.Add: %v", err)
 	}
 
 	notifier := &mockNotifier{}
-	fetcher := &mockFetcher{data: map[string]*auction.AuctionData{
+	fetcher := &mockFetcher{data: map[string]*dlisting.Data{
 		"auc1": {
-			AuctionID: "auc1", Title: "Test Item", CurrentPrice: 1000,
-			Status: "AUCTION_STATUS_ACTIVE", EndTime: &endTime,
+			Ref: dlisting.Ref{Market: testMarket, ListingID: "auc1"},
+			Title: "Test Item", Price: 1000,
+			SaleType: dlisting.SaleTypeAuction, IsActive: true, EndTime: &endTime,
 		},
 	}}
 
@@ -235,17 +239,18 @@ func TestPollingWorker_FinishedAuctionCleanup(t *testing.T) {
 
 	endTime := time.Now().Add(-1 * time.Hour)
 	if err := repo.Add(ctx, &domainwatch.Watch{
-		AuctionID: "auc1", UserID: "u1", GuildID: "g1",
+		Market: testMarket, ListingID: "auc1", UserID: "u1", GuildID: "g1",
 		ChannelID: "c1", MessageID: "m1", LastKnownPrice: 1000, EndTime: &endTime,
 	}); err != nil {
 		t.Fatalf("repo.Add: %v", err)
 	}
 
 	notifier := &mockNotifier{}
-	fetcher := &mockFetcher{data: map[string]*auction.AuctionData{
+	fetcher := &mockFetcher{data: map[string]*dlisting.Data{
 		"auc1": {
-			AuctionID: "auc1", Title: "Test Item", CurrentPrice: 1500,
-			Status: "AUCTION_STATUS_FINISHED", EndTime: &endTime,
+			Ref: dlisting.Ref{Market: testMarket, ListingID: "auc1"},
+			Title: "Test Item", Price: 1500,
+			SaleType: dlisting.SaleTypeAuction, IsActive: false, EndTime: &endTime,
 		},
 	}}
 

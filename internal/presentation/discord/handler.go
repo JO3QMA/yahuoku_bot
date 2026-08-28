@@ -3,22 +3,18 @@ package discord
 import (
 	"context"
 	"log"
-	"regexp"
 
 	"github.com/diamondburned/arikawa/v3/gateway"
 
-	"jo3qma.com/yahoo_auctions_bot/internal/application/auction"
+	applisting "jo3qma.com/yahoo_auctions_bot/internal/application/listing"
+	"jo3qma.com/yahoo_auctions_bot/internal/domain/listing"
 )
 
-// yahooAuctionURLRe はヤフオクURLからオークションIDを抽出する正規表現。
-// 例: https://page.auctions.yahoo.co.jp/jp/auction/xxxx1234
-var yahooAuctionURLRe = regexp.MustCompile(`auctions?\.yahoo\.co\.jp/[^/]+/auction/([a-zA-Z0-9]{8,11})`)
-
-// Handler はメッセージを監視し、ヤフオク URL から Preview を生成するハンドラー。
+// Handler はメッセージを監視し、C2C マーケット URL から Preview を生成するハンドラー。
 type Handler struct {
-	usecase   *auction.PreviewUsecase
-	embed     *EmbedBuilder
-	allowed   *AllowedFilter
+	usecase *applisting.PreviewUsecase
+	embed   *EmbedBuilder
+	allowed *AllowedFilter
 }
 
 // AllowedFilter はconfigに基づくサーバー・チャンネルフィルタ。
@@ -62,13 +58,12 @@ func (f *AllowedFilter) Allow(guildID, channelID string) bool {
 }
 
 // NewHandler はHandlerを生成する。
-func NewHandler(usecase *auction.PreviewUsecase, embed *EmbedBuilder, allowed *AllowedFilter) *Handler {
+func NewHandler(usecase *applisting.PreviewUsecase, embed *EmbedBuilder, allowed *AllowedFilter) *Handler {
 	return &Handler{usecase: usecase, embed: embed, allowed: allowed}
 }
 
 // HandleMessageCreate はMessageCreateEventを処理する。arikawaのAddHandlerに渡す。
 func (h *Handler) HandleMessageCreate(e *gateway.MessageCreateEvent) {
-	// Bot自身のメッセージは無視
 	if e.Author.Bot {
 		return
 	}
@@ -83,23 +78,22 @@ func (h *Handler) HandleMessageCreate(e *gateway.MessageCreateEvent) {
 		return
 	}
 
-	ids := yahooAuctionURLRe.FindAllStringSubmatch(e.Content, -1)
-	if len(ids) == 0 {
+	refs := listing.ParseRefs(e.Content)
+	if len(refs) == 0 {
 		return
 	}
 
-	seen := make(map[string]bool)
-	for _, m := range ids {
-		auctionID := m[1]
-		if seen[auctionID] {
+	seen := make(map[listing.Ref]bool)
+	for _, ref := range refs {
+		if seen[ref] {
 			continue
 		}
-		seen[auctionID] = true
+		seen[ref] = true
 
 		ctx := context.Background()
-		preview, err := h.usecase.Execute(ctx, auctionID)
+		preview, err := h.usecase.Execute(ctx, ref)
 		if err != nil {
-			log.Printf("[yahoo_auctions_bot] GetAuction %s: %v", auctionID, err)
+			log.Printf("[yahoo_auctions_bot] GetListing %s/%s: %v", ref.Market, ref.ListingID, err)
 			continue
 		}
 

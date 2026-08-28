@@ -6,8 +6,9 @@ import (
 	"log"
 	"time"
 
+	"jo3qma.com/yahoo_auctions_bot/internal/domain/listing"
 	"jo3qma.com/yahoo_auctions_bot/internal/domain/watch"
-	"jo3qma.com/yahoo_auctions_bot/internal/infrastructure/auction"
+	infralisting "jo3qma.com/yahoo_auctions_bot/internal/infrastructure/listing"
 )
 
 const reminderThreshold = 10 * time.Minute
@@ -15,7 +16,7 @@ const reminderThreshold = 10 * time.Minute
 // PollingWorker は Watch リストを定期的にポーリングし、通知条件を判定するワーカー。
 type PollingWorker struct {
 	repo     watch.Repository
-	fetcher  auction.Client
+	fetcher  infralisting.Client
 	notifier Notifier
 	interval time.Duration
 	delay    time.Duration
@@ -30,7 +31,7 @@ func WithPollInterval(d time.Duration) PollingOption {
 }
 
 // NewPollingWorker はPollingWorkerを生成する。
-func NewPollingWorker(repo watch.Repository, fetcher auction.Client, notifier Notifier, intervalMinutes, delayMs int, opts ...PollingOption) *PollingWorker {
+func NewPollingWorker(repo watch.Repository, fetcher infralisting.Client, notifier Notifier, intervalMinutes, delayMs int, opts ...PollingOption) *PollingWorker {
 	w := &PollingWorker{
 		repo:     repo,
 		fetcher:  fetcher,
@@ -48,7 +49,6 @@ func NewPollingWorker(repo watch.Repository, fetcher auction.Client, notifier No
 func (w *PollingWorker) Start(ctx context.Context) {
 	log.Printf("[PollingWorker] started (interval=%v, delay=%v)", w.interval, w.delay)
 
-	// 起動直後に1回実行
 	w.poll(ctx)
 
 	ticker := time.NewTicker(w.interval)
@@ -78,23 +78,21 @@ func (w *PollingWorker) poll(ctx context.Context) {
 
 	log.Printf("[PollingWorker] polling %d items", len(items))
 
-	// auction_id でグループ化し、同一商品への重複リクエストを避ける
-	grouped := groupByAuctionID(items)
+	grouped := groupByListing(items)
 
-	for auctionID, group := range grouped {
+	for ref, group := range grouped {
 		if ctx.Err() != nil {
 			return
 		}
 
-		data, err := w.fetcher.GetAuction(ctx, auctionID)
+		data, err := w.fetcher.Get(ctx, ref)
 		if err != nil {
-			log.Printf("[PollingWorker] GetAuction %s: %v", auctionID, err)
+			log.Printf("[PollingWorker] Get %s/%s: %v", ref.Market, ref.ListingID, err)
 			continue
 		}
 
 		w.processGroup(ctx, group, data)
 
-		// 負荷軽減のためディレイ
 		select {
 		case <-ctx.Done():
 			return
@@ -103,12 +101,11 @@ func (w *PollingWorker) poll(ctx context.Context) {
 	}
 }
 
-func (w *PollingWorker) processGroup(ctx context.Context, items []*watch.Watch, data *auction.AuctionData) {
-	// 終了済み Auction は全 Watch を解除
-	if data.Status == "AUCTION_STATUS_FINISHED" || data.Status == "AUCTION_STATUS_CANCELED" {
-		log.Printf("[PollingWorker] auction %s ended (status=%s), removing all watchers", data.AuctionID, data.Status)
-		if err := w.repo.RemoveByAuctionID(ctx, data.AuctionID); err != nil {
-			log.Printf("[PollingWorker] remove by auction: %v", err)
+func (w *PollingWorker) processGroup(ctx context.Context, items []*watch.Watch, data *listing.Data) {
+	if !data.IsActive {
+		log.Printf("[PollingWorker] listing %s/%s inactive, removing all watchers", data.Ref.Market, data.Ref.ListingID)
+		if err := w.repo.RemoveByListing(ctx, data.Ref.Market, data.Ref.ListingID); err != nil {
+			log.Printf("[PollingWorker] remove by listing: %v", err)
 		}
 		return
 	}
@@ -116,35 +113,33 @@ func (w *PollingWorker) processGroup(ctx context.Context, items []*watch.Watch, 
 	now := time.Now()
 
 	for _, item := range items {
-		// 価格上昇チェック
-		if data.CurrentPrice > item.LastKnownPrice {
-			if err := w.notifier.NotifyPriceAlert(ctx, item, item.LastKnownPrice, data.CurrentPrice, data.Title); err != nil {
+		if data.Price != item.LastKnownPrice {
+			if err := w.notifier.NotifyPriceAlert(ctx, item, item.LastKnownPrice, data.Price, data.Title); err != nil {
 				log.Printf("[PollingWorker] notify price alert: %v", err)
 			}
-			if err := w.repo.UpdatePrice(ctx, item.ID, data.CurrentPrice); err != nil {
+			if err := w.repo.UpdatePrice(ctx, item.ID, data.Price); err != nil {
 				log.Printf("[PollingWorker] update price: %v", err)
 			}
 		}
 
-		// EndingReminder チェック
-		endTime := effectiveEndTime(data, item)
-		if !item.Reminded && endTime != nil {
-			remaining := endTime.Sub(now)
-			if shouldSendEndingReminder(remaining, w.interval, reminderThreshold) {
-				if err := w.notifier.NotifyEndingReminder(ctx, item, data.CurrentPrice, data.Title, remaining); err != nil {
-					log.Printf("[PollingWorker] notify ending reminder: %v", err)
-					continue
-				}
-				if err := w.markRemindedWithRetry(ctx, item.ID); err != nil {
-					log.Printf("[PollingWorker] %v", err)
+		if data.IsAuction() {
+			endTime := effectiveEndTime(data, item)
+			if !item.Reminded && endTime != nil {
+				remaining := endTime.Sub(now)
+				if shouldSendEndingReminder(remaining, w.interval, reminderThreshold) {
+					if err := w.notifier.NotifyEndingReminder(ctx, item, data.Price, data.Title, remaining); err != nil {
+						log.Printf("[PollingWorker] notify ending reminder: %v", err)
+						continue
+					}
+					if err := w.markRemindedWithRetry(ctx, item.ID); err != nil {
+						log.Printf("[PollingWorker] %v", err)
+					}
 				}
 			}
 		}
 	}
 }
 
-// shouldSendEndingReminder は EndingReminder を送るべきか判定する。
-// 10分以内、または次回ポール前に Auction が終了する場合に true（取りこぼし防止）。
 func shouldSendEndingReminder(remaining, interval, threshold time.Duration) bool {
 	if remaining <= 0 {
 		return false
@@ -157,7 +152,6 @@ func shouldSendEndingReminder(remaining, interval, threshold time.Duration) bool
 
 const markRemindedAttempts = 3
 
-// markRemindedWithRetry は通知成功後に reminded フラグを設定する。DB 障害時は稀に重複通知の可能性あり。
 func (w *PollingWorker) markRemindedWithRetry(ctx context.Context, itemID int64) error {
 	var err error
 	for attempt := 0; attempt < markRemindedAttempts; attempt++ {
@@ -168,18 +162,18 @@ func (w *PollingWorker) markRemindedWithRetry(ctx context.Context, itemID int64)
 	return fmt.Errorf("mark reminded failed after %d attempts: %w", markRemindedAttempts, err)
 }
 
-// effectiveEndTime は API の終了時刻を優先し、なければ DB 保存値を使う。
-func effectiveEndTime(data *auction.AuctionData, item *watch.Watch) *time.Time {
+func effectiveEndTime(data *listing.Data, item *watch.Watch) *time.Time {
 	if data.EndTime != nil {
 		return data.EndTime
 	}
 	return item.EndTime
 }
 
-func groupByAuctionID(items []*watch.Watch) map[string][]*watch.Watch {
-	grouped := make(map[string][]*watch.Watch)
+func groupByListing(items []*watch.Watch) map[listing.Ref][]*watch.Watch {
+	grouped := make(map[listing.Ref][]*watch.Watch)
 	for _, item := range items {
-		grouped[item.AuctionID] = append(grouped[item.AuctionID], item)
+		ref := listing.Ref{Market: item.Market, ListingID: item.ListingID}
+		grouped[ref] = append(grouped[ref], item)
 	}
 	return grouped
 }
