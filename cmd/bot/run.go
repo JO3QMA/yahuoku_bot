@@ -58,9 +58,7 @@ func mergeBotDeps(d *botDeps) {
 		d.LoadConfig = config.Load
 	}
 	if d.NewOpenAIClient == nil {
-		d.NewOpenAIClient = func(cfg *config.Config) (openai.Client, error) {
-			return openai.NewClient(cfg.OpenAIAPIKey, cfg.OpenAI)
-		}
+		d.NewOpenAIClient = config.NewOpenAIClient
 	}
 	if d.NewListingClient == nil {
 		d.NewListingClient = infralisting.NewClient
