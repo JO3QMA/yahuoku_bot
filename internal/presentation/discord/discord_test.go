@@ -314,8 +314,10 @@ func TestHandler_HandleMessageCreate(t *testing.T) {
 func TestEmbedBuilder_Build_and_Send(t *testing.T) {
 	sf := true
 	p := &applisting.Preview{
-		Ref: dlisting.Ref{Market: dlisting.MarketYahooAuction, ListingID: "a"}, Title: "T", URL: "https://page.auctions.yahoo.co.jp/jp/auction/abc12345678",
-		CurrentPrice: 0, Images: []string{"https://i"}, EndTime: nil,
+		Data: dlisting.Data{
+			Ref: dlisting.Ref{Market: dlisting.MarketYahooAuction, ListingID: "a"}, Title: "T", URL: "https://page.auctions.yahoo.co.jp/jp/auction/abc12345678",
+			Price: 0, ImageURLs: []string{"https://i"},
+		},
 		Product: &product.Product{
 			Category: product.CategoryServer, Condition: "新品", FreeShipping: &sf,
 			Fields: []product.Field{
@@ -354,17 +356,17 @@ func TestEmbedBuilder_priceAndTime(t *testing.T) {
 	future := time.Now().Add(30 * time.Minute)
 	future2 := time.Now().Add(3 * time.Hour)
 	future3 := time.Now().Add(30 * time.Hour)
-	_ = b.Build(&applisting.Preview{CurrentPrice: -1, EndTime: &past})
-	_ = b.Build(&applisting.Preview{CurrentPrice: 1500, EndTime: &future})
-	_ = b.Build(&applisting.Preview{CurrentPrice: 2000, EndTime: &future2})
-	_ = b.Build(&applisting.Preview{CurrentPrice: 3000, EndTime: &future3})
+	_ = b.Build(&applisting.Preview{Data: dlisting.Data{Price: -1, EndTime: &past}})
+	_ = b.Build(&applisting.Preview{Data: dlisting.Data{Price: 1500, EndTime: &future}})
+	_ = b.Build(&applisting.Preview{Data: dlisting.Data{Price: 2000, EndTime: &future2}})
+	_ = b.Build(&applisting.Preview{Data: dlisting.Data{Price: 3000, EndTime: &future3}})
 	sf := false
 	_ = b.Build(&applisting.Preview{Product: &product.Product{FreeShipping: &sf}})
 	_ = b.Build(&applisting.Preview{Product: &product.Product{
 		Category: product.CategoryServer,
 		Fields:   []product.Field{{Key: "cpu_model_line", Value: "不明"}},
 	}})
-	_ = b.Build(&applisting.Preview{CurrentPrice: 12_345_678, EndTime: &future})
+	_ = b.Build(&applisting.Preview{Data: dlisting.Data{Price: 12_345_678, EndTime: &future}})
 }
 
 func TestThreadNotifier(t *testing.T) {
