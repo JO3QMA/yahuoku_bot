@@ -26,11 +26,7 @@ func mergePreviewDeps(d *previewDeps) {
 	}
 	if d.NewOpenAIClient == nil {
 		d.NewOpenAIClient = func(cfg *config.Config) (openai.Client, error) {
-			opts := openai.NewOptions(
-				cfg.OpenAIBaseURL, cfg.OpenAIModel, cfg.OpenAIModelVision, cfg.OpenAIModelAgent,
-				cfg.OpenAIMaxImages, cfg.OpenAIMaxSearchCalls, cfg.OpenAIPipelineTimeoutSec,
-			)
-			return openai.NewClient(cfg.OpenAIAPIKey, opts)
+			return openai.NewClient(cfg.OpenAIAPIKey, cfg.OpenAI)
 		}
 	}
 	if d.NewListingClient == nil {

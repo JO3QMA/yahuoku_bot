@@ -30,8 +30,8 @@ func TestLoad_envDefaults(t *testing.T) {
 	if cfg.CheckIntervalMinutes != 5 || cfg.PollDelayMs != 2000 {
 		t.Fatalf("intervals: %d %d", cfg.CheckIntervalMinutes, cfg.PollDelayMs)
 	}
-	if cfg.OpenAIMaxImages != 3 || cfg.OpenAIMaxSearchCalls != 3 || cfg.OpenAIPipelineTimeoutSec != 45 {
-		t.Fatalf("openai limits: %d %d timeout %d", cfg.OpenAIMaxImages, cfg.OpenAIMaxSearchCalls, cfg.OpenAIPipelineTimeoutSec)
+	if cfg.OpenAI.MaxImages != 3 || cfg.OpenAI.MaxSearchCalls != 3 || cfg.OpenAI.PipelineTimeoutSec != 45 {
+		t.Fatalf("openai limits: %d %d timeout %d", cfg.OpenAI.MaxImages, cfg.OpenAI.MaxSearchCalls, cfg.OpenAI.PipelineTimeoutSec)
 	}
 }
 
@@ -89,8 +89,8 @@ func TestLoad_openaiPipelineTimeout(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.OpenAIPipelineTimeoutSec != 90 {
-		t.Fatalf("got %d", cfg.OpenAIPipelineTimeoutSec)
+	if cfg.OpenAI.PipelineTimeoutSec != 90 {
+		t.Fatalf("got %d", cfg.OpenAI.PipelineTimeoutSec)
 	}
 }
 
@@ -100,7 +100,7 @@ func TestLoad_openaiBaseURL(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.OpenAIBaseURL != "https://custom.example.com/v1" {
-		t.Fatalf("got %q", cfg.OpenAIBaseURL)
+	if cfg.OpenAI.BaseURL != "https://custom.example.com/v1" {
+		t.Fatalf("got %q", cfg.OpenAI.BaseURL)
 	}
 }

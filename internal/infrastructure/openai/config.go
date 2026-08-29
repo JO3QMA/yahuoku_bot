@@ -21,19 +21,6 @@ type Options struct {
 	PipelineTimeoutSec int
 }
 
-// NewOptions はベース URL・モデル名と数値設定から Options を構築する。
-func NewOptions(baseURL, fastModel, visionModel, agentModel string, maxImages, maxSearchCalls, pipelineTimeoutSec int) Options {
-	return Options{
-		BaseURL:            baseURL,
-		FastModel:          fastModel,
-		VisionModel:        visionModel,
-		AgentModel:         agentModel,
-		MaxImages:          maxImages,
-		MaxSearchCalls:     maxSearchCalls,
-		PipelineTimeoutSec: pipelineTimeoutSec,
-	}.Normalize()
-}
-
 // Normalize は空の設定を既定値で埋める。
 func (o Options) Normalize() Options {
 	if o.BaseURL == "" {
