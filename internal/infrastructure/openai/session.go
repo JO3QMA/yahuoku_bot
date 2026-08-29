@@ -123,7 +123,7 @@ func (s *session) runSearchSupplement(ctx context.Context, title, plainDesc stri
 				ToolCalls: calls,
 			})
 			for _, call := range calls {
-				if call.Function.Name != "lookup_spec" {
+				if !isLookupSpecTool(call.Function.Name) {
 					continue
 				}
 				fr := runLookupSpec(ctx, s.api, s.opts, call, &searchCount, &mirror.searchNotes)

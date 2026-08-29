@@ -53,9 +53,10 @@ type imageURLPart struct {
 }
 
 type toolCall struct {
-	ID       string           `json:"id"`
-	Type     string           `json:"type"`
-	Function toolCallFunction `json:"function"`
+	ID           string           `json:"id"`
+	Type         string           `json:"type"`
+	Function     toolCallFunction `json:"function"`
+	ExtraContent json.RawMessage  `json:"extra_content,omitempty"` // Gemini OpenAI 互換: thought_signature 保持
 }
 
 type toolCallFunction struct {
