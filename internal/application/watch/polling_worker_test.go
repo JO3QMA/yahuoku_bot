@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jo3qma/sansai"
+
 	appwatch "jo3qma.com/yahoo_auctions_bot/internal/application/watch"
 	dlisting "jo3qma.com/yahoo_auctions_bot/internal/domain/listing"
 	domainwatch "jo3qma.com/yahoo_auctions_bot/internal/domain/watch"
@@ -54,8 +56,25 @@ type mockFetcher struct {
 	data map[string]*dlisting.Data
 }
 
-func (m *mockFetcher) Get(_ context.Context, ref dlisting.Ref) (*dlisting.Data, error) {
-	return m.data[ref.ListingID], nil
+func stubSansaiForFetcher(t *testing.T, fetcher *mockFetcher) {
+	t.Helper()
+	prev := appwatch.SansaiGetItem
+	appwatch.SansaiGetItem = func(_ context.Context, m sansai.Market, id string) (*sansai.Item, error) {
+		data := fetcher.data[id]
+		if data == nil {
+			return nil, nil
+		}
+		item := &sansai.Item{
+			Market: sansai.Market(data.Ref.Market), ID: data.Ref.ListingID,
+			Title: data.Title, Price: int(data.Price),
+			SaleType: "auction", IsActive: data.IsActive,
+		}
+		if data.EndTime != nil {
+			item.EndTime = data.EndTime.Format(time.RFC3339)
+		}
+		return item, nil
+	}
+	t.Cleanup(func() { appwatch.SansaiGetItem = prev })
 }
 
 func setupTestRepo(t *testing.T) domainwatch.Repository {
@@ -167,8 +186,9 @@ func TestPollingWorker_PriceAlert(t *testing.T) {
 			SaleType: dlisting.SaleTypeAuction, IsActive: true, EndTime: &endTime,
 		},
 	}}
+	stubSansaiForFetcher(t, fetcher)
 
-	worker := appwatch.NewPollingWorker(repo, fetcher, notifier, 1, 0)
+	worker := appwatch.NewPollingWorker(repo, notifier, 1, 0)
 
 	pollCtx, cancel := context.WithCancel(ctx)
 	done := make(chan struct{})
@@ -212,8 +232,9 @@ func TestPollingWorker_EndingReminder(t *testing.T) {
 			SaleType: dlisting.SaleTypeAuction, IsActive: true, EndTime: &endTime,
 		},
 	}}
+	stubSansaiForFetcher(t, fetcher)
 
-	worker := appwatch.NewPollingWorker(repo, fetcher, notifier, 1, 0)
+	worker := appwatch.NewPollingWorker(repo, notifier, 1, 0)
 
 	pollCtx, cancel := context.WithCancel(ctx)
 	done := make(chan struct{})
@@ -253,8 +274,9 @@ func TestPollingWorker_FinishedAuctionCleanup(t *testing.T) {
 			SaleType: dlisting.SaleTypeAuction, IsActive: false, EndTime: &endTime,
 		},
 	}}
+	stubSansaiForFetcher(t, fetcher)
 
-	worker := appwatch.NewPollingWorker(repo, fetcher, notifier, 1, 0)
+	worker := appwatch.NewPollingWorker(repo, notifier, 1, 0)
 
 	pollCtx, cancel := context.WithCancel(ctx)
 	done := make(chan struct{})

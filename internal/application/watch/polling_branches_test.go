@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jo3qma/sansai"
+
 	dlisting "jo3qma.com/yahoo_auctions_bot/internal/domain/listing"
 	dwatch "jo3qma.com/yahoo_auctions_bot/internal/domain/watch"
 )
@@ -57,8 +59,25 @@ func (errRepo) FindByMessage(context.Context, string) ([]*dwatch.Watch, error) {
 }
 func (errRepo) RemoveByListing(context.Context, dlisting.Market, string) error { return nil }
 
+func stubSansaiGet(t *testing.T, fn func(context.Context, sansai.Market, string) (*sansai.Item, error)) {
+	t.Helper()
+	prev := SansaiGetItem
+	SansaiGetItem = fn
+	t.Cleanup(func() { SansaiGetItem = prev })
+}
+
+func defaultSansaiStub(_ context.Context, m sansai.Market, id string) (*sansai.Item, error) {
+	e := time.Now().Add(time.Hour)
+	data := testListingData(id, 100, true, &e)
+	return &sansai.Item{
+		Market: sansai.Market(data.Ref.Market), ID: data.Ref.ListingID,
+		Price: int(data.Price), SaleType: "auction",
+		EndTime: e.Format(time.RFC3339), IsActive: data.IsActive,
+	}, nil
+}
+
 func TestPollingWorker_poll_listError(t *testing.T) {
-	w := NewPollingWorker(errRepo{}, &stubFetch{}, &noopN{}, 60, 1)
+	w := NewPollingWorker(errRepo{}, &noopN{}, 60, 1)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	w.poll(ctx)
@@ -150,18 +169,21 @@ func (s *storeRepo) RemoveByListing(_ context.Context, market dlisting.Market, l
 
 func TestPollingWorker_poll_empty(t *testing.T) {
 	repo := newStoreRepo()
-	w := NewPollingWorker(repo, &stubFetch{}, &noopN{}, 60, 1)
+	w := NewPollingWorker(repo, &noopN{}, 60, 1)
 	w.poll(context.Background())
 }
 
 func TestPollingWorker_poll_getListingErr(t *testing.T) {
+	stubSansaiGet(t, func(context.Context, sansai.Market, string) (*sansai.Item, error) {
+		return nil, errors.New("e")
+	})
 	repo := newStoreRepo()
 	end := time.Now().Add(time.Hour)
 	_ = repo.Add(context.Background(), &dwatch.Watch{
 		Market: testMarket, ListingID: "x", UserID: "u", GuildID: "g", ChannelID: "c", MessageID: "m",
 		LastKnownPrice: 1, EndTime: &end,
 	})
-	w := NewPollingWorker(repo, &errFetch{}, &noopN{}, 60, 1)
+	w := NewPollingWorker(repo, &noopN{}, 60, 1)
 	w.poll(context.Background())
 }
 
@@ -172,7 +194,7 @@ func TestPollingWorker_processGroup_inactive(t *testing.T) {
 		Market: testMarket, ListingID: "x", UserID: "u", GuildID: "g", ChannelID: "c", MessageID: "m",
 		LastKnownPrice: 1, EndTime: &end,
 	})
-	w := NewPollingWorker(repo, &stubFetch{}, &noopN{}, 60, 1)
+	w := NewPollingWorker(repo, &noopN{}, 60, 1)
 	items := []*dwatch.Watch{{ID: 1, Market: testMarket, ListingID: "x", LastKnownPrice: 1, Reminded: false}}
 	w.processGroup(context.Background(), items, testListingData("x", 1, false, &end))
 }
@@ -180,7 +202,7 @@ func TestPollingWorker_processGroup_inactive(t *testing.T) {
 func TestPollingWorker_processGroup_notifyPriceErr(t *testing.T) {
 	end := time.Now().Add(time.Hour)
 	repo := &memRepoPoll{}
-	w := NewPollingWorker(repo, &stubFetch{}, &errN{}, 60, 1)
+	w := NewPollingWorker(repo, &errN{}, 60, 1)
 	items := []*dwatch.Watch{{ID: 1, Market: testMarket, ListingID: "a", LastKnownPrice: 1}}
 	w.processGroup(context.Background(), items, testListingData("a", 9, true, &end))
 }
@@ -188,7 +210,7 @@ func TestPollingWorker_processGroup_notifyPriceErr(t *testing.T) {
 func TestPollingWorker_processGroup_updatePriceErr(t *testing.T) {
 	end := time.Now().Add(time.Hour)
 	repo := &memRepoPoll{upErr: errors.New("u")}
-	w := NewPollingWorker(repo, &stubFetch{}, &noopN{}, 60, 1)
+	w := NewPollingWorker(repo, &noopN{}, 60, 1)
 	items := []*dwatch.Watch{{ID: 1, Market: testMarket, ListingID: "a", LastKnownPrice: 1}}
 	w.processGroup(context.Background(), items, testListingData("a", 9, true, &end))
 }
@@ -196,7 +218,7 @@ func TestPollingWorker_processGroup_updatePriceErr(t *testing.T) {
 func TestPollingWorker_processGroup_endingNotifyErr(t *testing.T) {
 	end := time.Now().Add(5 * time.Minute)
 	repo := &memRepoPoll{}
-	w := NewPollingWorker(repo, &stubFetch{}, &errN{}, 60, 1)
+	w := NewPollingWorker(repo, &errN{}, 60, 1)
 	items := []*dwatch.Watch{{ID: 1, Market: testMarket, ListingID: "a", LastKnownPrice: 1, Reminded: false}}
 	w.processGroup(context.Background(), items, testListingData("a", 1, true, &end))
 }
@@ -204,7 +226,7 @@ func TestPollingWorker_processGroup_endingNotifyErr(t *testing.T) {
 func TestPollingWorker_processGroup_markRemindedErr(t *testing.T) {
 	end := time.Now().Add(5 * time.Minute)
 	repo := &memRepoPoll{mrErr: errors.New("m")}
-	w := NewPollingWorker(repo, &stubFetch{}, &noopN{}, 60, 1)
+	w := NewPollingWorker(repo, &noopN{}, 60, 1)
 	items := []*dwatch.Watch{{ID: 1, Market: testMarket, ListingID: "a", LastKnownPrice: 1, Reminded: false}}
 	w.processGroup(context.Background(), items, testListingData("a", 1, true, &end))
 }
@@ -212,22 +234,23 @@ func TestPollingWorker_processGroup_markRemindedErr(t *testing.T) {
 func TestPollingWorker_processGroup_removeByListingErr(t *testing.T) {
 	end := time.Now()
 	repo := &memRepoPoll{rmListingErr: errors.New("r")}
-	w := NewPollingWorker(repo, &stubFetch{}, &noopN{}, 60, 1)
+	w := NewPollingWorker(repo, &noopN{}, 60, 1)
 	items := []*dwatch.Watch{{Market: testMarket, ListingID: "a"}}
 	w.processGroup(context.Background(), items, testListingData("a", 0, false, &end))
 }
 
 func TestPollingWorker_poll_ctxCanceledBeforeGet(t *testing.T) {
 	repo := &memRepoPoll{}
-	w := NewPollingWorker(repo, &stubFetch{}, &noopN{}, 60, 0)
+	w := NewPollingWorker(repo, &noopN{}, 60, 0)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	w.poll(ctx)
 }
 
 func TestPollingWorker_poll_cancelInDelay(t *testing.T) {
+	stubSansaiGet(t, defaultSansaiStub)
 	repo := &memRepoTwoListing{}
-	w := NewPollingWorker(repo, &stubFetch{}, &noopN{}, 60, 40)
+	w := NewPollingWorker(repo, &noopN{}, 60, 40)
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
 		time.Sleep(8 * time.Millisecond)
@@ -237,8 +260,9 @@ func TestPollingWorker_poll_cancelInDelay(t *testing.T) {
 }
 
 func TestPollingWorker_Start_tickerTick(t *testing.T) {
+	stubSansaiGet(t, defaultSansaiStub)
 	repo := &memRepoTwoListing{}
-	w := NewPollingWorker(repo, &stubFetch{}, &noopN{}, 60, 0, WithPollInterval(15*time.Millisecond))
+	w := NewPollingWorker(repo, &noopN{}, 60, 0, WithPollInterval(15*time.Millisecond))
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() {
@@ -276,19 +300,6 @@ func (memRepoTwoListing) FindByMessage(context.Context, string) ([]*dwatch.Watch
 	return nil, nil
 }
 func (memRepoTwoListing) RemoveByListing(context.Context, dlisting.Market, string) error { return nil }
-
-type stubFetch struct{}
-
-func (stubFetch) Get(_ context.Context, ref dlisting.Ref) (*dlisting.Data, error) {
-	e := time.Now().Add(time.Hour)
-	return testListingData(ref.ListingID, 100, true, &e), nil
-}
-
-type errFetch struct{}
-
-func (errFetch) Get(context.Context, dlisting.Ref) (*dlisting.Data, error) {
-	return nil, errors.New("e")
-}
 
 type noopN struct{}
 
@@ -347,7 +358,7 @@ func (m *memRepoPoll) RemoveByListing(context.Context, dlisting.Market, string) 
 func TestPollingWorker_processGroup_endingNotifyErr_noMarkReminded(t *testing.T) {
 	end := time.Now().Add(5 * time.Minute)
 	repo := &memRepoPoll{}
-	w := NewPollingWorker(repo, &stubFetch{}, &errN{}, 60, 1)
+	w := NewPollingWorker(repo, &errN{}, 60, 1)
 	items := []*dwatch.Watch{{ID: 1, Market: testMarket, ListingID: "a", LastKnownPrice: 1, Reminded: false, EndTime: &end}}
 	w.processGroup(context.Background(), items, testListingData("a", 1, true, &end))
 	if len(repo.markedReminded) != 0 {
@@ -359,7 +370,7 @@ func TestPollingWorker_processGroup_fallbackItemEndTime(t *testing.T) {
 	end := time.Now().Add(5 * time.Minute)
 	repo := &memRepoPoll{}
 	notifier := &trackEndingN{}
-	w := NewPollingWorker(repo, &stubFetch{}, notifier, 60, 1)
+	w := NewPollingWorker(repo, notifier, 60, 1)
 	items := []*dwatch.Watch{{ID: 1, Market: testMarket, ListingID: "a", LastKnownPrice: 1, Reminded: false, EndTime: &end}}
 	w.processGroup(context.Background(), items, testListingData("a", 1, true, nil))
 	if !notifier.called {
@@ -374,7 +385,7 @@ func TestPollingWorker_processGroup_triggerWindowWithLongInterval(t *testing.T) 
 	end := time.Now().Add(12 * time.Minute)
 	repo := &memRepoPoll{}
 	notifier := &trackEndingN{}
-	w := NewPollingWorker(repo, &stubFetch{}, notifier, 60, 1, WithPollInterval(15*time.Minute))
+	w := NewPollingWorker(repo, notifier, 60, 1, WithPollInterval(15*time.Minute))
 	items := []*dwatch.Watch{{ID: 1, Market: testMarket, ListingID: "a", LastKnownPrice: 1, Reminded: false, EndTime: &end}}
 	w.processGroup(context.Background(), items, testListingData("a", 1, true, &end))
 	if !notifier.called {
@@ -386,7 +397,7 @@ func TestPollingWorker_processGroup_noEarlyTrigger(t *testing.T) {
 	end := time.Now().Add(20 * time.Minute)
 	repo := &memRepoPoll{}
 	notifier := &trackEndingN{}
-	w := NewPollingWorker(repo, &stubFetch{}, notifier, 60, 1, WithPollInterval(15*time.Minute))
+	w := NewPollingWorker(repo, notifier, 60, 1, WithPollInterval(15*time.Minute))
 	items := []*dwatch.Watch{{ID: 1, Market: testMarket, ListingID: "a", LastKnownPrice: 1, Reminded: false, EndTime: &end}}
 	w.processGroup(context.Background(), items, testListingData("a", 1, true, &end))
 	if notifier.called {
@@ -401,7 +412,7 @@ func TestPollingWorker_processGroup_markRemindedRetry(t *testing.T) {
 	end := time.Now().Add(5 * time.Minute)
 	repo := &memRepoPoll{mrFailUntil: 2}
 	notifier := &trackEndingN{}
-	w := NewPollingWorker(repo, &stubFetch{}, notifier, 60, 1)
+	w := NewPollingWorker(repo, notifier, 60, 1)
 	items := []*dwatch.Watch{{ID: 1, Market: testMarket, ListingID: "a", LastKnownPrice: 1, Reminded: false, EndTime: &end}}
 	w.processGroup(context.Background(), items, testListingData("a", 1, true, &end))
 	if !notifier.called {

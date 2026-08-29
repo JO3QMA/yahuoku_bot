@@ -6,10 +6,10 @@ import (
 
 	"github.com/diamondburned/arikawa/v3/discord"
 	"github.com/diamondburned/arikawa/v3/gateway"
+	"github.com/jo3qma/sansai"
 
 	appwatch "jo3qma.com/yahoo_auctions_bot/internal/application/watch"
 	"jo3qma.com/yahoo_auctions_bot/internal/domain/listing"
-	infralisting "jo3qma.com/yahoo_auctions_bot/internal/infrastructure/listing"
 )
 
 const (
@@ -17,23 +17,23 @@ const (
 	eyesEmoji  = "\U0001F440" // 👀
 )
 
+// sansaiGetItem は sansai.Get の差し替え用（テストのみ、同一 package）。
+var sansaiGetItem = sansai.Get
+
 // ReactionHandler はリアクションイベントを処理し、Watch の登録/解除を行う。
 type ReactionHandler struct {
-	watchUsecase  *appwatch.WatchUsecase
-	listingClient infralisting.Client
-	api           SessionAPI
+	watchUsecase *appwatch.WatchUsecase
+	api          SessionAPI
 }
 
 // NewReactionHandler はReactionHandlerを生成する。
 func NewReactionHandler(
 	watchUsecase *appwatch.WatchUsecase,
-	listingClient infralisting.Client,
 	api SessionAPI,
 ) *ReactionHandler {
 	return &ReactionHandler{
-		watchUsecase:  watchUsecase,
-		listingClient: listingClient,
-		api:           api,
+		watchUsecase: watchUsecase,
+		api:          api,
 	}
 }
 
@@ -69,11 +69,16 @@ func (h *ReactionHandler) HandleReactionAdd(e *gateway.MessageReactionAddEvent) 
 		return
 	}
 
-	data, err := h.listingClient.Get(ctx, ref)
+	item, err := sansaiGetItem(ctx, sansai.Market(ref.Market), ref.ListingID)
 	if err != nil {
 		log.Printf("[ReactionHandler] GetListing %s/%s: %v", ref.Market, ref.ListingID, err)
 		return
 	}
+	if item == nil {
+		log.Printf("[ReactionHandler] GetListing %s/%s: listing not found", ref.Market, ref.ListingID)
+		return
+	}
+	data := listing.FromSansaiItem(item)
 
 	guildID := ""
 	if e.GuildID.IsValid() {

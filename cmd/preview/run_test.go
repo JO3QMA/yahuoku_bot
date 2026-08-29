@@ -8,11 +8,12 @@ import (
 	"testing"
 	"time"
 
+	applisting "jo3qma.com/yahoo_auctions_bot/internal/application/listing"
 	"jo3qma.com/yahoo_auctions_bot/internal/config"
-	dlisting "jo3qma.com/yahoo_auctions_bot/internal/domain/listing"
 	"jo3qma.com/yahoo_auctions_bot/internal/domain/product"
-	infralisting "jo3qma.com/yahoo_auctions_bot/internal/infrastructure/listing"
 	"jo3qma.com/yahoo_auctions_bot/internal/infrastructure/openai"
+
+	"github.com/jo3qma/sansai"
 )
 
 func TestRunPreview_usage(t *testing.T) {
@@ -72,7 +73,25 @@ func (fakePreviewGem) Extract(context.Context, product.ExtractInput) (*product.P
 	}, nil
 }
 
+func stubPreviewSansai(t *testing.T, err error) {
+	t.Helper()
+	prev := applisting.SansaiGetItem
+	applisting.SansaiGetItem = func(context.Context, sansai.Market, string) (*sansai.Item, error) {
+		if err != nil {
+			return nil, err
+		}
+		end := time.Now()
+		return &sansai.Item{
+			Market: sansai.MarketYahooAuction, ID: "id", Title: "T", Price: 1,
+			Description: "d", SaleType: "auction",
+			EndTime: end.Format(time.RFC3339), IsActive: true,
+		}, nil
+	}
+	t.Cleanup(func() { applisting.SansaiGetItem = prev })
+}
+
 func TestRunPreview_executeErr(t *testing.T) {
+	stubPreviewSansai(t, errors.New("x"))
 	c := RunPreview(&bytes.Buffer{}, []string{"yahoo_auction", "id"}, &previewDeps{
 		LoadConfig: func() (*config.Config, error) {
 			return &config.Config{OpenAIAPIKey: "k"}, nil
@@ -80,20 +99,14 @@ func TestRunPreview_executeErr(t *testing.T) {
 		NewOpenAIClient: func(cfg *config.Config) (openai.Client, error) {
 			return &fakePreviewGem{}, nil
 		},
-		NewListingClient: func() infralisting.Client { return &failListing{} },
 	})
 	if c != 2 {
 		t.Fatalf("code=%d", c)
 	}
 }
 
-type failListing struct{}
-
-func (failListing) Get(context.Context, dlisting.Ref) (*dlisting.Data, error) {
-	return nil, errors.New("x")
-}
-
 func TestRunPreview_encodeErr(t *testing.T) {
+	stubPreviewSansai(t, nil)
 	c := RunPreview(errWriter{}, []string{"yahoo_auction", "id"}, &previewDeps{
 		LoadConfig: func() (*config.Config, error) {
 			return &config.Config{OpenAIAPIKey: "k"}, nil
@@ -101,7 +114,6 @@ func TestRunPreview_encodeErr(t *testing.T) {
 		NewOpenAIClient: func(cfg *config.Config) (openai.Client, error) {
 			return &fakePreviewGem{}, nil
 		},
-		NewListingClient: func() infralisting.Client { return &okListing{} },
 	})
 	if c != 2 {
 		t.Fatalf("code=%d", c)
@@ -112,22 +124,8 @@ type errWriter struct{}
 
 func (errWriter) Write(p []byte) (n int, err error) { return 0, errors.New("w") }
 
-type okListing struct{}
-
-func (okListing) Get(context.Context, dlisting.Ref) (*dlisting.Data, error) {
-	end := time.Now()
-	return &dlisting.Data{
-		Ref:         dlisting.Ref{Market: dlisting.MarketYahooAuction, ListingID: "id"},
-		Title:       "T",
-		Price:       1,
-		Description: "d",
-		EndTime:     &end,
-		SaleType:    dlisting.SaleTypeAuction,
-		IsActive:    true,
-	}, nil
-}
-
 func TestRunPreview_emptyProductExit(t *testing.T) {
+	stubPreviewSansai(t, nil)
 	var buf bytes.Buffer
 	c := RunPreview(&buf, []string{"yahoo_auction", "id"}, &previewDeps{
 		LoadConfig: func() (*config.Config, error) {
@@ -136,7 +134,6 @@ func TestRunPreview_emptyProductExit(t *testing.T) {
 		NewOpenAIClient: func(cfg *config.Config) (openai.Client, error) {
 			return &emptyProductGem{}, nil
 		},
-		NewListingClient: func() infralisting.Client { return &okListing{} },
 	})
 	if c != 1 {
 		t.Fatalf("code=%d", c)
@@ -150,6 +147,7 @@ func (emptyProductGem) Extract(context.Context, product.ExtractInput) (*product.
 }
 
 func TestRunPreview_success(t *testing.T) {
+	stubPreviewSansai(t, nil)
 	var buf bytes.Buffer
 	c := RunPreview(&buf, []string{"yahoo_auction", "id"}, &previewDeps{
 		LoadConfig: func() (*config.Config, error) {
@@ -158,7 +156,6 @@ func TestRunPreview_success(t *testing.T) {
 		NewOpenAIClient: func(cfg *config.Config) (openai.Client, error) {
 			return &fakePreviewGem{}, nil
 		},
-		NewListingClient: func() infralisting.Client { return &okListing{} },
 	})
 	if c != 0 {
 		t.Fatalf("code=%d", c)

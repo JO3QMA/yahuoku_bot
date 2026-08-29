@@ -6,17 +6,20 @@ import (
 	"log"
 	"time"
 
+	"github.com/jo3qma/sansai"
+
 	"jo3qma.com/yahoo_auctions_bot/internal/domain/listing"
 	"jo3qma.com/yahoo_auctions_bot/internal/domain/watch"
-	infralisting "jo3qma.com/yahoo_auctions_bot/internal/infrastructure/listing"
 )
+
+// SansaiGetItem は sansai.Get の差し替え用（テストのみ）。
+var SansaiGetItem = sansai.Get
 
 const reminderThreshold = 10 * time.Minute
 
 // PollingWorker は Watch リストを定期的にポーリングし、通知条件を判定するワーカー。
 type PollingWorker struct {
 	repo     watch.Repository
-	fetcher  infralisting.Client
 	notifier Notifier
 	interval time.Duration
 	delay    time.Duration
@@ -31,10 +34,9 @@ func WithPollInterval(d time.Duration) PollingOption {
 }
 
 // NewPollingWorker はPollingWorkerを生成する。
-func NewPollingWorker(repo watch.Repository, fetcher infralisting.Client, notifier Notifier, intervalMinutes, delayMs int, opts ...PollingOption) *PollingWorker {
+func NewPollingWorker(repo watch.Repository, notifier Notifier, intervalMinutes, delayMs int, opts ...PollingOption) *PollingWorker {
 	w := &PollingWorker{
 		repo:     repo,
-		fetcher:  fetcher,
 		notifier: notifier,
 		interval: time.Duration(intervalMinutes) * time.Minute,
 		delay:    time.Duration(delayMs) * time.Millisecond,
@@ -85,11 +87,16 @@ func (w *PollingWorker) poll(ctx context.Context) {
 			return
 		}
 
-		data, err := w.fetcher.Get(ctx, ref)
+		item, err := SansaiGetItem(ctx, sansai.Market(ref.Market), ref.ListingID)
 		if err != nil {
 			log.Printf("[PollingWorker] Get %s/%s: %v", ref.Market, ref.ListingID, err)
 			continue
 		}
+		if item == nil {
+			log.Printf("[PollingWorker] Get %s/%s: listing not found", ref.Market, ref.ListingID)
+			continue
+		}
+		data := listing.FromSansaiItem(item)
 
 		w.processGroup(ctx, group, data)
 

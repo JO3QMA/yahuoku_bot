@@ -15,7 +15,6 @@ import (
 	"jo3qma.com/yahoo_auctions_bot/internal/domain/product"
 	"jo3qma.com/yahoo_auctions_bot/internal/domain/listing"
 	"jo3qma.com/yahoo_auctions_bot/internal/domain/watch"
-	infralisting "jo3qma.com/yahoo_auctions_bot/internal/infrastructure/listing"
 	"jo3qma.com/yahoo_auctions_bot/internal/infrastructure/openai"
 	infrarqlite "jo3qma.com/yahoo_auctions_bot/internal/infrastructure/rqlite"
 	"jo3qma.com/yahoo_auctions_bot/internal/presentation/discord"
@@ -124,7 +123,7 @@ func TestRun_rqliteError(t *testing.T) {
 
 func TestRun_discordNewBotError(t *testing.T) {
 	deps := successDeps()
-	deps.NewDiscordBot = func(string, *applisting.PreviewUsecase, *discord.AllowedFilter, *appwatch.WatchUsecase, infralisting.Client, watch.Repository, discord.BotConfig) (discordRunner, error) {
+	deps.NewDiscordBot = func(string, *applisting.PreviewUsecase, *discord.AllowedFilter, *appwatch.WatchUsecase, watch.Repository, discord.BotConfig) (discordRunner, error) {
 		return nil, errors.New("bot")
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -142,29 +141,6 @@ func TestRun_success_rqlite(t *testing.T) {
 	}
 }
 
-func TestRun_usesInjectedListingClient(t *testing.T) {
-	called := false
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-	deps := successDeps()
-	deps.NewListingClient = func() infralisting.Client {
-		called = true
-		return stubListingClient{}
-	}
-	if err := run(ctx, deps); err != nil {
-		t.Fatal(err)
-	}
-	if !called {
-		t.Fatal("NewListingClient not called")
-	}
-}
-
-type stubListingClient struct{}
-
-func (stubListingClient) Get(context.Context, listing.Ref) (*listing.Data, error) {
-	return nil, errors.New("stub")
-}
-
 func TestRun_tokenPrefix(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -175,7 +151,7 @@ func TestRun_tokenPrefix(t *testing.T) {
 			RqliteURL: "http://noop",
 		}, nil
 	}
-	deps.NewDiscordBot = func(token string, _ *applisting.PreviewUsecase, _ *discord.AllowedFilter, _ *appwatch.WatchUsecase, _ infralisting.Client, _ watch.Repository, _ discord.BotConfig) (discordRunner, error) {
+	deps.NewDiscordBot = func(token string, _ *applisting.PreviewUsecase, _ *discord.AllowedFilter, _ *appwatch.WatchUsecase, _ watch.Repository, _ discord.BotConfig) (discordRunner, error) {
 		if token != "Bot rawtoken" {
 			t.Fatalf("token=%q", token)
 		}
@@ -229,7 +205,7 @@ func TestRun_loadConfigFromEnv(t *testing.T) {
 func TestMergeBotDeps_allNil(t *testing.T) {
 	d := &botDeps{}
 	mergeBotDeps(d)
-	if d.LoadConfig == nil || d.NewOpenAIClient == nil || d.NewListingClient == nil || d.OpenRqlite == nil ||
+	if d.LoadConfig == nil || d.NewOpenAIClient == nil || d.OpenRqlite == nil ||
 		d.NewWatchRepo == nil || d.NewDiscordBot == nil {
 		t.Fatal("mergeBotDeps should fill all defaults")
 	}
@@ -252,7 +228,7 @@ func TestMergeBotDeps_defaultWatchRepoBody(t *testing.T) {
 
 func TestRunWithSignal_onSigint(t *testing.T) {
 	deps := successDeps()
-	deps.NewDiscordBot = func(string, *applisting.PreviewUsecase, *discord.AllowedFilter, *appwatch.WatchUsecase, infralisting.Client, watch.Repository, discord.BotConfig) (discordRunner, error) {
+	deps.NewDiscordBot = func(string, *applisting.PreviewUsecase, *discord.AllowedFilter, *appwatch.WatchUsecase, watch.Repository, discord.BotConfig) (discordRunner, error) {
 		return waitCtxRunner{}, nil
 	}
 	go func() {
@@ -274,11 +250,10 @@ func TestRunWithSignal_onSigint(t *testing.T) {
 
 func TestDefaultNewDiscordBot_invokesNewBot(t *testing.T) {
 	repo := &memRepoRqlite{}
-	ac := infralisting.NewClient()
-	pu := applisting.NewPreviewUsecase(ac, &fakeOpenAI{})
+	pu := applisting.NewPreviewUsecase(&fakeOpenAI{})
 	wu := appwatch.NewWatchUsecase(repo)
 	af := discord.NewAllowedFilter(nil, nil)
-	_, errBot := defaultNewDiscordBot("Bot unit-test-token.invalid", pu, af, wu, ac, repo, discord.BotConfig{CheckIntervalMinutes: 60, PollDelayMs: 1})
+	_, errBot := defaultNewDiscordBot("Bot unit-test-token.invalid", pu, af, wu, repo, discord.BotConfig{CheckIntervalMinutes: 60, PollDelayMs: 1})
 	if errBot != nil {
 		t.Logf("NewBot: %v (still covers defaultNewDiscordBot)", errBot)
 	}
@@ -288,7 +263,7 @@ func TestRun_botRunLogsNonCancelError(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	deps := successDeps()
-	deps.NewDiscordBot = func(string, *applisting.PreviewUsecase, *discord.AllowedFilter, *appwatch.WatchUsecase, infralisting.Client, watch.Repository, discord.BotConfig) (discordRunner, error) {
+	deps.NewDiscordBot = func(string, *applisting.PreviewUsecase, *discord.AllowedFilter, *appwatch.WatchUsecase, watch.Repository, discord.BotConfig) (discordRunner, error) {
 		return errRunner{}, nil
 	}
 	if err := run(ctx, deps); err != nil {
@@ -313,7 +288,7 @@ func successDeps() *botDeps {
 		NewWatchRepo: func(*infrarqlite.Client) watch.Repository {
 			return &memRepoRqlite{}
 		},
-		NewDiscordBot: func(string, *applisting.PreviewUsecase, *discord.AllowedFilter, *appwatch.WatchUsecase, infralisting.Client, watch.Repository, discord.BotConfig) (discordRunner, error) {
+		NewDiscordBot: func(string, *applisting.PreviewUsecase, *discord.AllowedFilter, *appwatch.WatchUsecase, watch.Repository, discord.BotConfig) (discordRunner, error) {
 			return fakeRunner{}, nil
 		},
 	}

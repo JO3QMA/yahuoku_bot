@@ -10,7 +10,6 @@ import (
 	applisting "jo3qma.com/yahoo_auctions_bot/internal/application/listing"
 	appwatch "jo3qma.com/yahoo_auctions_bot/internal/application/watch"
 	domainwatch "jo3qma.com/yahoo_auctions_bot/internal/domain/watch"
-	infralisting "jo3qma.com/yahoo_auctions_bot/internal/infrastructure/listing"
 )
 
 // gatewaySession は Bot の Gateway 接続（テストで差し替え可能）。
@@ -39,7 +38,6 @@ func NewBot(
 	previewUsecase *applisting.PreviewUsecase,
 	allowed *AllowedFilter,
 	watchUsecase *appwatch.WatchUsecase,
-	listingClient infralisting.Client,
 	watchRepo domainwatch.Repository,
 	botCfg BotConfig,
 ) (*Bot, error) {
@@ -54,9 +52,9 @@ func NewBot(
 	embed := NewEmbedBuilder(s)
 	h := NewHandler(previewUsecase, embed, allowed)
 
-	reactionHandler := NewReactionHandler(watchUsecase, listingClient, s)
+	reactionHandler := NewReactionHandler(watchUsecase, s)
 	threadNotifier := NewThreadNotifier(s, watchRepo)
-	pollingWorker := appwatch.NewPollingWorker(watchRepo, listingClient, threadNotifier, botCfg.CheckIntervalMinutes, botCfg.PollDelayMs)
+	pollingWorker := appwatch.NewPollingWorker(watchRepo, threadNotifier, botCfg.CheckIntervalMinutes, botCfg.PollDelayMs)
 
 	return &Bot{
 		gateway:         s,
