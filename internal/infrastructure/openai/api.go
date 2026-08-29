@@ -36,10 +36,11 @@ type chatRequest struct {
 }
 
 type chatMessage struct {
-	Role       string     `json:"role"`
-	Content    any        `json:"content"`
-	ToolCalls  []toolCall `json:"tool_calls,omitempty"`
-	ToolCallID string     `json:"tool_call_id,omitempty"`
+	Role         string          `json:"role"`
+	Content      any             `json:"content"`
+	ToolCalls    []toolCall      `json:"tool_calls,omitempty"`
+	ToolCallID   string          `json:"tool_call_id,omitempty"`
+	ExtraContent json.RawMessage `json:"extra_content,omitempty"` // Gemini OpenAI 互換: message 単位の thought_signature
 }
 
 type contentPart struct {

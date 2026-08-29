@@ -121,10 +121,25 @@ func Test_extract_text_only(t *testing.T) {
 	}
 }
 
+func TestChatMessage_preservesExtraContentRoundTrip(t *testing.T) {
+	raw := `{"role":"assistant","content":"","tool_calls":[{"id":"call_1","type":"function","function":{"name":"lookup_spec","arguments":"{}"}}],"extra_content":{"google":{"thought_signature":"msg-sig"}}}`
+	var msg chatMessage
+	if err := json.Unmarshal([]byte(raw), &msg); err != nil {
+		t.Fatal(err)
+	}
+	out, err := json.Marshal(msg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(out), "thought_signature") || !strings.Contains(string(out), "msg-sig") {
+		t.Fatalf("message extra_content lost: %s", string(out))
+	}
+}
+
 func Test_extract_search_supplement_preserves_thought_signature(t *testing.T) {
 	stage1 := `{"category":"server","condition":"","shipping_free":null,"fields":[],"missing_keys":["server_model"],"candidate_queries":[]}`
 	agentDone := `{"fields":[{"key":"server_model","value":"PowerEdge R740"}],"done":true}`
-	extra := json.RawMessage(`{"google":{"thought_signature":"test-sig"}}`)
+	msgExtra := json.RawMessage(`{"google":{"thought_signature":"test-sig"}}`)
 
 	api := &apiClient{httpClient: &http.Client{}}
 	api.stubLookup = func(_ context.Context, q string) (string, error) {
@@ -139,23 +154,30 @@ func Test_extract_search_supplement_preserves_thought_signature(t *testing.T) {
 		if cfg != nil && len(cfg.Tools) > 0 {
 			calls++
 			if calls == 1 {
-				return toolCallResponse(toolCall{
-					ID:           "call_1",
-					Type:         "function",
-					ExtraContent: extra,
-					Function: toolCallFunction{
-						Name:      "default_api:lookup_spec",
-						Arguments: `{"query":"Dell R740","field_key":"server_model"}`,
-					},
-				}), nil
+				return &chatResponse{
+					Choices: []chatChoice{{
+						FinishReason: "tool_calls",
+						Message: chatMessage{
+							Role:         "assistant",
+							ExtraContent: msgExtra,
+							ToolCalls: []toolCall{{
+								ID:   "call_1",
+								Type: "function",
+								Function: toolCallFunction{
+									Name:      "default_api:lookup_spec",
+									Arguments: `{"query":"Dell R740","field_key":"server_model"}`,
+								},
+							}},
+						},
+					}},
+				}, nil
 			}
 			for _, msg := range msgs {
-				if len(msg.ToolCalls) == 0 {
+				if msg.Role != "assistant" || len(msg.ToolCalls) == 0 {
 					continue
 				}
-				tc := msg.ToolCalls[0]
-				if len(tc.ExtraContent) == 0 || !strings.Contains(string(tc.ExtraContent), "test-sig") {
-					t.Fatalf("thought_signature not preserved in follow-up request: %+v", msg.ToolCalls)
+				if len(msg.ExtraContent) == 0 || !strings.Contains(string(msg.ExtraContent), "test-sig") {
+					t.Fatalf("message thought_signature not preserved in follow-up request: %+v", msg)
 				}
 			}
 			return jsonResponse(agentDone), nil

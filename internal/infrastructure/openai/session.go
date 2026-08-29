@@ -118,9 +118,10 @@ func (s *session) runSearchSupplement(ctx context.Context, title, plainDesc stri
 
 		if calls := ch.Message.ToolCalls; len(calls) > 0 {
 			messages = append(messages, chatMessage{
-				Role:      "assistant",
-				Content:   textContent(ch.Message),
-				ToolCalls: calls,
+				Role:         "assistant",
+				Content:      textContent(ch.Message),
+				ToolCalls:    calls,
+				ExtraContent: ch.Message.ExtraContent,
 			})
 			for _, call := range calls {
 				if !isLookupSpecTool(call.Function.Name) {
@@ -147,7 +148,11 @@ func (s *session) runSearchSupplement(ctx context.Context, title, plainDesc stri
 				mirror.applySupplementFields([]product.Field(parsed.Fields))
 				if bool(parsed.Done) {
 					if remaining := product.FilterSupplementEligibleKeys(mirror.category, mirror.unresolvedKeys()); len(remaining) > 0 {
-						messages = append(messages, chatMessage{Role: "assistant", Content: text})
+						messages = append(messages, chatMessage{
+							Role:         "assistant",
+							Content:      text,
+							ExtraContent: ch.Message.ExtraContent,
+						})
 						messages = append(messages, chatMessage{
 							Role:    "user",
 							Content: "done:true ですが Supplement 対象の未解決フィールドが残っています: " + strings.Join(remaining, ", ") + "。lookup_spec で補完するか、確実な値だけ fields に入れてください。",
