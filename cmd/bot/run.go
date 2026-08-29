@@ -10,7 +10,6 @@ import (
 	"syscall"
 
 	applisting "jo3qma.com/yahoo_auctions_bot/internal/application/listing"
-	appwatch "jo3qma.com/yahoo_auctions_bot/internal/application/watch"
 	"jo3qma.com/yahoo_auctions_bot/internal/config"
 	"jo3qma.com/yahoo_auctions_bot/internal/domain/watch"
 	"jo3qma.com/yahoo_auctions_bot/internal/infrastructure/openai"
@@ -28,7 +27,7 @@ type botDeps struct {
 	NewOpenAIClient func(cfg *config.Config) (openai.Client, error)
 	OpenRqlite      func(ctx context.Context, url string, opts ...infrarqlite.NewClientOption) (*infrarqlite.Client, error)
 	NewWatchRepo    func(*infrarqlite.Client) watch.Repository
-	NewDiscordBot   func(token string, pu *applisting.PreviewUsecase, af *discord.AllowedFilter, wu *appwatch.WatchUsecase, repo watch.Repository, cfg discord.BotConfig) (discordRunner, error)
+	NewDiscordBot   func(token string, pu *applisting.PreviewUsecase, af *discord.AllowedFilter, repo watch.Repository, cfg discord.BotConfig) (discordRunner, error)
 }
 
 func runWithSignal(parent context.Context, deps *botDeps) error {
@@ -77,8 +76,8 @@ func mergeBotDeps(d *botDeps) {
 	}
 }
 
-func defaultNewDiscordBot(token string, pu *applisting.PreviewUsecase, af *discord.AllowedFilter, wu *appwatch.WatchUsecase, repo watch.Repository, cfg discord.BotConfig) (discordRunner, error) {
-	return discord.NewBot(token, pu, af, wu, repo, cfg)
+func defaultNewDiscordBot(token string, pu *applisting.PreviewUsecase, af *discord.AllowedFilter, repo watch.Repository, cfg discord.BotConfig) (discordRunner, error) {
+	return discord.NewBot(token, pu, af, repo, cfg)
 }
 
 func run(ctx context.Context, deps *botDeps) error {
@@ -112,7 +111,6 @@ func run(ctx context.Context, deps *botDeps) error {
 	watchRepo := deps.NewWatchRepo(rqliteClient)
 
 	previewUsecase := applisting.NewPreviewUsecase(openaiClient)
-	watchUsecase := appwatch.NewWatchUsecase(watchRepo)
 
 	allowedFilter := discord.NewAllowedFilter(cfg.AllowedGuilds, cfg.AllowedChannels)
 	discordToken := cfg.DiscordToken
@@ -124,7 +122,6 @@ func run(ctx context.Context, deps *botDeps) error {
 		discordToken,
 		previewUsecase,
 		allowedFilter,
-		watchUsecase,
 		watchRepo,
 		discord.BotConfig{
 			CheckIntervalMinutes: cfg.CheckIntervalMinutes,

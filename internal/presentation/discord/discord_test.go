@@ -186,8 +186,7 @@ func TestBot_Run_connectError(t *testing.T) {
 	pu := applisting.NewPreviewUsecase(&stubProductExt{pd: &product.Product{}})
 	h := NewHandler(pu, NewEmbedBuilder(&stubSessionAPI{}), NewAllowedFilter(nil, nil))
 	repo := &memWatchRepo{}
-	wu := appwatch.NewWatchUsecase(repo)
-	rh := NewReactionHandler(wu, &stubSessionAPI{user: &discord.User{ID: discord.UserID(7)}})
+	rh := NewReactionHandler(repo, &stubSessionAPI{user: &discord.User{ID: discord.UserID(7)}})
 	pw := appwatch.NewPollingWorker(repo, &noopNotifier{}, 60, 1)
 	b := NewBotWithDeps(&mockGW{connectErr: errors.New("nope")}, h, rh, pw)
 	err := b.Run(context.Background())
@@ -214,8 +213,7 @@ func TestBot_Run_cancel(t *testing.T) {
 	pu := applisting.NewPreviewUsecase(&stubProductExt{pd: &product.Product{}})
 	h := NewHandler(pu, NewEmbedBuilder(&stubSessionAPI{}), NewAllowedFilter(nil, nil))
 	repo := &memWatchRepo{}
-	wu := appwatch.NewWatchUsecase(repo)
-	rh := NewReactionHandler(wu, &stubSessionAPI{user: &discord.User{ID: discord.UserID(7)}})
+	rh := NewReactionHandler(repo, &stubSessionAPI{user: &discord.User{ID: discord.UserID(7)}})
 	pw := appwatch.NewPollingWorker(repo, &noopNotifier{}, 60, 10_000)
 	b := NewBotWithDeps(&mockGW{}, h, rh, pw)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -602,7 +600,6 @@ func TestLogThreadNotifyHelpers_smoke(t *testing.T) {
 
 func TestReactionHandler_flows(t *testing.T) {
 	repo := &memWatchRepo{}
-	wu := appwatch.NewWatchUsecase(repo)
 	stubReactionSansai(t, testListingData("a", nil), nil)
 	botID := discord.UserID(50)
 	ch := discord.ChannelID(10)
@@ -612,7 +609,7 @@ func TestReactionHandler_flows(t *testing.T) {
 		Embeds: []discord.Embed{{URL: "https://page.auctions.yahoo.co.jp/jp/auction/abc12345678"}},
 	}
 	sess := &stubSessionAPI{msg: msg, user: &discord.User{ID: botID}}
-	rh := NewReactionHandler(wu, sess)
+	rh := NewReactionHandler(repo, sess)
 
 	t.Run("wrong emoji", func(t *testing.T) {
 		rh.HandleReactionAdd(&gateway.MessageReactionAddEvent{
@@ -621,7 +618,7 @@ func TestReactionHandler_flows(t *testing.T) {
 		})
 	})
 	t.Run("me err", func(t *testing.T) {
-		rh2 := NewReactionHandler(wu, &stubSessionAPI{msg: msg, meErr: errors.New("m")})
+		rh2 := NewReactionHandler(repo, &stubSessionAPI{msg: msg, meErr: errors.New("m")})
 		rh2.HandleReactionAdd(&gateway.MessageReactionAddEvent{
 			UserID: 1, ChannelID: ch, MessageID: mid,
 			Emoji: discord.Emoji{Name: "\U0001F514"},
@@ -634,14 +631,14 @@ func TestReactionHandler_flows(t *testing.T) {
 		})
 	})
 	t.Run("fetch err", func(t *testing.T) {
-		rh2 := NewReactionHandler(wu, &stubSessionAPI{msgErr: errors.New("f"), user: &discord.User{ID: botID}})
+		rh2 := NewReactionHandler(repo, &stubSessionAPI{msgErr: errors.New("f"), user: &discord.User{ID: botID}})
 		rh2.HandleReactionAdd(&gateway.MessageReactionAddEvent{
 			UserID: 2, ChannelID: ch, MessageID: mid,
 			Emoji: discord.Emoji{Name: "\U0001F514"},
 		})
 	})
 	t.Run("non bot author", func(t *testing.T) {
-		rh2 := NewReactionHandler(wu, &stubSessionAPI{msg: &discord.Message{
+		rh2 := NewReactionHandler(repo, &stubSessionAPI{msg: &discord.Message{
 			Author: discord.User{ID: 2}, Embeds: msg.Embeds,
 		}, user: &discord.User{ID: botID}})
 		rh2.HandleReactionAdd(&gateway.MessageReactionAddEvent{
@@ -650,7 +647,7 @@ func TestReactionHandler_flows(t *testing.T) {
 		})
 	})
 	t.Run("no auction in embed", func(t *testing.T) {
-		rh2 := NewReactionHandler(wu, &stubSessionAPI{msg: &discord.Message{
+		rh2 := NewReactionHandler(repo, &stubSessionAPI{msg: &discord.Message{
 			Author: discord.User{ID: botID}, Embeds: []discord.Embed{{URL: "https://example.com"}},
 		}, user: &discord.User{ID: botID}})
 		rh2.HandleReactionAdd(&gateway.MessageReactionAddEvent{
@@ -660,7 +657,7 @@ func TestReactionHandler_flows(t *testing.T) {
 	})
 	t.Run("get auction err", func(t *testing.T) {
 		stubReactionSansai(t, nil, errors.New("a"))
-		rh2 := NewReactionHandler(wu, sess)
+		rh2 := NewReactionHandler(repo, sess)
 		rh2.HandleReactionAdd(&gateway.MessageReactionAddEvent{
 			UserID: 2, ChannelID: ch, MessageID: mid,
 			Emoji: discord.Emoji{Name: "\U0001F514"},
@@ -668,7 +665,7 @@ func TestReactionHandler_flows(t *testing.T) {
 	})
 	t.Run("register err", func(t *testing.T) {
 		rrepo := &memWatchRepo{addErr: errors.New("a")}
-		rh2 := NewReactionHandler(appwatch.NewWatchUsecase(rrepo), sess)
+		rh2 := NewReactionHandler(rrepo, sess)
 		rh2.HandleReactionAdd(&gateway.MessageReactionAddEvent{
 			UserID: 2, ChannelID: ch, MessageID: mid,
 			Emoji: discord.Emoji{Name: "\U0001F514"},
@@ -690,19 +687,19 @@ func TestReactionHandler_flows(t *testing.T) {
 			UserID: botID, ChannelID: ch, MessageID: mid,
 			Emoji: discord.Emoji{Name: "\U0001F514"},
 		})
-		rh2 := NewReactionHandler(wu, &stubSessionAPI{msgErr: errors.New("f"), user: &discord.User{ID: botID}})
+		rh2 := NewReactionHandler(repo, &stubSessionAPI{msgErr: errors.New("f"), user: &discord.User{ID: botID}})
 		rh2.HandleReactionRemove(&gateway.MessageReactionRemoveEvent{
 			UserID: 2, ChannelID: ch, MessageID: mid,
 			Emoji: discord.Emoji{Name: "\U0001F514"},
 		})
-		rh3 := NewReactionHandler(wu, &stubSessionAPI{msg: &discord.Message{
+		rh3 := NewReactionHandler(repo, &stubSessionAPI{msg: &discord.Message{
 			Author: discord.User{ID: 2}, Embeds: msg.Embeds,
 		}, user: &discord.User{ID: botID}})
 		rh3.HandleReactionRemove(&gateway.MessageReactionRemoveEvent{
 			UserID: 2, ChannelID: ch, MessageID: mid,
 			Emoji: discord.Emoji{Name: "\U0001F514"},
 		})
-		rh4 := NewReactionHandler(wu, &stubSessionAPI{msg: &discord.Message{
+		rh4 := NewReactionHandler(repo, &stubSessionAPI{msg: &discord.Message{
 			Author: discord.User{ID: botID}, Embeds: []discord.Embed{{URL: "https://example.com"}},
 		}, user: &discord.User{ID: botID}})
 		rh4.HandleReactionRemove(&gateway.MessageReactionRemoveEvent{
@@ -710,7 +707,7 @@ func TestReactionHandler_flows(t *testing.T) {
 			Emoji: discord.Emoji{Name: "\U0001F514"},
 		})
 		rrepo := &memWatchRepo{remErr: errors.New("r")}
-		rh5 := NewReactionHandler(appwatch.NewWatchUsecase(rrepo), sess)
+		rh5 := NewReactionHandler(rrepo, sess)
 		rh5.HandleReactionRemove(&gateway.MessageReactionRemoveEvent{
 			UserID: 2, ChannelID: ch, MessageID: mid,
 			Emoji: discord.Emoji{Name: "\U0001F514"},

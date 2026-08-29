@@ -37,7 +37,6 @@ func NewBot(
 	token string,
 	previewUsecase *applisting.PreviewUsecase,
 	allowed *AllowedFilter,
-	watchUsecase *appwatch.WatchUsecase,
 	watchRepo domainwatch.Repository,
 	botCfg BotConfig,
 ) (*Bot, error) {
@@ -52,7 +51,7 @@ func NewBot(
 	embed := NewEmbedBuilder(s)
 	h := NewHandler(previewUsecase, embed, allowed)
 
-	reactionHandler := NewReactionHandler(watchUsecase, s)
+	reactionHandler := NewReactionHandler(watchRepo, s)
 	threadNotifier := NewThreadNotifier(s, watchRepo)
 	pollingWorker := appwatch.NewPollingWorker(watchRepo, threadNotifier, botCfg.CheckIntervalMinutes, botCfg.PollDelayMs)
 
