@@ -36,7 +36,7 @@ func (waitCtxRunner) Run(ctx context.Context) error {
 
 type fakeOpenAI struct{}
 
-func (fakeOpenAI) Extract(context.Context, product.ExtractInput) (*product.Product, error) {
+func (fakeOpenAI) Extract(context.Context, string, string, []string) (*product.Product, error) {
 	return &product.Product{}, nil
 }
 

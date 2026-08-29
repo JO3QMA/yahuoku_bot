@@ -42,11 +42,7 @@ func (u *PreviewUsecase) Execute(ctx context.Context, ref domainlisting.Ref) (*P
 		return nil, err
 	}
 
-	productData, err := u.extractor.Extract(ctx, product.ExtractInput{
-		Title:       data.Title,
-		Description: data.Description,
-		ImageURLs:   data.ImageURLs,
-	})
+	productData, err := u.extractor.Extract(ctx, data.Title, data.Description, data.ImageURLs)
 	if err != nil {
 		log.Printf("[listing] extraction failed for %s/%s: %v", ref.Market, ref.ListingID, err)
 		if productData == nil {

@@ -122,7 +122,7 @@ type stubProductExt struct {
 	err error
 }
 
-func (s *stubProductExt) Extract(ctx context.Context, in product.ExtractInput) (*product.Product, error) {
+func (s *stubProductExt) Extract(ctx context.Context, title, description string, imageURLs []string) (*product.Product, error) {
 	return s.pd, s.err
 }
 

@@ -5,8 +5,6 @@ import (
 	"net/http"
 	"strings"
 	"testing"
-
-	"jo3qma.com/yahoo_auctions_bot/internal/domain/product"
 )
 
 func jsonResponse(text string) *chatResponse {
@@ -54,9 +52,7 @@ func Test_extract_skips_search_when_resolved(t *testing.T) {
 	stage1 := `{"category":"gpu","condition":"中古","shipping_free":false,"fields":[{"key":"model","value":"RTX 3080"}],"missing_keys":[]}`
 	api, toolsCalled := stubStageExtractor(t, stage1)
 
-	pd, err := NewTestClient(api, Options{}).Extract(context.Background(), product.ExtractInput{
-		Title: "GPU", Description: "NVIDIA GeForce RTX 3080 10GB",
-	})
+	pd, err := NewTestClient(api, Options{}).Extract(context.Background(), "GPU", "NVIDIA GeForce RTX 3080 10GB", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,9 +68,7 @@ func Test_extract_skips_search_when_only_installed_configuration_missing(t *test
 	stage1 := `{"category":"server","condition":"中古","shipping_free":false,"fields":[{"key":"server_model","value":"Dell R740"}],"missing_keys":["cpu_model_line","memory_info"]}`
 	api, toolsCalled := stubStageExtractor(t, stage1)
 
-	pd, err := NewTestClient(api, Options{}).Extract(context.Background(), product.ExtractInput{
-		Title: "Dell R740", Description: "中古サーバー",
-	})
+	pd, err := NewTestClient(api, Options{}).Extract(context.Background(), "Dell R740", "中古サーバー", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,9 +84,7 @@ func Test_extract_accepts_object_shaped_fields(t *testing.T) {
 	stage1 := `{"category":"gpu","condition":"中古","shipping_free":false,"fields":{"model":"RTX 3080"},"missing_keys":[]}`
 	api, toolsCalled := stubStageExtractor(t, stage1)
 
-	pd, err := NewTestClient(api, Options{}).Extract(context.Background(), product.ExtractInput{
-		Title: "GPU", Description: "NVIDIA GeForce RTX 3080 10GB",
-	})
+	pd, err := NewTestClient(api, Options{}).Extract(context.Background(), "GPU", "NVIDIA GeForce RTX 3080 10GB", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,7 +103,7 @@ func Test_extract_text_only(t *testing.T) {
 	stage1 := `{"category":"other","condition":"","shipping_free":null,"fields":[],"missing_keys":[]}`
 	api, _ := stubStageExtractor(t, stage1)
 
-	pd, err := NewTestClient(api, Options{FastModel: "m"}).Extract(context.Background(), product.ExtractInput{Title: "t", Description: "d"})
+	pd, err := NewTestClient(api, Options{FastModel: "m"}).Extract(context.Background(), "t", "d", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -152,9 +144,7 @@ func Test_extract_search_supplement_with_lookup(t *testing.T) {
 		return nil, nil
 	}
 
-	pd, err := NewTestClient(api, Options{}).Extract(context.Background(), product.ExtractInput{
-		Title: "Dell R740", Description: "中古サーバー",
-	})
+	pd, err := NewTestClient(api, Options{}).Extract(context.Background(), "Dell R740", "中古サーバー", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
