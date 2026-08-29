@@ -50,6 +50,11 @@ func Load() (*Config, error) {
 	return cfg, nil
 }
 
+// NewOpenAIClient は Config から OpenAI Extraction クライアントを生成する。
+func NewOpenAIClient(cfg *Config) (openai.Client, error) {
+	return openai.NewClient(cfg.OpenAIAPIKey, cfg.OpenAI)
+}
+
 func getEnvInt(key string, fallback int) int {
 	v := strings.TrimSpace(os.Getenv(key))
 	if v == "" {
