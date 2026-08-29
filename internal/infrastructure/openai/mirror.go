@@ -156,3 +156,12 @@ func (m *productMirror) asStage1() *stage1Result {
 		MissingKeys:  m.unresolvedKeys(),
 	}
 }
+
+func (m *productMirror) toProduct() *product.Product {
+	return &product.Product{
+		Category:     m.category,
+		Condition:    m.condition,
+		FreeShipping: m.freeShipping,
+		Fields:       product.ValidateFields(m.category, m.fieldsSlice()),
+	}
+}

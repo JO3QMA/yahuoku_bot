@@ -133,44 +133,6 @@ func buildStage3Prompt(title, plainDesc string, s1 *stage1Result, s2 *stage2Resu
 	return b.String()
 }
 
-func buildMergePrompt(title, plainDesc string, s1 *stage1Result, s2 *stage2Result, agentFields []product.Field, searchNotes []string) string {
-	var b strings.Builder
-	b.WriteString(`以下の証拠を統合し、最終的な商品情報を JSON で返してください。
-
-【優先度】テキスト > 画像 > 検索
-`)
-	b.WriteString(fieldEvidenceRules())
-	b.WriteString(`
-【タイトル】
-`)
-	b.WriteString(title)
-	b.WriteString("\n\n【商品説明】\n")
-	b.WriteString(plainDesc)
-	b.WriteString("\n\n【Stage1】\n")
-	b.WriteString(stageEvidenceJSON(s1))
-	if s2 != nil {
-		b.WriteString("\n\n【Stage2 画像】\n")
-		b.WriteString(stage2EvidenceJSON(s2))
-	}
-	if len(agentFields) > 0 {
-		b.WriteString("\n\n【Stage3 補完フィールド】\n")
-		for _, f := range agentFields {
-			fmt.Fprintf(&b, "- %s: %s\n", f.Key, f.Value)
-		}
-	}
-	if len(searchNotes) > 0 {
-		b.WriteString("\n\n【検索メモ】\n")
-		for _, n := range searchNotes {
-			b.WriteString(n)
-			b.WriteString("\n")
-		}
-	}
-	b.WriteString(`
-【出力】category, condition, shipping_free, fields: [{"key":"<テンプレートキー>","value":"..."}] の配列
-`)
-	return b.String()
-}
-
 func stageEvidenceJSON(s1 *stage1Result) string {
 	if s1 == nil {
 		return "{}"

@@ -254,23 +254,12 @@ type agentFieldsResult struct {
 	Done   flexBool  `json:"done"`
 }
 
-type extractResponse struct {
-	Category     flexString       `json:"category"`
-	Condition    flexString       `json:"condition"`
-	FreeShipping nullableFlexBool `json:"shipping_free"`
-	Fields       fieldList        `json:"fields"`
-}
-
 func parseStage1JSON(text string) (*stage1Result, error) {
 	return parseJSON[stage1Result](text, "stage1")
 }
 
 func parseStage2JSON(text string) (*stage2Result, error) {
 	return parseJSON[stage2Result](text, "stage2")
-}
-
-func parseProductJSON(text string) (*extractResponse, error) {
-	return parseJSON[extractResponse](text, "product")
 }
 
 func parseAgentFieldsJSON(text string) (*agentFieldsResult, error) {
@@ -287,14 +276,4 @@ func parseJSON[T any](text, stage string) (*T, error) {
 		return nil, fmt.Errorf("parse %s json: %w", stage, err)
 	}
 	return &raw, nil
-}
-
-func toProduct(raw *extractResponse) *product.Product {
-	cat := product.ParseCategory(string(raw.Category))
-	return &product.Product{
-		Category:     cat,
-		Condition:    string(raw.Condition),
-		FreeShipping: raw.FreeShipping.ptr(),
-		Fields:       product.ValidateFields(cat, []product.Field(raw.Fields)),
-	}
 }

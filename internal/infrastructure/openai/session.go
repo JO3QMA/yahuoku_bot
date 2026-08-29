@@ -79,10 +79,7 @@ func (s *session) Extract(ctx context.Context, in product.ExtractInput) (*produc
 		}
 	}
 
-	pd, err := s.finalize(ctx, title, plainDesc, mirror)
-	if err != nil {
-		return nil, err
-	}
+	pd := mirror.toProduct()
 	if supplementErr != nil {
 		return pd, fmt.Errorf("search supplement: %w", supplementErr)
 	}
@@ -178,17 +175,4 @@ func (s *session) runSearchSupplement(ctx context.Context, title, plainDesc stri
 		return fmt.Errorf("unresolved after search: %s", strings.Join(remaining, ", "))
 	}
 	return nil
-}
-
-func (s *session) finalize(ctx context.Context, title, plainDesc string, mirror *productMirror) (*product.Product, error) {
-	s1 := mirror.asStage1()
-	text, err := s.api.generateJSON(ctx, s.opts.FastModel, buildMergePrompt(title, plainDesc, s1, mirror.vision, nil, mirror.searchNotes))
-	if err != nil {
-		return nil, fmt.Errorf("finalize: %w", err)
-	}
-	raw, err := parseProductJSON(text)
-	if err != nil {
-		return nil, err
-	}
-	return toProduct(raw), nil
 }

@@ -92,12 +92,14 @@ func Test_parseAgentFieldsJSON(t *testing.T) {
 	}
 }
 
-func Test_toProduct(t *testing.T) {
-	pd := toProduct(&extractResponse{
+func Test_productMirror_toProduct(t *testing.T) {
+	m := newProductMirror()
+	m.applyStage1(&stage1Result{
 		Category:  "server",
 		Condition: "中古",
-		Fields:    fieldList{{Key: "server_model", Value: "R740"}},
+		Fields:    []product.Field{{Key: "server_model", Value: "R740"}},
 	})
+	pd := m.toProduct()
 	if pd.Category != product.CategoryServer {
 		t.Fatalf("%v", pd.Category)
 	}
