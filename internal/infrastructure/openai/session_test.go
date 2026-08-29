@@ -51,7 +51,7 @@ func stubStageExtractor(t *testing.T, stage1 string) (*apiClient, *int) {
 }
 
 func Test_extract_skips_search_when_resolved(t *testing.T) {
-	stage1 := `{"category":"gpu","condition":"中古","shipping_free":false,"fields":[{"key":"model","value":"RTX 3080"}],"missing_keys":[],"candidate_queries":[]}`
+	stage1 := `{"category":"gpu","condition":"中古","shipping_free":false,"fields":[{"key":"model","value":"RTX 3080"}],"missing_keys":[]}`
 	api, toolsCalled := stubStageExtractor(t, stage1)
 
 	pd, err := NewTestClient(api, Options{}).Extract(context.Background(), product.ExtractInput{
@@ -69,7 +69,7 @@ func Test_extract_skips_search_when_resolved(t *testing.T) {
 }
 
 func Test_extract_skips_search_when_only_installed_configuration_missing(t *testing.T) {
-	stage1 := `{"category":"server","condition":"中古","shipping_free":false,"fields":[{"key":"server_model","value":"Dell R740"}],"missing_keys":["cpu_model_line","memory_info"],"candidate_queries":["Dell R740 スペック"]}`
+	stage1 := `{"category":"server","condition":"中古","shipping_free":false,"fields":[{"key":"server_model","value":"Dell R740"}],"missing_keys":["cpu_model_line","memory_info"]}`
 	api, toolsCalled := stubStageExtractor(t, stage1)
 
 	pd, err := NewTestClient(api, Options{}).Extract(context.Background(), product.ExtractInput{
@@ -87,7 +87,7 @@ func Test_extract_skips_search_when_only_installed_configuration_missing(t *test
 }
 
 func Test_extract_accepts_object_shaped_fields(t *testing.T) {
-	stage1 := `{"category":"gpu","condition":"中古","shipping_free":false,"fields":{"model":"RTX 3080"},"missing_keys":[],"candidate_queries":[]}`
+	stage1 := `{"category":"gpu","condition":"中古","shipping_free":false,"fields":{"model":"RTX 3080"},"missing_keys":[]}`
 	api, toolsCalled := stubStageExtractor(t, stage1)
 
 	pd, err := NewTestClient(api, Options{}).Extract(context.Background(), product.ExtractInput{
@@ -108,7 +108,7 @@ func Test_extract_accepts_object_shaped_fields(t *testing.T) {
 }
 
 func Test_extract_text_only(t *testing.T) {
-	stage1 := `{"category":"other","condition":"","shipping_free":null,"fields":[],"missing_keys":[],"candidate_queries":[]}`
+	stage1 := `{"category":"other","condition":"","shipping_free":null,"fields":[],"missing_keys":[]}`
 	api, _ := stubStageExtractor(t, stage1)
 
 	pd, err := NewTestClient(api, Options{FastModel: "m"}).Extract(context.Background(), product.ExtractInput{Title: "t", Description: "d"})
@@ -121,7 +121,7 @@ func Test_extract_text_only(t *testing.T) {
 }
 
 func Test_extract_search_supplement_with_lookup(t *testing.T) {
-	stage1 := `{"category":"server","condition":"","shipping_free":null,"fields":[],"missing_keys":["server_model"],"candidate_queries":[]}`
+	stage1 := `{"category":"server","condition":"","shipping_free":null,"fields":[],"missing_keys":["server_model"]}`
 	agentDone := `{"fields":[{"key":"server_model","value":"PowerEdge R740"}],"done":true}`
 
 	api := &apiClient{httpClient: &http.Client{}}

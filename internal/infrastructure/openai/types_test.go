@@ -14,7 +14,7 @@ func Test_parseStage1JSON_arrayFields(t *testing.T) {
 
 func Test_parseStage1JSON_objectFields(t *testing.T) {
 	// Gemini json_object が fields を {key:value} で返すことがある。
-	got, err := parseStage1JSON(`{"category":"server","condition":"中古","shipping_free":false,"fields":{"server_model":"Dell R740","cpu_model_line":"Xeon"},"missing_keys":[],"candidate_queries":[]}`)
+	got, err := parseStage1JSON(`{"category":"server","condition":"中古","shipping_free":false,"fields":{"server_model":"Dell R740","cpu_model_line":"Xeon"},"missing_keys":[]}`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -33,7 +33,7 @@ func Test_parseStage1JSON_objectFields(t *testing.T) {
 }
 
 func Test_parseStage1JSON_flexibleScalars(t *testing.T) {
-	got, err := parseStage1JSON(`{"category":{"label":"server"},"condition":{"value":"中古"},"shipping_free":"false","missing_keys":[{"value":"cpu_model_line"}],"candidate_queries":"Dell R740","fields":[{"key":{"value":"server_model"},"value":{"label":"R740"}}]}`)
+	got, err := parseStage1JSON(`{"category":{"label":"server"},"condition":{"value":"中古"},"shipping_free":"false","missing_keys":[{"value":"cpu_model_line"}],"fields":[{"key":{"value":"server_model"},"value":{"label":"R740"}}]}`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,9 +45,6 @@ func Test_parseStage1JSON_flexibleScalars(t *testing.T) {
 	}
 	if len(got.MissingKeys) != 1 || got.MissingKeys[0] != "cpu_model_line" {
 		t.Fatalf("missing_keys=%v", got.MissingKeys)
-	}
-	if len(got.CandidateQueries) != 1 || got.CandidateQueries[0] != "Dell R740" {
-		t.Fatalf("candidate_queries=%v", got.CandidateQueries)
 	}
 	if len(got.Fields) != 1 || got.Fields[0].Key != "server_model" || got.Fields[0].Value != "R740" {
 		t.Fatalf("fields=%+v", got.Fields)
