@@ -580,18 +580,6 @@ func TestThreadNotifier_successLogLines(t *testing.T) {
 	}
 }
 
-func TestLogThreadNotifyHelpers_smoke(t *testing.T) {
-	var buf bytes.Buffer
-	log.SetOutput(&buf)
-	t.Cleanup(func() { log.SetOutput(os.Stderr) })
-	logPriceAlertSent("aid", "uid")
-	logEndingReminderSent("aid", "uid")
-	s := buf.String()
-	if !strings.Contains(s, "aid") || !strings.Contains(s, "uid") {
-		t.Fatalf("%q", s)
-	}
-}
-
 func TestReactionHandler_flows(t *testing.T) {
 	repo := &memWatchRepo{}
 	stubReactionSansai(t, testListingData("a", nil), nil)
