@@ -3,6 +3,7 @@ package discord
 import (
 	"context"
 	"log"
+	"slices"
 
 	"github.com/diamondburned/arikawa/v3/gateway"
 
@@ -30,29 +31,11 @@ func NewAllowedFilter(guilds, channels []string) *AllowedFilter {
 
 // Allow は指定のguildID/channelIDが許可されているか返す。
 func (f *AllowedFilter) Allow(guildID, channelID string) bool {
-	if len(f.Guilds) > 0 {
-		ok := false
-		for _, g := range f.Guilds {
-			if g == guildID {
-				ok = true
-				break
-			}
-		}
-		if !ok {
-			return false
-		}
+	if len(f.Guilds) > 0 && !slices.Contains(f.Guilds, guildID) {
+		return false
 	}
-	if len(f.Channels) > 0 {
-		ok := false
-		for _, c := range f.Channels {
-			if c == channelID {
-				ok = true
-				break
-			}
-		}
-		if !ok {
-			return false
-		}
+	if len(f.Channels) > 0 && !slices.Contains(f.Channels, channelID) {
+		return false
 	}
 	return true
 }
