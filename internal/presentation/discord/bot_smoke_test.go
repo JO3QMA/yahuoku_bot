@@ -25,10 +25,7 @@ func TestNewBot_smoke(t *testing.T) {
 	stubPollingSansai(t)
 	pu := applisting.NewPreviewUsecase(&stubProductExt{pd: &product.Product{}})
 	repo := &memWatchRepo{}
-	_, err := NewBot("Bot unit-test-token.invalid", pu, NewAllowedFilter(nil, nil), repo, BotConfig{
-		CheckIntervalMinutes: 120,
-		PollDelayMs:          9999,
-	})
+	_, err := NewBot("Bot unit-test-token.invalid", pu, NewAllowedFilter(nil, nil), repo, 120, 9999)
 	if err != nil {
 		t.Fatal(err)
 	}

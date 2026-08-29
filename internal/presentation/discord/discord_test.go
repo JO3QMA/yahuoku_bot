@@ -22,14 +22,6 @@ import (
 	"github.com/jo3qma/sansai"
 )
 
-type mockGW struct {
-	connectErr error
-}
-
-func (m *mockGW) AddHandler(interface{}) func() { return func() {} }
-
-func (m *mockGW) Connect(ctx context.Context) error { return m.connectErr }
-
 type stubSessionAPI struct {
 	sendMsg  *discord.Message
 	sendErr  error
@@ -184,12 +176,14 @@ func TestBot_Run_connectError(t *testing.T) {
 	stubReactionSansai(t, testListingData("a", nil), nil)
 	stubPollingSansai(t)
 	pu := applisting.NewPreviewUsecase(&stubProductExt{pd: &product.Product{}})
-	h := NewHandler(pu, NewEmbedBuilder(&stubSessionAPI{}), NewAllowedFilter(nil, nil))
 	repo := &memWatchRepo{}
-	rh := NewReactionHandler(repo, &stubSessionAPI{user: &discord.User{ID: discord.UserID(7)}})
-	pw := appwatch.NewPollingWorker(repo, &noopNotifier{}, 60, 1)
-	b := NewBotWithDeps(&mockGW{connectErr: errors.New("nope")}, h, rh, pw)
-	err := b.Run(context.Background())
+	b, err := NewBot("Bot unit-test-token.invalid", pu, NewAllowedFilter(nil, nil), repo, 60, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	err = b.Run(ctx)
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -215,7 +209,7 @@ func TestBot_Run_cancel(t *testing.T) {
 	repo := &memWatchRepo{}
 	rh := NewReactionHandler(repo, &stubSessionAPI{user: &discord.User{ID: discord.UserID(7)}})
 	pw := appwatch.NewPollingWorker(repo, &noopNotifier{}, 60, 10_000)
-	b := NewBotWithDeps(&mockGW{}, h, rh, pw)
+	b := NewBotWithDeps(nil, h, rh, pw)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	_ = b.Run(ctx)

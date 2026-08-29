@@ -17,17 +17,12 @@ import (
 	"jo3qma.com/yahoo_auctions_bot/internal/presentation/discord"
 )
 
-type discordRunner interface {
-	Run(context.Context) error
-}
-
 // botDeps は run の依存注入用（テストで差し替え）。
 type botDeps struct {
 	LoadConfig      func() (*config.Config, error)
 	NewOpenAIClient func(cfg *config.Config) (openai.Client, error)
 	OpenRqlite      func(ctx context.Context, url string, opts ...infrarqlite.NewClientOption) (*infrarqlite.Client, error)
 	NewWatchRepo    func(*infrarqlite.Client) watch.Repository
-	NewDiscordBot   func(token string, pu *applisting.PreviewUsecase, af *discord.AllowedFilter, repo watch.Repository, cfg discord.BotConfig) (discordRunner, error)
 }
 
 func runWithSignal(parent context.Context, deps *botDeps) error {
@@ -71,13 +66,13 @@ func mergeBotDeps(d *botDeps) {
 			return infrarqlite.NewWatchRepository(c)
 		}
 	}
-	if d.NewDiscordBot == nil {
-		d.NewDiscordBot = defaultNewDiscordBot
-	}
 }
 
-func defaultNewDiscordBot(token string, pu *applisting.PreviewUsecase, af *discord.AllowedFilter, repo watch.Repository, cfg discord.BotConfig) (discordRunner, error) {
-	return discord.NewBot(token, pu, af, repo, cfg)
+func discordBotToken(raw string) string {
+	if raw != "" && !strings.HasPrefix(raw, "Bot ") {
+		return "Bot " + raw
+	}
+	return raw
 }
 
 func run(ctx context.Context, deps *botDeps) error {
@@ -113,20 +108,14 @@ func run(ctx context.Context, deps *botDeps) error {
 	previewUsecase := applisting.NewPreviewUsecase(openaiClient)
 
 	allowedFilter := discord.NewAllowedFilter(cfg.AllowedGuilds, cfg.AllowedChannels)
-	discordToken := cfg.DiscordToken
-	if discordToken != "" && !strings.HasPrefix(discordToken, "Bot ") {
-		discordToken = "Bot " + discordToken
-	}
 
-	bot, err := deps.NewDiscordBot(
-		discordToken,
+	bot, err := discord.NewBot(
+		discordBotToken(cfg.DiscordToken),
 		previewUsecase,
 		allowedFilter,
 		watchRepo,
-		discord.BotConfig{
-			CheckIntervalMinutes: cfg.CheckIntervalMinutes,
-			PollDelayMs:          cfg.PollDelayMs,
-		},
+		cfg.CheckIntervalMinutes,
+		cfg.PollDelayMs,
 	)
 	if err != nil {
 		return fmt.Errorf("bot init: %w", err)

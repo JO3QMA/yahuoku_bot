@@ -12,24 +12,12 @@ import (
 	domainwatch "jo3qma.com/yahoo_auctions_bot/internal/domain/watch"
 )
 
-// gatewaySession は Bot の Gateway 接続（テストで差し替え可能）。
-type gatewaySession interface {
-	AddHandler(fn interface{}) func()
-	Connect(ctx context.Context) error
-}
-
 // Bot はarikawa Stateとハンドラーを保持し、Discord Botを起動する。
 type Bot struct {
-	gateway         gatewaySession
+	state           *state.State
 	handler         *Handler
 	reactionHandler *ReactionHandler
 	pollingWorker   *appwatch.PollingWorker
-}
-
-// BotConfig は監視機能に関するBot設定。
-type BotConfig struct {
-	CheckIntervalMinutes int
-	PollDelayMs          int
 }
 
 // NewBot はBotを生成する。DIは呼び出し元で行う。
@@ -38,7 +26,8 @@ func NewBot(
 	previewUsecase *applisting.PreviewUsecase,
 	allowed *AllowedFilter,
 	watchRepo domainwatch.Repository,
-	botCfg BotConfig,
+	checkIntervalMinutes int,
+	pollDelayMs int,
 ) (*Bot, error) {
 	s := state.NewWithIntents(token,
 		gateway.IntentGuilds,
@@ -53,20 +42,20 @@ func NewBot(
 
 	reactionHandler := NewReactionHandler(watchRepo, s)
 	threadNotifier := NewThreadNotifier(s, watchRepo)
-	pollingWorker := appwatch.NewPollingWorker(watchRepo, threadNotifier, botCfg.CheckIntervalMinutes, botCfg.PollDelayMs)
+	pollingWorker := appwatch.NewPollingWorker(watchRepo, threadNotifier, checkIntervalMinutes, pollDelayMs)
 
 	return &Bot{
-		gateway:         s,
+		state:           s,
 		handler:         h,
 		reactionHandler: reactionHandler,
 		pollingWorker:   pollingWorker,
 	}, nil
 }
 
-// NewBotWithDeps はテスト用に Gateway とハンドラーを直接注入する。
-func NewBotWithDeps(gw gatewaySession, h *Handler, rh *ReactionHandler, pw *appwatch.PollingWorker) *Bot {
+// NewBotWithDeps はテスト用に依存を直接注入する。state が nil のとき Gateway 接続を省略する。
+func NewBotWithDeps(s *state.State, h *Handler, rh *ReactionHandler, pw *appwatch.PollingWorker) *Bot {
 	return &Bot{
-		gateway:         gw,
+		state:           s,
 		handler:         h,
 		reactionHandler: rh,
 		pollingWorker:   pw,
@@ -75,12 +64,14 @@ func NewBotWithDeps(gw gatewaySession, h *Handler, rh *ReactionHandler, pw *appw
 
 // Run はBotを起動し、Gatewayに接続する。ブロッキング。
 func (b *Bot) Run(ctx context.Context) error {
-	b.gateway.AddHandler(b.handler.HandleMessageCreate)
-	b.gateway.AddHandler(b.reactionHandler.HandleReactionAdd)
-	b.gateway.AddHandler(b.reactionHandler.HandleReactionRemove)
+	if b.state != nil {
+		b.state.AddHandler(b.handler.HandleMessageCreate)
+		b.state.AddHandler(b.reactionHandler.HandleReactionAdd)
+		b.state.AddHandler(b.reactionHandler.HandleReactionRemove)
 
-	if err := b.gateway.Connect(ctx); err != nil {
-		return err
+		if err := b.state.Connect(ctx); err != nil {
+			return err
+		}
 	}
 
 	log.Println("[yahoo_auctions_bot] Bot started")
