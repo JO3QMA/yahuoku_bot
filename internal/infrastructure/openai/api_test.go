@@ -2,12 +2,41 @@ package openai
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 )
+
+func TestToolCall_preservesExtraContentRoundTrip(t *testing.T) {
+	raw := `{"id":"call_1","type":"function","function":{"name":"default_api:lookup_spec","arguments":"{\"query\":\"test\"}"},"extra_content":{"google":{"thought_signature":"sig123"}}}`
+	var call toolCall
+	if err := json.Unmarshal([]byte(raw), &call); err != nil {
+		t.Fatal(err)
+	}
+	out, err := json.Marshal(call)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(out), "thought_signature") {
+		t.Fatalf("extra_content lost: %s", string(out))
+	}
+	if !strings.Contains(string(out), "sig123") {
+		t.Fatalf("signature lost: %s", string(out))
+	}
+}
+
+func TestIsLookupSpecTool(t *testing.T) {
+	if !isLookupSpecTool("lookup_spec") || !isLookupSpecTool("default_api:lookup_spec") {
+		t.Fatal("expected lookup_spec names")
+	}
+	if isLookupSpecTool("lookup_spec_other") || isLookupSpecTool("other") {
+		t.Fatal("unexpected match")
+	}
+}
 
 func TestIsRetryableOpenAIError(t *testing.T) {
 	if !isRetryableOpenAIError(errors.New("openai API status 429: rate limit")) {

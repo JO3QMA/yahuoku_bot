@@ -23,6 +23,12 @@ func sanitizeUTF8(s string) string {
 	return strings.ToValidUTF8(s, "")
 }
 
+// isLookupSpecTool は lookup_spec 呼び出しかどうかを判定する。
+// Gemini OpenAI 互換 API は default_api:lookup_spec のように名前を返すことがある。
+func isLookupSpecTool(name string) bool {
+	return strings.TrimPrefix(name, "default_api:") == "lookup_spec"
+}
+
 // extractJSONFromResponse はレスポンステキストから JSON を抽出する。
 func extractJSONFromResponse(text string) string {
 	text = strings.TrimSpace(text)

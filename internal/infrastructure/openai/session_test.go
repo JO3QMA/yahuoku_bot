@@ -2,6 +2,7 @@ package openai
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"strings"
 	"testing"
@@ -117,6 +118,79 @@ func Test_extract_text_only(t *testing.T) {
 	}
 	if pd == nil {
 		t.Fatal("nil product")
+	}
+}
+
+func TestChatMessage_preservesExtraContentRoundTrip(t *testing.T) {
+	raw := `{"role":"assistant","content":"","tool_calls":[{"id":"call_1","type":"function","function":{"name":"lookup_spec","arguments":"{}"}}],"extra_content":{"google":{"thought_signature":"msg-sig"}}}`
+	var msg chatMessage
+	if err := json.Unmarshal([]byte(raw), &msg); err != nil {
+		t.Fatal(err)
+	}
+	out, err := json.Marshal(msg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(out), "thought_signature") || !strings.Contains(string(out), "msg-sig") {
+		t.Fatalf("message extra_content lost: %s", string(out))
+	}
+}
+
+func Test_extract_search_supplement_preserves_thought_signature(t *testing.T) {
+	stage1 := `{"category":"server","condition":"","shipping_free":null,"fields":[],"missing_keys":["server_model"],"candidate_queries":[]}`
+	agentDone := `{"fields":[{"key":"server_model","value":"PowerEdge R740"}],"done":true}`
+	msgExtra := json.RawMessage(`{"google":{"thought_signature":"test-sig"}}`)
+
+	api := &apiClient{httpClient: &http.Client{}}
+	api.stubLookup = func(_ context.Context, q string) (string, error) {
+		return "Dell PowerEdge R740 の固定仕様。", nil
+	}
+	var calls int
+	api.stubChat = func(_ context.Context, _ string, msgs []chatMessage, cfg *chatConfig) (*chatResponse, error) {
+		text := lastUserText(msgs)
+		if strings.Contains(text, "missing_keys") {
+			return jsonResponse(stage1), nil
+		}
+		if cfg != nil && len(cfg.Tools) > 0 {
+			calls++
+			if calls == 1 {
+				return &chatResponse{
+					Choices: []chatChoice{{
+						FinishReason: "tool_calls",
+						Message: chatMessage{
+							Role:         "assistant",
+							ExtraContent: msgExtra,
+							ToolCalls: []toolCall{{
+								ID:   "call_1",
+								Type: "function",
+								Function: toolCallFunction{
+									Name:      "default_api:lookup_spec",
+									Arguments: `{"query":"Dell R740","field_key":"server_model"}`,
+								},
+							}},
+						},
+					}},
+				}, nil
+			}
+			for _, msg := range msgs {
+				if msg.Role != "assistant" || len(msg.ToolCalls) == 0 {
+					continue
+				}
+				if len(msg.ExtraContent) == 0 || !strings.Contains(string(msg.ExtraContent), "test-sig") {
+					t.Fatalf("message thought_signature not preserved in follow-up request: %+v", msg)
+				}
+			}
+			return jsonResponse(agentDone), nil
+		}
+		t.Fatal("unexpected chat call after search supplement")
+		return nil, nil
+	}
+
+	_, err := NewTestClient(api, Options{}).Extract(context.Background(), product.ExtractInput{
+		Title: "Dell R740", Description: "中古サーバー",
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
 }
 

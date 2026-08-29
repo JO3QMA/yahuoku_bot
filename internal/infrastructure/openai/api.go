@@ -36,10 +36,11 @@ type chatRequest struct {
 }
 
 type chatMessage struct {
-	Role       string     `json:"role"`
-	Content    any        `json:"content"`
-	ToolCalls  []toolCall `json:"tool_calls,omitempty"`
-	ToolCallID string     `json:"tool_call_id,omitempty"`
+	Role         string          `json:"role"`
+	Content      any             `json:"content"`
+	ToolCalls    []toolCall      `json:"tool_calls,omitempty"`
+	ToolCallID   string          `json:"tool_call_id,omitempty"`
+	ExtraContent json.RawMessage `json:"extra_content,omitempty"` // Gemini OpenAI 互換: message 単位の thought_signature
 }
 
 type contentPart struct {
@@ -53,9 +54,10 @@ type imageURLPart struct {
 }
 
 type toolCall struct {
-	ID       string           `json:"id"`
-	Type     string           `json:"type"`
-	Function toolCallFunction `json:"function"`
+	ID           string           `json:"id"`
+	Type         string           `json:"type"`
+	Function     toolCallFunction `json:"function"`
+	ExtraContent json.RawMessage  `json:"extra_content,omitempty"` // Gemini OpenAI 互換: thought_signature 保持
 }
 
 type toolCallFunction struct {
