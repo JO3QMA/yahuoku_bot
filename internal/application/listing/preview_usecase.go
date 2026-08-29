@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"time"
 
 	"github.com/jo3qma/sansai"
 
@@ -18,15 +17,8 @@ var SansaiGetItem = sansai.Get
 
 // Preview は Discord 表示用に Listing と Product を統合したデータ。
 type Preview struct {
-	Ref          domainlisting.Ref
-	Title        string
-	URL          string
-	CurrentPrice int64
-	Status       string
-	SaleType     domainlisting.SaleType
-	Images       []string
-	EndTime      *time.Time
-	Product      *product.Product
+	domainlisting.Data
+	Product *product.Product
 }
 
 // PreviewUsecase は Listing 参照から Preview を取得するユースケース。
@@ -65,14 +57,7 @@ func (u *PreviewUsecase) previewFromData(ctx context.Context, ref domainlisting.
 	}
 
 	return &Preview{
-		Ref:          data.Ref,
-		Title:        data.Title,
-		URL:          data.URL,
-		CurrentPrice: data.Price,
-		Status:       data.Status,
-		SaleType:     data.SaleType,
-		Images:       data.ImageURLs,
-		EndTime:      data.EndTime,
-		Product:      productData,
+		Data:    *data,
+		Product: productData,
 	}, nil
 }

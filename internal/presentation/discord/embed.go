@@ -31,8 +31,8 @@ func (b *EmbedBuilder) Build(preview *applisting.Preview) discord.Embed {
 	emb.URL = discord.URL(preview.URL)
 	emb.Color = 0x7B68EE
 
-	if len(preview.Images) > 0 {
-		emb.Thumbnail = &discord.EmbedThumbnail{URL: discord.URL(preview.Images[0])}
+	if len(preview.ImageURLs) > 0 {
+		emb.Thumbnail = &discord.EmbedThumbnail{URL: discord.URL(preview.ImageURLs[0])}
 	}
 
 	fields := []discord.EmbedField{
@@ -44,7 +44,7 @@ func (b *EmbedBuilder) Build(preview *applisting.Preview) discord.Embed {
 	}
 
 	fields = append(fields,
-		discord.EmbedField{Name: "現在価格", Value: formatPrice(preview.CurrentPrice), Inline: true},
+		discord.EmbedField{Name: "現在価格", Value: formatPrice(preview.Price), Inline: true},
 	)
 
 	if preview.SaleType == listing.SaleTypeAuction {
