@@ -320,8 +320,8 @@ func TestEmbedBuilder_Build_and_Send(t *testing.T) {
 			Category: product.CategoryServer, Condition: "新品", FreeShipping: &sf,
 			Fields: []product.Field{
 				{Key: "server_model", Value: "Fujitsu Primergy RX1330 M4"},
-				{Key: "cpu_model_line", Value: "Intel Core Ultra 7 355 @4.25GHz x1"},
-				{Key: "core_thread_info", Value: "x"},
+				{Key: "cpu_model_line", Value: "Intel Xeon Gold 6248 @2.5GHz (SkyLake)"},
+				{Key: "core_thread_info", Value: "(2 CPU/40 Core/80 Thread)"},
 				{Key: "socket_count", Value: "2"},
 				{Key: "memory_info", Value: "DDR4 Unbuffered 2133MHz 8GB x8 Total: 64GB"},
 				{Key: "storage_info", Value: "SSD 256GB x1"},

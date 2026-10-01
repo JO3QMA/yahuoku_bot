@@ -28,7 +28,7 @@ func TestValidateFields_serverTemplateOrder(t *testing.T) {
 		{Key: "gpu", Value: "AMD Radeon RX9070XT x2"},
 		{Key: "server_model", Value: "Fujitsu Primergy RX1330 M4"},
 		{Key: "storage_type", Value: "SSD"},
-		{Key: "cpu_model_line", Value: "Intel Core Ultra 7 355 @4.25GHz x1"},
+		{Key: "cpu_model_line", Value: "Intel Xeon Gold 6248 @2.5GHz (SkyLake)"},
 		{Key: "storage_info", Value: "SSD 256GB x1"},
 	}
 	out := ValidateFields(CategoryServer, in)
