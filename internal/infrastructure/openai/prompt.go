@@ -42,11 +42,25 @@ func fieldEvidenceRules() string {
 `
 }
 
+func cpuFieldFormatRules() string {
+	return `
+【CPU 型番・コア/スレッドの value 形式（server: cpu_model_line / core_thread_info、cpu: model / core_thread_info）】
+- cpu_model_line または model:
+  - 数量は付けない（x1, x2, ×2 等は禁止。複数 CPU は同一型番として1行に書く）
+  - 周波数は @2.5GHz のように付与してよい
+  - 型番から世代コードネームが一意にわかる場合のみ、末尾に (SkyLake) のように付与。不明なら省略
+- core_thread_info:
+  - 必ず (n CPU/m Core/o Thread) の形式のみ（n=搭載 CPU 個数、m=全 CPU 合計コア数、o=全 CPU 合計スレッド数）
+  - この形式以外は使わない
+`
+}
+
 func serverValueExamples() string {
 	return `
 【server ジャンルの value 形式例】
 - server_model: Fujitsu Primergy RX1330 M4
-- cpu_model_line: Intel Core Ultra 7 355 @4.25GHz x1
+- cpu_model_line: Intel Xeon Gold 6248 @2.5GHz (SkyLake)
+- core_thread_info: (2 CPU/40 Core/80 Thread)
 - memory_info: DDR4 Unbuffered 2133MHz 8GB x8 Total: 64GB
 - storage_info: SSD 256GB x1
 - gpu: AMD Radeon RX9070XT x2（GPU非搭載の場合は fields に含めない）
@@ -63,6 +77,7 @@ func buildStage1Prompt(title, plainDesc string) string {
 	b.WriteString(categoryBlock())
 	b.WriteString(classificationRules())
 	b.WriteString(serverValueExamples())
+	b.WriteString(cpuFieldFormatRules())
 	b.WriteString(`
 【出力形式】
 - category, condition, shipping_free, fields: [{"key":"<テンプレートキー>","value":"..."}] の配列
@@ -91,6 +106,7 @@ func buildStage2Prompt(title, plainDesc string) string {
 【対象ジャンル候補とフィールドキー】
 `)
 	b.WriteString(categoryBlock())
+	b.WriteString(cpuFieldFormatRules())
 	b.WriteString(`
 【出力】
 - image_fields: 画像から読み取れた {key, value, confidence}（confidence は high/medium/low）
@@ -114,6 +130,7 @@ func buildStage3Prompt(title, plainDesc string, s1 *stage1Result, s2 *stage2Resu
 【優先度】テキスト > 画像 > 検索結果
 `)
 	b.WriteString(fieldEvidenceRules())
+	b.WriteString(cpuFieldFormatRules())
 	b.WriteString(`
 【タイトル】
 `)
